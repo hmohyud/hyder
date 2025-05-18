@@ -1,0 +1,232 @@
+{
+    "orgGroups": {
+        "uchicago": [
+            "Python",
+            "Data Science",
+            "Pandas",
+            "CUDA",
+            "TensorFlow",
+            "Keras",
+            "Algorithms",
+            "Command Prompt",
+            "Git",
+            "Bash",
+            "Secure Shell (SSH)",
+            "Application Programming Interfaces (API)",
+            "Server Architecture",
+            "Network Security",
+            "Distributed Systems",
+            "Back-End Web Development",
+            "Front-End Development",
+            "Computer Vision",
+            "Generative AI",
+            "Figma (Software)",
+            "3D Modeling",
+            "3D Printing",
+            "Autodesk Fusion 360",
+            "Arduino IDE",
+            "Arduino",
+            "Cascading Style Sheets (CSS)",
+            "Assembly Language",
+            "Object-Oriented Programming (OOP)",
+            "jQuery",
+            "HTML",
+            "C (Programming Language)",
+            "System Administration",
+            "Automation Scripting",
+            "Troubleshooting",
+            "IT support"
+        ],
+        "salavon": [
+            "PyTorch",
+            "Stable Diffusion",
+            "AI/ML Model Optimization",
+            "Full-Stack Development",
+            "Team Management"
+        ],
+        "footprints": [
+            "JavaScript",
+            "3js",
+            "Data Visualization",
+            "SQL"
+        ]
+    },
+    "skillNodes": [
+        {
+            "id": "Python",
+            "description": "Used in AI/ML and scripting."
+        },
+        {
+            "id": "Data Science",
+            "description": "Field involving data analysis and inference."
+        },
+        {
+            "id": "Pandas",
+            "description": "Data analysis library in Python."
+        },
+        {
+            "id": "CUDA",
+            "description": "NVIDIA GPU computing toolkit."
+        },
+        {
+            "id": "TensorFlow",
+            "description": "Google ML framework."
+        },
+        {
+            "id": "Keras",
+            "description": "High-level neural networks API."
+        },
+        {
+            "id": "Algorithms",
+            "description": "Logic and flow of computing."
+        },
+        {
+            "id": "Command Prompt",
+            "description": "Windows command-line interface."
+        },
+        {
+            "id": "Git",
+            "description": "Version control system."
+        },
+        {
+            "id": "Bash",
+            "description": "Unix shell scripting language."
+        },
+        {
+            "id": "Secure Shell (SSH)",
+            "description": "Remote system access."
+        },
+        {
+            "id": "Application Programming Interfaces (API)",
+            "description": "System communication methods."
+        },
+        {
+            "id": "Server Architecture",
+            "description": "Server structure and logic."
+        },
+        {
+            "id": "Network Security",
+            "description": "Protecting digital networks."
+        },
+        {
+            "id": "Distributed Systems",
+            "description": "Multi-node computational systems."
+        },
+        {
+            "id": "Back-End Web Development",
+            "description": "Server-side programming."
+        },
+        {
+            "id": "Front-End Development",
+            "description": "Client-side interfaces and logic."
+        },
+        {
+            "id": "Computer Vision",
+            "description": "AI image understanding."
+        },
+        {
+            "id": "Generative AI",
+            "description": "AI that generates content."
+        },
+        {
+            "id": "Figma (Software)",
+            "description": "UI design collaboration tool."
+        },
+        {
+            "id": "3D Modeling",
+            "description": "Creating 3D representations."
+        },
+        {
+            "id": "3D Printing",
+            "description": "Material extrusion of 3D models."
+        },
+        {
+            "id": "Autodesk Fusion 360",
+            "description": "CAD software by Autodesk."
+        },
+        {
+            "id": "Arduino IDE",
+            "description": "Code editor for Arduino projects."
+        },
+        {
+            "id": "Arduino",
+            "description": "Microcontroller platform."
+        },
+        {
+            "id": "Cascading Style Sheets (CSS)",
+            "description": "Web styling language."
+        },
+        {
+            "id": "Assembly Language",
+            "description": "Low-level programming language."
+        },
+        {
+            "id": "Object-Oriented Programming (OOP)",
+            "description": "Programming paradigm using objects."
+        },
+        {
+            "id": "jQuery",
+            "description": "JavaScript library for DOM manipulation."
+        },
+        {
+            "id": "HTML",
+            "description": "Markup language for web."
+        },
+        {
+            "id": "C (Programming Language)",
+            "description": "Procedural programming language."
+        },
+        {
+            "id": "System Administration",
+            "description": "Maintaining computer systems."
+        },
+        {
+            "id": "Automation Scripting",
+            "description": "Writing scripts for automation."
+        },
+        {
+            "id": "Troubleshooting",
+            "description": "Problem identification and fixing."
+        },
+        {
+            "id": "IT support",
+            "description": "Tech help and infrastructure management."
+        },
+        {
+            "id": "PyTorch",
+            "description": "Deep learning framework by Facebook."
+        },
+        {
+            "id": "Stable Diffusion",
+            "description": "AI image generation model."
+        },
+        {
+            "id": "AI/ML Model Optimization",
+            "description": "Improving ML model efficiency."
+        },
+        {
+            "id": "Full-Stack Development",
+            "description": "Frontend + backend software development."
+        },
+        {
+            "id": "Team Management",
+            "description": "Overseeing project teams and goals."
+        },
+        {
+            "id": "JavaScript",
+            "description": "Main web programming language."
+        },
+        {
+            "id": "3js",
+            "description": "3D rendering in the browser."
+        },
+        {
+            "id": "Data Visualization",
+            "description": "Presenting data graphically."
+        },
+        {
+            "id": "SQL",
+            "description": "Language for managing databases."
+        }
+    ]
+}
