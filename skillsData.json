@@ -224,7 +224,7 @@
             "id": "Arduino",
             "description": "Microcontroller platform.",
             "category": "Embedded Systems",
-            "proficiency": 6,
+            "proficiency": 5,
             "learnedFrom": "I used Arduino in two engineering/coding classes, and also for personal projects. One notable project was a calendar device I scripted and built that synced with my Google Calendar. I enjoy experimenting with Arduino for fun, creating interactive hardware-driven tools and prototypes."
         },
         {
@@ -308,7 +308,7 @@
             "id": "Stable Diffusion",
             "description": "AI image generation model.",
             "category": "Artificial Intelligence",
-            "proficiency": 8,
+            "proficiency": 9,
             "learnedFrom": "I've worked extensively with Stable Diffusion for nearly two years, both through Automatic1111 and ComfyUI. My contributions go beyond prompt crafting—I've developed advanced tooling to manipulate models during inference, including live tensor transformations, sampler customization, and layer-specific behavior changes. I also built infrastructure for batch processing, API queuing, WebSocket-based progress tracking, and integrated data pipelines to experiment and refine results. My work often involved debugging model internals, inspecting UNet behaviors, and deploying research tooling to support iterative experimentation and visual analysis."
         },
         {
