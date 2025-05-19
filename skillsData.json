@@ -245,7 +245,7 @@
             "id": "Object-Oriented Programming (OOP)",
             "description": "Programming paradigm using objects.",
             "category": "Programming Concepts",
-            "proficiency": 6,
+            "proficiency": 8,
             "learnedFrom": "I've used OOP extensively across various languages including Python, JavaScript, and C++. Many of the AI and software systems I've built rely on well-structured object-oriented design, especially when wrapping models, interfaces, or hardware abstractions in modular components."
         },
         {
