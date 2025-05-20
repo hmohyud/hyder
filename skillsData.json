@@ -26,7 +26,7 @@
             "Autodesk Fusion 360",
             "Arduino IDE",
             "Arduino",
-            "Cascading Style Sheets (CSS)",
+            "CSS",
             "Assembly Language",
             "Object-Oriented Programming (OOP)",
             "jQuery",
@@ -228,8 +228,8 @@
             "learnedFrom": "I used Arduino in two engineering/coding classes, and also for personal projects. One notable project was a calendar device I scripted and built that synced with my Google Calendar. I enjoy experimenting with Arduino for fun, creating interactive hardware-driven tools and prototypes."
         },
         {
-            "id": "Cascading Style Sheets (CSS)",
-            "description": "Web styling language.",
+            "id": "CSS",
+            "description": "Web styling language (Cascading Style Sheets).",
             "category": "Web Development",
             "proficiency": 10,
             "learnedFrom": "I've been using CSS since I first learned HTML in middle school. It's remained one of my favorite tools to experiment with, especially as someone who majored in Computer Science and minored in Visual Arts. I enjoy combining design and logic, and CSS has been a core part of that expression in my web projects."
@@ -343,7 +343,7 @@
             "id": "3js",
             "description": "3D rendering in the browser.",
             "category": "Web Development",
-            "proficiency": 4,
+            "proficiency": 5,
             "learnedFrom": "I used 3js extensively in my data visualization course, focusing on building interactive and immersive 3D visualizations for presenting complex data structures."
         },
         {
