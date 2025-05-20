@@ -11,16 +11,16 @@
             "Command Prompt",
             "Git",
             "Bash",
-            "Secure Shell (SSH)",
-            "Application Programming Interfaces (API)",
+            "SSH",
+            "API",
             "Server Architecture",
             "Network Security",
             "Distributed Systems",
-            "Back-End Web Development",
-            "Front-End Development",
+            "Back-End Web Dev",
+            "Front-End Dev",
             "Computer Vision",
             "Generative AI",
-            "Figma (Software)",
+            "Figma",
             "3D Modeling",
             "3D Printing",
             "Autodesk Fusion 360",
@@ -28,10 +28,10 @@
             "Arduino",
             "CSS",
             "Assembly Language",
-            "Object-Oriented Programming (OOP)",
+            "OOP",
             "jQuery",
             "HTML",
-            "C (Programming Language)",
+            "C",
             "System Administration",
             "Automation Scripting",
             "Troubleshooting",
@@ -123,15 +123,15 @@
             "learnedFrom": "Regularly use Bash for scripting and terminal operations. It's my preferred shell over cmd or standard terminal interfaces, and I rely on it for automation, file management, and system workflows."
         },
         {
-            "id": "Secure Shell (SSH)",
-            "description": "Remote system access.",
+            "id": "SSH",
+            "description": "Remote system access (Secure Shell).",
             "category": "DevOps",
             "proficiency": 6,
             "learnedFrom": "Primarily used SSH for signing into servers during work at Salavon Studios and for various class projects. Set up over 10 SSH tunnels for secure access and data routing."
         },
         {
-            "id": "Application Programming Interfaces (API)",
-            "description": "System communication methods.",
+            "id": "API",
+            "description": "System communication methods (Application Programming Interfaces).",
             "category": "Software Engineering",
             "proficiency": 7,
             "learnedFrom": "Used a wide range of APIs across different projects for both frontend and backend integration. For example, created an automated Twitter bot (https://x.com/JarJarbinksays) that used AI to convert text into Jar Jar Binks-speak, overlaid it on AI-generated images, and posted them via the Twitter API. Experience includes working with OpenAI, image generation, and social media APIs."
@@ -158,14 +158,14 @@
             "learnedFrom": "While working on AI generation pipelines at Salavon Studios, I developed queuing and load-balancing systems that coordinated multiple server processes, distributed jobs, and synchronized state using a shared file system and job state tracking. Though not at the scale of large cloud infrastructure, I built practical, functional distributed workflows tailored for real-time AI tasks."
         },
         {
-            "id": "Back-End Web Development",
+            "id": "Back-End Web Dev",
             "description": "Server-side programming.",
             "category": "Web Development",
             "proficiency": 9,
             "learnedFrom": "For the SPIM project and other Salavon Studios tooling, I wrote Python-based servers with queuing systems, WebSocket progress streaming, API endpoints, and efficient file storage. I handled user input routing, stateful job coordination, and live data logging—essentially crafting the entire backend pipeline from scratch to serve real-time AI tools."
         },
         {
-            "id": "Front-End Development",
+            "id": "Front-End Dev",
             "description": "Client-side interfaces and logic.",
             "category": "Web Development",
             "proficiency": 9,
@@ -186,8 +186,8 @@
             "learnedFrom": "Over nearly two years, I've worked extensively with generative AI models—particularly Stable Diffusion. At Salavon Studios, I was the primary developer on a system for real-time model modification and visualization. My work involved understanding sampling processes, modifying tensor weights during inference, and building full-stack tooling for interacting with generation pipelines. While my experience centers on image generation, I've also dabbled in generative text models for comparison and experimentation."
         },
         {
-            "id": "Figma (Software)",
-            "description": "UI design collaboration tool.",
+            "id": "Figma",
+            "description": "UI design collaboration tool/software.",
             "category": "Design",
             "proficiency": 3,
             "learnedFrom": "I used Figma during a user interaction course where we prototyped and evaluated interface layouts as part of our iterative design process. Additionally, I incorporated it into my work with Professor Jason Salavon to communicate UI concepts and wireframe layouts for our AI tool interfaces. While I'm not a daily user, I'm comfortable using Figma to mock up and refine functional designs collaboratively."
@@ -242,8 +242,8 @@
             "learnedFrom": "I learned Assembly Language during an introductory computer science course at the University of Chicago. A significant part of the course involved a challenging 'binary bomb' assignment, where we had to step through compiled assembly code and debug it without triggering faults. This taught me a lot about low-level execution and memory handling."
         },
         {
-            "id": "Object-Oriented Programming (OOP)",
-            "description": "Programming paradigm using objects.",
+            "id": "OOP",
+            "description": "Programming paradigm using objects (Object-Oriented Programming).",
             "category": "Programming Concepts",
             "proficiency": 8,
             "learnedFrom": "I've used OOP extensively across various languages including Python, JavaScript, and C++. Many of the AI and software systems I've built rely on well-structured object-oriented design, especially when wrapping models, interfaces, or hardware abstractions in modular components."
@@ -263,7 +263,7 @@
             "learnedFrom": "I've been using HTML since middle school for personal websites and projects. Over time, I've become very comfortable with its structure and conventions, especially in combination with CSS for styling. It's foundational to many of the web projects I've worked on, both personally and professionally."
         },
         {
-            "id": "C (Programming Language)",
+            "id": "C",
             "description": "Procedural programming language.",
             "category": "Programming Languages",
             "proficiency": 4,
