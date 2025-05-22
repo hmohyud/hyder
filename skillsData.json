@@ -1,56 +1,4 @@
 {
-    "orgGroups": {
-        "uchicago": [
-            "Python",
-            "Data Science",
-            "Pandas",
-            "CUDA",
-            "TensorFlow",
-            "Keras",
-            "Algorithms",
-            "Command Prompt",
-            "Git",
-            "Bash",
-            "SSH",
-            "API",
-            "Server Architecture",
-            "Network Security",
-            "Distributed Systems",
-            "Back-End Web Dev",
-            "Front-End Dev",
-            "Computer Vision",
-            "Generative AI",
-            "Figma",
-            "3D Modeling",
-            "3D Printing",
-            "Autodesk Fusion 360",
-            "Arduino IDE",
-            "Arduino",
-            "CSS",
-            "Assembly Language",
-            "OOP",
-            "jQuery",
-            "HTML",
-            "C",
-            "System Administration",
-            "Automation Scripting",
-            "Troubleshooting",
-            "IT support"
-        ],
-        "salavon": [
-            "PyTorch",
-            "Stable Diffusion",
-            "AI/ML Model Optimization",
-            "Full-Stack Development",
-            "Team Management"
-        ],
-        "footprints": [
-            "JavaScript",
-            "3js",
-            "Data Visualization",
-            "SQL"
-        ]
-    },
     "skillNodes": [
         {
             "id": "Python",
@@ -85,7 +33,7 @@
             "description": "Google ML framework.",
             "category": "Machine Learning",
             "proficiency": 4,
-            "learnedFrom": "Used TensorFlow in coursework and for training small- to medium-scale neural networks, including early versions of my sign language classifier. While I currently prefer PyTorch for most projects, I’m comfortable reading, modifying, and executing TensorFlow-based pipelines."
+            "learnedFrom": "Used TensorFlow in coursework and for training small- to medium-scale neural networks, including early versions of my sign language classifier. While I currently prefer PyTorch for most projects, I'm comfortable reading, modifying, and executing TensorFlow-based pipelines."
         },
         {
             "id": "Keras",
@@ -102,25 +50,32 @@
             "learnedFrom": "I took multiple algorithm-focused courses during my CS degree at the University of Chicago and have applied algorithms extensively in personal and academic coding projects. From sorting and graph traversal to optimization and search algorithms, I've implemented a variety of algorithmic solutions in different contexts—ranging from backend logic to AI/ML pipelines."
         },
         {
-            "id": "Command Prompt",
-            "description": "Windows command-line interface.",
+            "id": "CMD",
+            "description": "Windows command-line interface (Command Prompt).",
             "category": "Shells & Terminals",
             "proficiency": 6,
-            "learnedFrom": "I’m quite comfortable using Command Prompt for scripting, navigation, and system-level operations on Windows. While I prefer Bash and Unix-style terminals for most development work, I regularly use CMD when working on Windows environments, especially for quick diagnostics, scripting, or setting up tooling."
+            "learnedFrom": "I'm quite comfortable using Command Prompt for scripting, navigation, and system-level operations on Windows. While I prefer Bash and Unix-style terminals for most development work, I regularly use CMD when working on Windows environments, especially for quick diagnostics, scripting, or setting up tooling."
         },
         {
             "id": "Git",
             "description": "Version control system.",
             "category": "Version Control",
             "proficiency": 8,
-            "learnedFrom": "I use Git regularly across personal and collaborative projects for version control and workflow management. My GitHub hosts a range of my work, including AI tools and web infrastructure: https://github.com/hmohyud. Even before adopting Git, I used PhoenixForge—UChicago’s version control platform—which had a similar structure, though I strongly prefer Git's flexibility and ecosystem."
+            "learnedFrom": "I use Git regularly across personal and collaborative projects for version control and workflow management. My GitHub hosts a range of my work, including AI tools and web infrastructure: https://github.com/hmohyud. Even before adopting Git, I used PhoenixForge—UChicago's version control platform—which had a similar structure, though I strongly prefer Git's flexibility and ecosystem."
         },
         {
             "id": "Bash",
             "description": "Unix shell scripting language.",
-            "category": "Scripting",
+            "category": "Shells & Terminals",
             "proficiency": 7,
             "learnedFrom": "Regularly use Bash for scripting and terminal operations. It's my preferred shell over cmd or standard terminal interfaces, and I rely on it for automation, file management, and system workflows."
+        },
+        {
+            "id": "Terminal",
+            "description": "General terminal use, including command-line navigation, scripting, and development workflows.",
+            "category": "Shells & Terminals",
+            "proficiency": 7,
+            "learnedFrom": "I'm highly familiar with both Unix-like and Windows terminal environments. Beyond Bash and CMD, I frequently use integrated terminals in VS Code and standalone terminal emulators like Windows Terminal or iTerm2 for development, SSH, Git operations, and system management."
         },
         {
             "id": "SSH",
@@ -158,7 +113,7 @@
             "learnedFrom": "While working on AI generation pipelines at Salavon Studios, I developed queuing and load-balancing systems that coordinated multiple server processes, distributed jobs, and synchronized state using a shared file system and job state tracking. Though not at the scale of large cloud infrastructure, I built practical, functional distributed workflows tailored for real-time AI tasks."
         },
         {
-            "id": "Back-End Web Dev",
+            "id": "Back-End Dev",
             "description": "Server-side programming.",
             "category": "Web Development",
             "proficiency": 9,
