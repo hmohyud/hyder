@@ -290,9 +290,16 @@
         {
             "id": "JavaScript",
             "description": "Main web programming language.",
-            "category": "Web Development",
+            "category": "Programming Languages",
             "proficiency": 7,
             "learnedFrom": "I've used JavaScript across numerous projects, from frontend development with React to backend scripting and browser-based interactivity. My experience spans both academic courses and independent work, with a focus on React and related ecosystems."
+        },
+        {
+            "id": "C++",
+            "description": "Low-level systems programming language with direct memory access.",
+            "category": "Programming Languages",
+            "proficiency": 5,
+            "learnedFrom": "I used C++ extensively in school, especially in early programming courses that focused on computer architecture, memory management, and low-level problem solving. We worked directly with pointers, memory manipulation, and manual resource handling, which gave me a strong understanding of what’s happening under the hood."
         },
         {
             "id": "3js",
