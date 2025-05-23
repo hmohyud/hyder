@@ -206,7 +206,7 @@
         {
             "id": "jQuery",
             "description": "JavaScript library for DOM manipulation.",
-            "category": "Web Development",
+            "category": "Programming Languages",
             "proficiency": 3,
             "learnedFrom": "I've used jQuery in a few older projects and while reviewing legacy code. I'm familiar with its core syntax and utility methods, though I generally prefer more modern JavaScript or React-based approaches in recent work."
         },
