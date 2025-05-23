@@ -1,0 +1,326 @@
+{
+    "skillNodes": [
+        {
+            "id": "Python",
+            "description": "Used in AI/ML and scripting.",
+            "category": "Programming Languages",
+            "proficiency": 10,
+            "learnedFrom": "I use Python for most of my work—AI, scripting, APIs, server tools, and data processing. It's my default language for both personal and professional projects."
+        },
+        {
+            "id": "Data Science",
+            "description": "Field involving data analysis and inference.",
+            "category": "Data",
+            "proficiency": 6,
+            "learnedFrom": "I worked with real-world data for CorporateFootprints, cleaning, geocoding, and filtering it for software use. I also took courses in statistics and data visualization."
+        },
+        {
+            "id": "Pandas",
+            "description": "Data analysis library in Python.",
+            "category": "Data",
+            "proficiency": 7,
+            "learnedFrom": "I use Pandas for filtering, transforming, and analyzing data. It was key in projects like CorporateFootprints and several AI-related pipelines."
+        },
+        {
+            "id": "CUDA",
+            "description": "NVIDIA GPU computing toolkit.",
+            "category": "Machine Learning",
+            "proficiency": 5,
+            "learnedFrom": "Used CUDA implicitly through tools like PyTorch and TensorFlow for GPU acceleration. While not writing raw CUDA code, I regularly optimize workflows to take advantage of CUDA-based parallelization in AI/ML pipelines—especially within Stable Diffusion and model manipulation projects."
+        },
+        {
+            "id": "TensorFlow",
+            "description": "Google ML framework.",
+            "category": "Machine Learning",
+            "proficiency": 4,
+            "learnedFrom": "Used TensorFlow in coursework and for training small- to medium-scale neural networks, including early versions of my sign language classifier. While I currently prefer PyTorch for most projects, I'm comfortable reading, modifying, and executing TensorFlow-based pipelines."
+        },
+        {
+            "id": "Keras",
+            "description": "High-level neural networks API.",
+            "category": "Machine Learning",
+            "proficiency": 5,
+            "learnedFrom": "I used Keras extensively while developing sign language recognition systems—both for individual letters and full sign phrases—during university and independent work. I also applied it to several smaller assignments and projects where its simplicity helped accelerate experimentation and training."
+        },
+        {
+            "id": "Algorithms",
+            "description": "Logic and flow of computing.",
+            "category": "Computer Science Fundamentals",
+            "proficiency": 7,
+            "learnedFrom": "I took multiple algorithm-focused courses during my CS degree at the University of Chicago and have applied algorithms extensively in personal and academic coding projects. From sorting and graph traversal to optimization and search algorithms, I've implemented a variety of algorithmic solutions in different contexts—ranging from backend logic to AI/ML pipelines."
+        },
+        {
+            "id": "CMD",
+            "description": "Windows command-line interface (Command Prompt).",
+            "category": "Shells & Terminals",
+            "proficiency": 6,
+            "learnedFrom": "I'm quite comfortable using Command Prompt for scripting, navigation, and system-level operations on Windows. While I prefer Bash and Unix-style terminals for most development work, I regularly use CMD when working on Windows environments, especially for quick diagnostics, scripting, or setting up tooling."
+        },
+        {
+            "id": "Git",
+            "description": "Version control system.",
+            "category": "Version Control",
+            "proficiency": 8,
+            "learnedFrom": "I use Git regularly across personal and collaborative projects for version control and workflow management. My GitHub hosts a range of my work, including AI tools and web infrastructure: https://github.com/hmohyud. Even before adopting Git, I used PhoenixForge—UChicago's version control platform—which had a similar structure, though I strongly prefer Git's flexibility and ecosystem."
+        },
+        {
+            "id": "Bash",
+            "description": "Unix shell scripting language.",
+            "category": "Shells & Terminals",
+            "proficiency": 7,
+            "learnedFrom": "Regularly use Bash for scripting and terminal operations. It's my preferred shell over cmd or standard terminal interfaces, and I rely on it for automation, file management, and system workflows."
+        },
+        {
+            "id": "Terminal",
+            "description": "General terminal use, including command-line navigation, scripting, and development workflows.",
+            "category": "Shells & Terminals",
+            "proficiency": 7,
+            "learnedFrom": "I'm highly familiar with both Unix-like and Windows terminal environments. Beyond Bash and CMD, I frequently use integrated terminals in VS Code and standalone terminal emulators like Windows Terminal or iTerm2 for development, SSH, Git operations, and system management."
+        },
+        {
+            "id": "SSH",
+            "description": "Remote system access (Secure Shell).",
+            "category": "DevOps",
+            "proficiency": 6,
+            "learnedFrom": "Primarily used SSH for signing into servers during work at Salavon Studios and for various class projects. Set up over 10 SSH tunnels for secure access and data routing."
+        },
+        {
+            "id": "API",
+            "description": "System communication methods (Application Programming Interfaces).",
+            "category": "Software Engineering",
+            "proficiency": 7,
+            "learnedFrom": "Used a wide range of APIs across different projects for both frontend and backend integration. For example, created an automated Twitter bot (https://x.com/JarJarbinksays) that used AI to convert text into Jar Jar Binks-speak, overlaid it on AI-generated images, and posted them via the Twitter API. Experience includes working with OpenAI, image generation, and social media APIs."
+        },
+        {
+            "id": "Server Architecture",
+            "description": "Server structure and logic.",
+            "category": "Systems",
+            "proficiency": 7,
+            "learnedFrom": "Designed and maintained the entire backend architecture for Salavon Studios' AI tooling, including secure tunneling with Cloudflared, tmux-based server session management, WebSocket queues, and load-balanced model generation. Built pipelines that integrated servers, storage, real-time interfaces, and user access control—fully self-deployed and iteratively refined."
+        },
+        {
+            "id": "Network Security",
+            "description": "Protecting digital networks.",
+            "category": "Systems",
+            "proficiency": 6,
+            "learnedFrom": "Took two university-level computer security courses—one focused specifically on network security. In practice, I implemented multiple security systems for Salavon Studios projects, including access control mechanisms, ID verification layers, and obfuscation strategies to safeguard our servers and codebases from unauthorized access and tampering."
+        },
+        {
+            "id": "Distributed Systems",
+            "description": "Multi-node computational systems.",
+            "category": "Systems",
+            "proficiency": 6,
+            "learnedFrom": "While working on AI generation pipelines at Salavon Studios, I developed queuing and load-balancing systems that coordinated multiple server processes, distributed jobs, and synchronized state using a shared file system and job state tracking. Though not at the scale of large cloud infrastructure, I built practical, functional distributed workflows tailored for real-time AI tasks."
+        },
+        {
+            "id": "Back-End Dev",
+            "description": "Server-side programming.",
+            "category": "Web Development",
+            "proficiency": 9,
+            "learnedFrom": "For the SPIM project and other Salavon Studios tooling, I wrote Python-based servers with queuing systems, WebSocket progress streaming, API endpoints, and efficient file storage. I handled user input routing, stateful job coordination, and live data logging—essentially crafting the entire backend pipeline from scratch to serve real-time AI tools."
+        },
+        {
+            "id": "Front-End Dev",
+            "description": "Client-side interfaces and logic.",
+            "category": "Web Development",
+            "proficiency": 9,
+            "learnedFrom": "I've built several full-featured front-end applications, including the SPIM project at Salavon Studios where I handled the entire React-based interface. I'm highly comfortable working with HTML, CSS, and JavaScript (including modern libraries like React and styled-components), and often design intuitive UIs that integrate smoothly with back-end systems and visualization pipelines."
+        },
+        {
+            "id": "Computer Vision",
+            "description": "AI image understanding.",
+            "category": "Artificial Intelligence",
+            "proficiency": 7,
+            "learnedFrom": "I developed a custom sign language recognition system using MediaPipe, focusing on letter-level detection through image-inferred hand positioning. I later expanded this into a full sign language reader project, spending over 40 hours refining the model and interface. While the final product wasn't production-ready due to limited data, I implemented clever data inflation techniques and achieved a functional proof-of-concept. The project gave me deep exposure to pose estimation, gesture classification, and dataset design."
+        },
+        {
+            "id": "Generative AI",
+            "description": "AI that generates content.",
+            "category": "Artificial Intelligence",
+            "proficiency": 8,
+            "learnedFrom": "Over nearly two years, I've worked extensively with generative AI models—particularly Stable Diffusion. At Salavon Studios, I was the primary developer on a system for real-time model modification and visualization. My work involved understanding sampling processes, modifying tensor weights during inference, and building full-stack tooling for interacting with generation pipelines. While my experience centers on image generation, I've also dabbled in generative text models for comparison and experimentation."
+        },
+        {
+            "id": "Figma",
+            "description": "UI design collaboration tool/software.",
+            "category": "Design",
+            "proficiency": 3,
+            "learnedFrom": "I used Figma during a user interaction course where we prototyped and evaluated interface layouts as part of our iterative design process. Additionally, I incorporated it into my work with Professor Jason Salavon to communicate UI concepts and wireframe layouts for our AI tool interfaces. While I'm not a daily user, I'm comfortable using Figma to mock up and refine functional designs collaboratively."
+        },
+        {
+            "id": "3D Modeling",
+            "description": "Creating 3D representations.",
+            "category": "3D Design",
+            "proficiency": 7,
+            "learnedFrom": "My 3D modeling experience stems from both academic and personal projects. I used Fusion 360 extensively for two engineering-focused coding courses at UChicago. Outside of class, I designed dozens of printable parts and prototypes for use with my Bambu Labs 3D printer. This included precise mechanical designs, enclosures for electronics, and aesthetic pieces. The iterative design process helped me become fluent in parametric modeling, tolerancing, and design-for-manufacturing principles."
+        },
+        {
+            "id": "3D Printing",
+            "description": "Material extrusion of 3D models.",
+            "category": "3D Design",
+            "proficiency": 8,
+            "learnedFrom": "I own a Bambu Labs printer and have completed well over 200 prints. Many of the models I printed were self-designed using Fusion 360. This includes both functional and aesthetic components, giving me hands-on experience with the entire design-to-print pipeline. Through this, I've developed a strong understanding of slicing, printer tuning, material considerations, and print troubleshooting."
+        },
+        {
+            "id": "Autodesk Fusion 360",
+            "description": "CAD software by Autodesk.",
+            "category": "3D Design",
+            "proficiency": 7,
+            "learnedFrom": "I first used Fusion 360 in two engineering/coding classes at the University of Chicago. Afterward, I bought a 3D printer and began using Fusion extensively for personal projects, exploring its full modeling and exporting pipeline. I've designed and printed numerous parts and became very comfortable navigating and using its features."
+        },
+        {
+            "id": "Arduino IDE",
+            "description": "Code editor for Arduino projects.",
+            "category": "Embedded Systems",
+            "proficiency": 4,
+            "learnedFrom": "I used the Arduino IDE during two university-level engineering and coding classes to upload and debug code for various microcontroller-based projects. While I haven't used it extensively outside of class, I became familiar with its features and workflow during those courses."
+        },
+        {
+            "id": "Arduino",
+            "description": "Microcontroller platform.",
+            "category": "Embedded Systems",
+            "proficiency": 5,
+            "learnedFrom": "I used Arduino in two engineering/coding classes, and also for personal projects. One notable project was a calendar device I scripted and built that synced with my Google Calendar. I enjoy experimenting with Arduino for fun, creating interactive hardware-driven tools and prototypes."
+        },
+        {
+            "id": "CSS",
+            "description": "Web styling language (Cascading Style Sheets).",
+            "category": "Web Development",
+            "proficiency": 10,
+            "learnedFrom": "I've been using CSS since I first learned HTML in middle school. It's remained one of my favorite tools to experiment with, especially as someone who majored in Computer Science and minored in Visual Arts. I enjoy combining design and logic, and CSS has been a core part of that expression in my web projects."
+        },
+        {
+            "id": "Assembly Language",
+            "description": "Low-level programming language.",
+            "category": "Programming Languages",
+            "proficiency": 4,
+            "learnedFrom": "I learned Assembly Language during an introductory computer science course at the University of Chicago. A significant part of the course involved a challenging 'binary bomb' assignment, where we had to step through compiled assembly code and debug it without triggering faults. This taught me a lot about low-level execution and memory handling."
+        },
+        {
+            "id": "OOP",
+            "description": "Programming paradigm using objects (Object-Oriented Programming).",
+            "category": "Programming Concepts",
+            "proficiency": 8,
+            "learnedFrom": "I've used OOP extensively across various languages including Python, JavaScript, and C++. Many of the AI and software systems I've built rely on well-structured object-oriented design, especially when wrapping models, interfaces, or hardware abstractions in modular components."
+        },
+        {
+            "id": "jQuery",
+            "description": "JavaScript library for DOM manipulation.",
+            "category": "Programming Languages",
+            "proficiency": 3,
+            "learnedFrom": "I've used jQuery in a few older projects and while reviewing legacy code. I'm familiar with its core syntax and utility methods, though I generally prefer more modern JavaScript or React-based approaches in recent work."
+        },
+        {
+            "id": "HTML",
+            "description": "Markup language for web.",
+            "category": "Web Development",
+            "proficiency": 10,
+            "learnedFrom": "I've been using HTML since middle school for personal websites and projects. Over time, I've become very comfortable with its structure and conventions, especially in combination with CSS for styling. It's foundational to many of the web projects I've worked on, both personally and professionally."
+        },
+        {
+            "id": "System Administration",
+            "description": "Maintaining computer systems.",
+            "category": "Scripting & DevOps",
+            "proficiency": 4,
+            "learnedFrom": "I've done light system administration work during my IT role at the University of Chicago Humanities Division. This included managing imaging tools, maintaining software setups, and ensuring environments were ready for users. While I'm not deeply experienced in enterprise-level system admin tasks, I've handled SSH-based workflows, server deployment with tmux, and setup of lightweight remote Linux environments to support AI workflows and web tooling."
+        },
+        {
+            "id": "Automation Scripting",
+            "description": "Writing scripts for automation.",
+            "category": "Scripting & DevOps",
+            "proficiency": 6,
+            "learnedFrom": "I've written numerous automation scripts for system management, data handling, and AI workflow orchestration. This includes scripts for image processing, dataset cleaning, and task queuing in my work with Stable Diffusion and ComfyUI. While working in IT at the University of Chicago, I also developed scripts for system imaging and environment setup. I'm a big fan of tmux and have created many SSH-based scripts for launching and managing remote processes efficiently. My automation work spans both research and production environments, with a focus on making repeatable, scalable, and flexible tooling."
+        },
+        {
+            "id": "Troubleshooting",
+            "description": "Problem identification and fixing.",
+            "category": "Technical Skills",
+            "proficiency": 8,
+            "learnedFrom": "I've consistently applied troubleshooting skills across both hardware and software contexts. I've built multiple PCs and worked extensively with Arduino microcontrollers, debugging circuit issues and firmware behavior. On the software side, I've tackled everything from code-level bugs to system-level failures in various environments—ranging from personal projects to production-level research tools and university IT support roles. My approach is methodical and grounded in isolating failure points through careful observation and testing."
+        },
+        {
+            "id": "IT support",
+            "description": "Tech help and infrastructure management.",
+            "category": "Technical Support",
+            "proficiency": 7,
+            "learnedFrom": "I worked for around 2 years as an IT staff member at Humanities Computing, providing technical support for the University of Chicago's Humanities Division. My responsibilities included hands-on troubleshooting, workstation and network setup, system imaging, user onboarding, and scripting to automate repetitive tasks. This role gave me practical experience in infrastructure management and day-to-day tech operations within an academic environment."
+        },
+        {
+            "id": "PyTorch",
+            "description": "Deep learning framework by Facebook.",
+            "category": "Artificial Intelligence",
+            "proficiency": 8,
+            "learnedFrom": "I've used PyTorch extensively while working with Stable Diffusion systems, especially within ComfyUI where model architectures and tensor-level manipulations are exposed. I built tooling to parse, visualize, and modify model layers dynamically during inference, including recursive transformations of weights and biases. I'm comfortable working with the module system, custom layers, and optimizing performance in real-time pipelines. While most of my work is inference-oriented, I also have experience tracing through training behaviors and debugging gradient flows where needed."
+        },
+        {
+            "id": "Stable Diffusion",
+            "description": "AI image generation model.",
+            "category": "Artificial Intelligence",
+            "proficiency": 9,
+            "learnedFrom": "I've worked extensively with Stable Diffusion for nearly two years, both through Automatic1111 and ComfyUI. My contributions go beyond prompt crafting—I've developed advanced tooling to manipulate models during inference, including live tensor transformations, sampler customization, and layer-specific behavior changes. I also built infrastructure for batch processing, API queuing, WebSocket-based progress tracking, and integrated data pipelines to experiment and refine results. My work often involved debugging model internals, inspecting UNet behaviors, and deploying research tooling to support iterative experimentation and visual analysis."
+        },
+        {
+            "id": "AI/ML Model Optimization",
+            "description": "Improving the efficiency, accuracy, and performance of machine learning models.",
+            "category": "Artificial Intelligence",
+            "proficiency": 8,
+            "learnedFrom": "I've spent nearly two years working within AI image generation systems like Stable Diffusion. I've built and optimized pipelines in both Automatic1111 and ComfyUI, focusing not just on memory management (balancing RAM vs VRAM), but also on modifying model behavior at the sampling and tensor levels. This includes injecting real-time transformations, efficient conditioning, and applying experimental optimization strategies across different stages of the generation process. Although my primary focus has been on diffusion-based models, I have some experience with text-centered models as well, such as experimenting with prompts, embeddings, and transformer tuning—albeit to a much lesser extent."
+        },
+        {
+            "id": "Full-Stack Development",
+            "description": "Building both the frontend (user interface) and backend (server, database, logic) of software applications.",
+            "category": "Software Engineering",
+            "proficiency": 9,
+            "learnedFrom": "I independently built the SPIM website (https://latentculture.com/spim) under the direction of Jason Salavon, handling all aspects of the frontend and backend. Beyond user-facing web work, I also created backend systems and research tools for our Salavon Studios project—developing end-to-end pipelines that handled user data, tunneling, server setup, queueing, load distribution, and experiment logging. I'm very comfortable building and maintaining complete software stacks from scratch for real-world use."
+        },
+        {
+            "id": "Team Management",
+            "description": "Overseeing project teams and goals.",
+            "category": "Professional Skills",
+            "proficiency": 5,
+            "learnedFrom": "During the CorporateFootprints project, I coordinated regularly with teammates in weekly meetings, requesting specific parsed datasets and aligning software development priorities. At Salavon Studios, I primarily worked directly with Jason Salavon, and we maintained continuous communication around task progress and project direction. For a two-month period, a master's-level computer science student joined the team under my guidance—I helped her debug code and assigned scoped development tasks to support our AI infrastructure."
+        },
+        {
+            "id": "JavaScript",
+            "description": "Main web programming language.",
+            "category": "Programming Languages",
+            "proficiency": 7,
+            "learnedFrom": "I've used JavaScript across numerous projects, from frontend development with React to backend scripting and browser-based interactivity. My experience spans both academic courses and independent work, with a focus on React and related ecosystems."
+        },
+        {
+            "id": "C#",
+            "description": "Modern object-oriented programming language commonly used for application development and enterprise software.",
+            "category": "Programming Languages",
+            "proficiency": 3,
+            "learnedFrom": "I used C# in school as the required language for several logic- and structure-focused programming assignments. These involved building small-scale software systems and emphasized clean design, type safety, and object-oriented principles."
+        },
+        {
+            "id": "C",
+            "description": "Low-level systems programming language known for manual memory management and direct hardware interaction.",
+            "category": "Programming Languages",
+            "proficiency": 5,
+            "learnedFrom": "I used C extensively in school, particularly in courses that emphasized computer architecture, memory management, and low-level systems work. Working with pointers, direct memory access, and manual resource handling gave me a strong understanding of how programs interact with hardware."
+        },
+        {
+            "id": "3js",
+            "description": "3D rendering in the browser.",
+            "category": "Web Development",
+            "proficiency": 5,
+            "learnedFrom": "I used 3js extensively in my data visualization course, focusing on building interactive and immersive 3D visualizations for presenting complex data structures."
+        },
+        {
+            "id": "Data Visualization",
+            "description": "Presenting data graphically.",
+            "category": "Data Science",
+            "proficiency": 7,
+            "learnedFrom": "I took both a data statistics course focused on making data meaningful and a dedicated data visualization course. Beyond coursework, I created several custom visualizations for tensor warpings and model structures during my AI research and tooling development work."
+        },
+        {
+            "id": "SQL",
+            "description": "Language for managing databases.",
+            "category": "Databases",
+            "proficiency": 3,
+            "learnedFrom": "I used SQL occasionally while TA'ing for the CodePlatoon course, helping troubleshoot relational database exercises. Separately, during my time working with what later became CorporateFootprints, I handled SQL-based data tasks including parsing, filtering, and geocoding large datasets for analysis and cleanup."
+        }
+    ]
+}

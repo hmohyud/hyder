@@ -1,65 +1,76 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link, useLocation } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import {
+  HashRouter as Router,
+  Routes,
+  Route,
+  Link,
+  useLocation,
+} from 'react-router-dom';
 import './App.css';
 
-// ✅ Manually import pages
 import SkillsMap from './pages/SkillsMap';
 import Projects from './pages/Projects';
 import About from './pages/About';
+import Resume from './pages/Resume';
 
-// ✅ Declare all page modules
-const importedPages = {
-  SkillsMap,
-  Projects,
-  About,
+const pages = {
+  SkillsMap: { component: <SkillsMap />, path: '/', label: 'Skills' },
+  Projects: { component: <Projects />, path: '/projects', label: 'Projects' },
+  About: { component: <About />, path: '/about', label: 'About' },
+  Resume: { component: <Resume />, path: '/resume', label: 'Resume' },
 };
-
-// ✅ Optional override config
-const pagesConfig = {
-  SkillsMap: { path: '/', label: 'Skills' }, // default route
-  // others will fallback to "/componentName" and "componentName" as label
-};
-
-const pagesList = Object.entries(importedPages).map(([name, component]) => {
-  const config = pagesConfig[name] || {};
-  const path = config.path || `/${name.toLowerCase()}`;
-  const label = config.label || name;
-  return { name, path, label, component };
-});
 
 function NavBar() {
   const location = useLocation();
+
   return (
-    <nav>
-      {pagesList.map(({ path, label }) => (
+    <nav className="nav-bar" role="navigation" aria-label="Main Navigation">
+      {Object.entries(pages).map(([key, { path, label }]) => (
         <Link
-          key={label}
+          key={key}
           to={path}
-          className={location.pathname === path ? 'active' : ''}
+          className={`nav-link ${location.pathname === path ? 'active' : ''}`}
+          aria-current={location.pathname === path ? 'page' : undefined}
         >
-          {label}
+          <span className="nav-dot" />
+          <span className="nav-label">{label}</span>
         </Link>
       ))}
     </nav>
   );
 }
 
-function App() {
+function AppContent() {
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    requestAnimationFrame(() => setIsReady(true));
+  }, []);
+
   return (
-    <Router>
-      <div className="App">
+    <>
+      <div id="bg-animation" />
+      <div className={`App ${isReady ? 'visible' : ''}`}>
         <header className="App-header">
-          <h1>Hyder Mohyuddin</h1>
+          <h1 className="site-title" tabIndex="0">Hyder Mohyuddin</h1>
           <NavBar />
         </header>
-        <main>
+        <main className="App-main">
           <Routes>
-            {pagesList.map(({ path, component }, i) => (
-              <Route key={i} path={path} element={component} />
+            {Object.entries(pages).map(([key, { path, component }]) => (
+              <Route key={key} path={path} element={component} />
             ))}
           </Routes>
         </main>
       </div>
+    </>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AppContent />
     </Router>
   );
 }
