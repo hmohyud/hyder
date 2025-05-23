@@ -218,13 +218,6 @@
             "learnedFrom": "I've been using HTML since middle school for personal websites and projects. Over time, I've become very comfortable with its structure and conventions, especially in combination with CSS for styling. It's foundational to many of the web projects I've worked on, both personally and professionally."
         },
         {
-            "id": "C",
-            "description": "Procedural programming language.",
-            "category": "Programming Languages",
-            "proficiency": 4,
-            "learnedFrom": "I used C in multiple university classes focused on systems programming and low-level software. Assignments involved memory management, pointer operations, and implementing algorithms manually. While I haven't used it extensively in recent projects, the exposure gave me a solid grasp of C's core concepts."
-        },
-        {
             "id": "System Administration",
             "description": "Maintaining computer systems.",
             "category": "Scripting & DevOps",
@@ -295,11 +288,18 @@
             "learnedFrom": "I've used JavaScript across numerous projects, from frontend development with React to backend scripting and browser-based interactivity. My experience spans both academic courses and independent work, with a focus on React and related ecosystems."
         },
         {
-            "id": "C++",
-            "description": "Low-level systems programming language with direct memory access.",
+            "id": "C#",
+            "description": "Modern object-oriented programming language commonly used for application development and enterprise software.",
+            "category": "Programming Languages",
+            "proficiency": 3,
+            "learnedFrom": "I used C# in school as the required language for several logic- and structure-focused programming assignments. These involved building small-scale software systems and emphasized clean design, type safety, and object-oriented principles."
+        },
+        {
+            "id": "C",
+            "description": "Low-level systems programming language known for manual memory management and direct hardware interaction.",
             "category": "Programming Languages",
             "proficiency": 5,
-            "learnedFrom": "I used C++ extensively in school, especially in early programming courses that focused on computer architecture, memory management, and low-level problem solving. We worked directly with pointers, memory manipulation, and manual resource handling, which gave me a strong understanding of what’s happening under the hood."
+            "learnedFrom": "I used C extensively in school, particularly in courses that emphasized computer architecture, memory management, and low-level systems work. Working with pointers, direct memory access, and manual resource handling gave me a strong understanding of how programs interact with hardware."
         },
         {
             "id": "3js",
