@@ -187,7 +187,7 @@ export default function Landing() {
               <h2>Skills</h2>
             </div>
             <p className="card-copy">
-              A visual and interactive map of my skills.
+              A visual and interactive map of my skills
             </p>
             <div className="peek">
               <img
@@ -207,7 +207,7 @@ export default function Landing() {
               </span>
               <h2>Projects</h2>
             </div>
-            <p className="card-copy">See my write-ups on past projects.</p>
+            <p className="card-copy">See my write-ups on past projects</p>
             <div className="peek">
               <img
                 src={process.env.PUBLIC_URL + "/previews/projects.jpg"}
@@ -226,7 +226,7 @@ export default function Landing() {
               </span>
               <h2>About</h2>
             </div>
-            <p className="card-copy">Background, approach, and what I'm exploring.</p>
+            <p className="card-copy">Background, approach, and what I'm exploring</p>
             <div className="peek">
               <img
                 src={process.env.PUBLIC_URL + "/previews/about.jpg"}
@@ -245,7 +245,7 @@ export default function Landing() {
               </span>
               <h2>Resume</h2>
             </div>
-            <p className="card-copy">Experience, education, and highlights.</p>
+            <p className="card-copy">Experience, education, and highlights</p>
             <div className="peek">
               <img
                 src={process.env.PUBLIC_URL + "/previews/resume.jpg"}
