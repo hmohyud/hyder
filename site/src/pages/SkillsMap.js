@@ -544,7 +544,37 @@ export default function SkillsMap() {
                 </div>
 
                 {/* Close (X) button */}
-                <div
+                <button
+                  type="button"
+                  aria-label={`Close ${node.id}`}
+                  title="Close"
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid #444',
+                    color: '#aaa',
+                    fontWeight: 700,
+                    fontSize: 14,
+                    lineHeight: 1,
+                    width: 24,
+                    height: 24,
+                    borderRadius: 6,
+                    cursor: 'pointer',
+                    display: 'grid',
+                    placeItems: 'center',
+                    transition: 'transform .15s ease, box-shadow .15s ease, color .15s ease, border-color .15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.color = '#fff';
+                    e.currentTarget.style.borderColor = node.ringColor;
+                    e.currentTarget.style.boxShadow = `0 0 8px ${node.ringColor}`;
+                    e.currentTarget.style.transform = 'scale(1.1) rotate(5deg)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.color = '#aaa';
+                    e.currentTarget.style.borderColor = '#444';
+                    e.currentTarget.style.boxShadow = 'none';
+                    e.currentTarget.style.transform = 'none';
+                  }}
                   onClick={(e) => {
                     e.stopPropagation();
                     expandedNodesRef.current.delete(id);
@@ -567,21 +597,16 @@ export default function SkillsMap() {
                         : '1px solid #444';
                     });
                   }}
-                  style={{
-                    color: '#888',
-                    fontWeight: 'bold',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                    padding: '2px',
-                    borderRadius: '4px',
-                    transition: 'color 0.2s ease',
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      e.currentTarget.click();
+                    }
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = '#c00')}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = '#888')}
-                  title="Close"
                 >
-                  x
-                </div>
+                  ×
+                </button>
+
               </div>
 
               <div style={{ margin: '6px 0', fontSize: '11px' }}>{node.description || 'No details available.'}</div>

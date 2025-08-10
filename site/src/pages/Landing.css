@@ -192,7 +192,7 @@
   background: linear-gradient(90deg, var(--a), var(--b));
   opacity: .65;
 }
-.card-1{ --a:#90a7ff; --b:#7fd3ff; }
+.card-1{ --a:#ff72a1; --b:#ffb8d0; }
 .card-2{ --a:#b48bff; --b:#92a2ff; }
 .card-3{ --a:#7fd3ff; --b:#9fe1ff; }
 .card-4{ --a:#78ffa8; --b:#c7ffd8; }
