@@ -109,7 +109,7 @@ body {
   100%{background-position:0% 50%}
 }
 
-.site-title{
+/* .site-title{
   margin: 0;
   font-size: 2.1rem;
   font-weight: 800;
@@ -120,7 +120,7 @@ body {
   color: transparent;
   background-size: 300% 300%;
   animation: titleShift 12s ease infinite;
-}
+} */
 
 /* ===== Nav ===== */
 .nav-bar{
@@ -205,14 +205,55 @@ body {
   }
 }
 
-/* Title link focus */
-.site-title-link {
+/* Title gradient text base */
+.site-title{
+  margin: 0;
+  font-size: 2.1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: linear-gradient(45deg, #dfe6ff, #b7c5ff 40%, #9ed8ff, #b8ffd8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  background-size: 300% 300%;
+  animation: titleShift 12s ease infinite;
+  will-change: transform, filter, text-shadow, letter-spacing;
+}
+
+/* === Interactive wrapper for the name (subtle + elegant) === */
+.site-title-link{
+  position: relative;
   display: inline-block;
   text-decoration: none;
   color: inherit;
+  padding: 2px 8px;
+  border-radius: 10px;
+  outline: none;
+  transition:
+    transform .22s ease,
+    filter .22s ease,
+    text-shadow .22s ease;
 }
+/* Gradient micro-underline that grows in */
+.site-title-link::before{
+  content:"";
+  position: absolute;
+  left: 10px; right: 10px;
+  bottom: 2px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--accentA), var(--accentB));
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform .28s ease;
+  opacity: .95;
+}
+.site-title-link:hover::before{ transform: scaleX(1); }
+
+
+/* Keyboard focus (accessible) */
 .site-title-link:focus-visible {
   outline: 2px solid #9ed8ff;
   outline-offset: 4px;
-  border-radius: 6px;
+  border-radius: 10px;
 }

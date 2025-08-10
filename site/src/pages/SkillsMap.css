@@ -144,43 +144,12 @@
 }
 
 
-.node-list-item {
-  position: relative;
-  background: #fff;
-  color: #111;
-  padding: 12px 16px 12px 12px;
-  border-radius: 8px;
-  font-family: monospace;
-  font-size: 13px;
-  margin-bottom: 10px;
-  margin-left: 10px;
-  transition: all 0.4s ease;
-  cursor: pointer;
-}
-
 .list-container {
   padding: 10px;
   overflow-y: auto;
   flex: 0.75;
 }
 
-.sidebar-node {
-  padding: 6px 10px;
-  margin-bottom: 6px;
-  cursor: pointer;
-  font-family: monospace;
-  font-size: 11px;
-  color: #eee;
-  border-radius: 6px;
-  overflow: hidden;
-  transition: all 0.25s ease;
-
-}
-
-/* Subtle box shadow only on bottom-right for lift illusion */
-.sidebar-node:hover {
-  outline: 1px white solid !important;
-}
 
 
 .tooltip-container {
@@ -351,17 +320,32 @@
 }
 
 /* Left sidebar pills */
+
+
 .sidebar-node {
-  background: var(--box-black);
+  padding: 6px 10px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  font-family: monospace;
+  font-size: 11px;
+  color: #eee;
+  border-radius: 6px;
+  overflow: hidden;
+  transition: all 0.25s ease;
+  background: var(--box-black) !important;
   border: 1px solid var(--box-border);
   color: #fff !important;
 }
 
-.sidebar-node {
-  background: var(--box-black);
-  border: 1px solid var(--box-border);
-  color: #fff;
+/* Subtle box shadow only on bottom-right for lift illusion */
+.sidebar-node:hover {
+  outline: 1px white solid !important;
 }
+
+
+
+
+
 
 .sidebar-node[data-selected="true"] {
   background: var(--ring-tint);
@@ -371,11 +355,27 @@
 
 /* Right-side detail cards */
 .node-list-item {
-  background: var(--box-black) !important;
+  position: relative;
+  /* background: #fff; */
+  /* color: #111; */
+  padding: 12px 16px 12px 12px;
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 13px;
+  margin-bottom: 10px;
+  margin-left: 10px;
+  transition: all 0.4s ease;
+  cursor: pointer;
+
+
+  /* background: var(--box-black) !important; */
   border: 1px solid var(--box-border) !important;
   color: #fff !important;
   box-shadow: 0 8px 22px rgba(0, 0, 0, .35);
 }
+
+
+
 
 /* Force all nested text to white (beats inline colors) */
 .node-list-item :is(p, span, small, strong, em, li, div, code, h1, h2, h3, h4, h5, h6) {
