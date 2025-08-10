@@ -4,7 +4,7 @@ export default function About() {
   return (
     <div style={{
       height: '100vh',
-      padding: '0.1rem 2rem',
+      padding: '0 2rem',
       boxSizing: 'border-box',
       maxWidth: '900px',
       margin: '0 auto',

@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import './SkillsMap.css';
+import '../App.css'
 
 export default function SkillsMap() {
   const svgRef = useRef(null);
@@ -205,12 +206,17 @@ export default function SkillsMap() {
             tooltipInfoRef.current.style.display = 'none';
           }
         }
-
         Object.entries(nodeListRefs.current).forEach(([id, el]) => {
-          const nodeData = data.skillNodes.find(n => n.id === id);
-          el.style.borderLeft = set.has(id) ? `5px solid ${nodeData.ringColor}` : '1px solid #444';
-
+          const n = data.skillNodes.find(n => n.id === id);
+          if (!n || !el) return;
+          el.style.setProperty('--ring', n.ringColor);
+          el.style.setProperty('--ring-tint', `${n.ringColor}33`);
+          el.dataset.selected = set.has(id) ? 'true' : 'false';
+          // clear any old inline fallback styles
+          el.style.removeProperty('background');
+          el.style.removeProperty('border-left');
         });
+
       })
 
 
@@ -397,62 +403,60 @@ export default function SkillsMap() {
 
 
   return (
-<div ref={containerRef} className="skills-container">
+
+    <div ref={containerRef} className="skills-container">
       {/* <div ref={containerRef} style={{ width: '100%', height: '80vh', overflow: 'visible', position: 'relative', display: 'flex', outline: "solid 1px white" }}> */}
       <div className="list-container">
         {[...data.skillNodes]
           .sort((a, b) => a.id.localeCompare(b.id))
-          .map((node) => (
-            <div
-              key={node.id}
-              className="sidebar-node"
+          .map((node) => {
+            const isSelected = expandedNodesRef.current.has(node.id);
+            return (
+              <div
+                key={node.id}
+                className="sidebar-node"
+                ref={(el) => { if (el) nodeListRefs.current[node.id] = el; }}
+                data-selected={isSelected ? 'true' : 'false'}
+                /* expose colors to CSS */
+                style={{
+                  '--ring': node.ringColor,
+                  '--ring-tint': `${node.ringColor}33`,
+                }}
+                onClick={() => {
+                  const set = expandedNodesRef.current;
+                  set.has(node.id) ? set.delete(node.id) : set.add(node.id);
+                  forceRerender(x => x + 1);
 
-              ref={(el) => { if (el) nodeListRefs.current[node.id] = el; }}
-              onClick={() => {
-                const set = expandedNodesRef.current;
-                if (set.has(node.id)) {
-                  set.delete(node.id);
-                } else {
-                  set.add(node.id);
-                }
-                forceRerender(x => x + 1);
-                d3.selectAll('circle')
-                  .attr('stroke', c => set.has(c.id) ? c.ringColor : '#000');
+                  d3.selectAll('circle')
+                    .attr('stroke', c => set.has(c.id) ? c.ringColor : '#000');
+                  d3.selectAll('text').style('display', 'block');
 
-                d3.selectAll('text')
-                  .style('display', 'block');
-
-                if (tooltipInfoRef.current) {
-                  if (set.has(node.id)) {
-                    tooltipInfoRef.current.innerHTML =
-                      `<strong style='font-size: 14px;'>${node.id}</strong><br/>${node.description || 'No details available.'}`;
-                    tooltipInfoRef.current.style.display = 'block';
-                  } else {
-                    tooltipInfoRef.current.style.display = 'none';
+                  if (tooltipInfoRef.current) {
+                    if (set.has(node.id)) {
+                      tooltipInfoRef.current.innerHTML =
+                        `<strong style='font-size: 14px;'>${node.id}</strong><br/>${node.description || 'No details available.'}`;
+                      tooltipInfoRef.current.style.display = 'block';
+                    } else {
+                      tooltipInfoRef.current.style.display = 'none';
+                    }
                   }
-                }
 
-                // Update sidebar colors
-                Object.entries(nodeListRefs.current).forEach(([id, el]) => {
-                  const n = data.skillNodes.find(n => n.id === id);
-                  if (!n || !el) return;
-                  el.style.background = set.has(id) ? `${n.ringColor}33` : '#222';
-                  el.style.borderLeft = set.has(id) ? `5px solid ${n.ringColor}` : '1px solid #444';
-                });
-              }}
-              style={{
-                background: expandedNodesRef.current.has(node.id) ? `${node.ringColor}33` : '#222',
-                border: expandedNodesRef.current.has(node.id)
-                  ? `1x solid ${node.ringColor}`
-                  : '1px solid #444',
-              }}
-            >
-              {node.id}
-            </div>
-
-          ))}
-
+                  // just flip the flag + keep vars fresh; no gray inline paints
+                  Object.entries(nodeListRefs.current).forEach(([id, el]) => {
+                    const n = data.skillNodes.find(n => n.id === id);
+                    if (!n || !el) return;
+                    el.style.setProperty('--ring', n.ringColor);
+                    el.style.setProperty('--ring-tint', `${n.ringColor}33`);
+                    el.dataset.selected = set.has(id) ? 'true' : 'false';
+                  });
+                }}
+              >
+                {node.id}
+              </div>
+            );
+          })}
       </div>
+
       <div className="node-graph" >
 
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>

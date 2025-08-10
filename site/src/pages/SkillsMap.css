@@ -27,8 +27,8 @@
 
 .skills-container {
   width: 85vw;
-  height: 85vh;
-  overflow: hidden;
+  height: 84vh;
+
   position: relative;
   display: flex;
   outline: solid 1px white;
@@ -338,3 +338,57 @@
 
   }
 }
+
+/* === Black boxes + force all inner text to white === */
+
+/* Shared black surface */
+:root {
+  --box-black: #0c0e12;   /* deep neutral black */
+  --box-border: #22262e;  /* soft border */
+}
+
+/* Left sidebar pills */
+.sidebar-node{
+  background: var(--box-black);
+  border: 1px solid var(--box-border);
+  color: #fff !important;
+}
+.sidebar-node{
+  background: var(--box-black);
+  border: 1px solid var(--box-border);
+  color: #fff;
+}
+
+.sidebar-node[data-selected="true"]{
+  background: var(--ring-tint);
+  border-left: 5px solid var(--ring) !important;
+}
+
+
+/* Right-side detail cards */
+.node-list-item{
+  background: var(--box-black) !important;
+  border: 1px solid var(--box-border) !important;
+  color: #fff !important;
+  box-shadow: 0 8px 22px rgba(0,0,0,.35);
+}
+/* Force all nested text to white (beats inline colors) */
+.node-list-item :is(p,span,small,strong,em,li,div,code,h1,h2,h3,h4,h5,h6){
+  color: #fff !important;
+}
+
+/* Tiny widgets */
+.link-mode-selector,
+.speed-indicator,
+.deselect-button{
+  background: var(--box-black) !important;
+  border: 1px solid var(--box-border) !important;
+  color: #fff !important;
+}
+.link-mode-selector *,.speed-indicator *, .deselect-button *{
+  color: #fff !important;
+}
+
+/* Optional: keep the graph column edge subtle (since boxes are black) */
+.node-graph{ outline: none; border-left: 1px solid var(--box-border); border-right: 1px solid var(--box-border); }
+
