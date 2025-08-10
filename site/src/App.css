@@ -7,14 +7,20 @@
   --ring: rgba(255,255,255,0.10);
   --surface: rgba(255,255,255,0.03);
   --surface-2: rgba(255,255,255,0.02);
-  --accentA: #90a7ff; /* light blue */
-  --accentB: #7fd3ff; /* aqua */
+
+  /* default accents (overridden per-route below) */
+  --accentA: #90a7ff;
+  --accentB: #7fd3ff;
 }
 
+/* Per-route accent mapping (cards -> nav) */
+body.route-skills   { --accentA:#ff72a1; --accentB:#ffb8d0; } /* card-1 */
+body.route-projects { --accentA:#b48bff; --accentB:#92a2ff; } /* card-2 */
+body.route-about    { --accentA:#7fd3ff; --accentB:#9fe1ff; } /* card-3 */
+body.route-resume   { --accentA:#78ffa8; --accentB:#c7ffd8; } /* card-4 */
+
 /* Base */
-html, body {
-  height: 100%;
-}
+html, body { height: 100%; }
 body {
   margin: 0;
   font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
@@ -30,7 +36,7 @@ body {
 .App { opacity: 0; transition: opacity .4s ease; }
 .App.visible { opacity: 1; }
 
-/* ===== Background animation (styled like landing) ===== */
+/* ===== Background animation ===== */
 #bg-animation{
   position: fixed; inset: 0;
   z-index: -2;
@@ -38,19 +44,12 @@ body {
   overflow: hidden;
 }
 
-/* Restyle the existing .bg-dot as soft orbs instead of tiny dots */
+/* Soft orbs */
 .bg-dot{
   position: absolute;
-  /* each orb can override these via inline style if you generate them */
-  --s: 280px;            /* size */
-  --x: 50%;              /* left */
-  --y: 60%;              /* top */
-  --h: 210;              /* hue 160–220 looks good */
-  --a: 0.10;             /* alpha */
-  width: var(--s);
-  height: var(--s);
-  left: var(--x);
-  top: var(--y);
+  --s: 280px; --x: 50%; --y: 60%; --h: 210; --a: 0.10;
+  width: var(--s); height: var(--s);
+  left: var(--x); top: var(--y);
   border-radius: 50%;
   background:
     radial-gradient(circle at 50% 50%,
@@ -59,37 +58,31 @@ body {
       hsla(var(--h), 70%, 65%, 0) 70%);
   filter: blur(24px);
   mix-blend-mode: screen;
-  animation: drift linear infinite;
-  opacity: 0.9; /* keep visible; overall is subtle due to transparency */
+  animation: drift 10s linear infinite;
+  opacity: .9;
 }
-
-/* Optional tiny stars using same class + modifier (if you already create many) */
 .bg-dot.star{
-  --s: 2px; --a: 0.45;
-  filter: none;
-  background: rgba(236,242,255,0.25);
+  --s: 2px; --a: .45;
+  filter: none; background: rgba(236,242,255,0.25);
   border-radius: 50%;
-  animation: floatUp linear infinite;
+  animation: floatUp 12s linear infinite;
 }
 
-/* Motion */
 @keyframes drift{
-  0%   { transform: translate3d(0, 0, 0) scale(1); }
-  50%  { transform: translate3d(-20px, -12px, 0) scale(1.03); }
-  100% { transform: translate3d(0, 0, 0) scale(1); }
+  0%{transform: translate3d(0,0,0) scale(1)}
+  50%{transform: translate3d(-20px,-12px,0) scale(1.03)}
+  100%{transform: translate3d(0,0,0) scale(1)}
 }
 @keyframes floatUp{
-  0%   { transform: translateY(0);   opacity: .4; }
-  80%  { opacity: .6; }
-  100% { transform: translateY(-100vh); opacity: 0; }
+  0%{transform: translateY(0); opacity:.4}
+  80%{opacity:.6}
+  100%{transform: translateY(-100vh); opacity:0}
 }
-
-/* Respect reduced motion */
 @media (prefers-reduced-motion: reduce){
   .bg-dot, .bg-dot.star { animation: none; }
 }
 
-/* ===== App header (subtle, matches landing) ===== */
+/* ===== App header ===== */
 .App-header{
   padding: 1rem 2rem .7rem;
   background: linear-gradient(180deg, rgba(10,12,18,.72), rgba(10,12,18,0));
@@ -136,11 +129,13 @@ body {
   font-weight: 600;
   font-size: 0.98rem;
   padding: .38rem .7rem;
-  border-radius: 8px;
-  transition: color .22s ease, background-color .22s ease, transform .22s ease;
+  border-radius: 10px 10px 0px 0px;
+  transition: color .22s ease, background-color .22s ease, transform .22s ease, box-shadow .22s ease;
   background: transparent;
+  outline: none;
 }
 
+/* Gradient underline only (no dot) */
 .nav-link::after{
   content:'';
   position: absolute;
@@ -153,20 +148,26 @@ body {
   transition: transform .28s ease;
 }
 
+/* Hover */
 .nav-link:hover{
   color: #ffffff;
   background-color: rgba(255,255,255,0.06);
   transform: translateY(-1px);
+  box-shadow:
+    0 6px 18px -10px color-mix(in srgb, var(--accentA) 55%, transparent),
+    inset 0 0 0 1px rgba(255,255,255,0.06);
 }
 .nav-link:hover::after{ transform: translateX(-50%) scaleX(1); }
 
+/* Active */
 .nav-link.active{
   color: #ffffff;
   background-color: rgba(255,255,255,0.10);
+  box-shadow:
+    0 10px 24px -10px color-mix(in srgb, var(--accentB) 60%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--accentA) 40%, transparent);
 }
-.nav-link.active::after{
-  transform: translateX(-50%) scaleX(1);
-}
+.nav-link.active::after{ transform: translateX(-50%) scaleX(1); }
 
 /* ===== Responsive header ===== */
 @media (max-height: 900px), (max-width: 500px){
@@ -196,12 +197,12 @@ body {
   }
 }
 
+/* Title link focus */
 .site-title-link {
   display: inline-block;
   text-decoration: none;
-  color: inherit;          /* keeps the gradient/transparent text effect */
+  color: inherit;
 }
-
 .site-title-link:focus-visible {
   outline: 2px solid #9ed8ff;
   outline-offset: 4px;
