@@ -87,8 +87,8 @@ body {
   justify-content: center;
   align-items: center;
   align-content: center;
-  margin-top: 30px;
-  padding-bottom: 30px;
+  /* margin-top: 30px;
+  padding-bottom: 30px; */
 }
 /* ===== App header ===== */
 .App-header{

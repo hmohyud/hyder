@@ -418,6 +418,7 @@ export default function SkillsMap() {
   return (
 
     <div ref={containerRef} className="skills-container">
+      <span style={{height: "1000px", position: "relative"}}></span>
       {/* <div ref={containerRef} style={{ width: '100%', height: '80vh', overflow: 'visible', position: 'relative', display: 'flex', outline: "solid 1px white" }}> */}
       <div className="list-container">
         {[...data.skillNodes]
