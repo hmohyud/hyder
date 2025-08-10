@@ -81,12 +81,12 @@ export default function Landing() {
               <h2>Skills</h2>
             </div>
             <p className="card-copy">
-              Interactive graph across AI, frontend, backend, and data.
+              Interactive skills graph.
             </p>
             <div className="peek">
               {/* Put image at public/previews/skills.jpg */}
               <img
-                src="previews/skills.jpg"
+                src={process.env.PUBLIC_URL + '/previews/skills.jpg'}
                 alt="Preview of Skills page"
                 loading="lazy"
               />
@@ -102,12 +102,12 @@ export default function Landing() {
               <h2>Projects</h2>
             </div>
             <p className="card-copy">
-              Selected builds: SD/ComfyUI tooling, aerospace search, viz.
+              See my past projects.
             </p>
             <div className="peek">
               {/* Put image at public/previews/projects.jpg */}
               <img
-                src="previews/projects.jpg"
+                src={process.env.PUBLIC_URL + "/previews/projects.jpg"}
                 alt="Preview of Projects page"
                 loading="lazy"
               />
@@ -123,12 +123,12 @@ export default function Landing() {
               <h2>About</h2>
             </div>
             <p className="card-copy">
-              Background, approach, and what I’m exploring now.
+              Background, approach, and what I'm exploring now.
             </p>
             <div className="peek">
               {/* Put image at public/previews/about.jpg */}
               <img
-                src="previews/about.jpg"
+                src={process.env.PUBLIC_URL + "/previews/about.jpg"}
                 alt="Preview of About page"
                 loading="lazy"
               />
@@ -149,8 +149,8 @@ export default function Landing() {
             <div className="peek">
               {/* Put image at public/previews/resume.jpg */}
               <img
-                src="previews/resume.jpg"
-                alt="Preview of Résumé page"
+                src={process.env.PUBLIC_URL + "/previews/resume.jpg"}
+                alt="Preview of Resume page"
                 loading="lazy"
               />
             </div>
