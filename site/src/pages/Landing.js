@@ -45,14 +45,16 @@ export default function Landing() {
 
           {/* Mission statement focused on your CV */}
           <p className="mission">
-            I build dependable AI tools and interfaces. Recent work includes{" "}
-            <strong>real-time tensor tooling for Stable Diffusion/ComfyUI</strong> (custom
-            memory management and layer-targeted transforms), the{" "}
-            <strong>SPIM interactive UI</strong> for research workflows, and{" "}
-            <strong>large-scale data visualization</strong> at Booth—rendering ~200GB on a
-            globe with 3D/JS. This site showcases those skills with live demos,
-            write-ups, and an interactive skills graph.
+            I build dependable AI tools and interfaces. Recent work: real-time tensor
+            devtools for <strong>Stable Diffusion/ComfyUI</strong> (custom memory routing,
+            layer-targeted transforms, node instrumentation) and a production
+            <strong> SPIM research UI</strong> (controls + analysis). I’m also experienced
+            with <strong>GPT models</strong> and <strong>modern web development </strong>
+            (React/JS, D3, Flask). For the full toolset and stack, see my resume.
           </p>
+
+
+
 
           {/* <ul className="chips" aria-label="Key technologies">
             {[
@@ -81,7 +83,7 @@ export default function Landing() {
               <h2>Skills</h2>
             </div>
             <p className="card-copy">
-              Interactive skills graph.
+              A visual and interactive map of my skills.
             </p>
             <div className="peek">
               {/* Put image at public/previews/skills.jpg */}
@@ -102,7 +104,7 @@ export default function Landing() {
               <h2>Projects</h2>
             </div>
             <p className="card-copy">
-              See my past projects.
+              See my write-ups on past projects.
             </p>
             <div className="peek">
               {/* Put image at public/previews/projects.jpg */}
@@ -123,7 +125,7 @@ export default function Landing() {
               <h2>About</h2>
             </div>
             <p className="card-copy">
-              Background, approach, and what I'm exploring now.
+              Background, approach, and what I'm exploring.
             </p>
             <div className="peek">
               {/* Put image at public/previews/about.jpg */}
@@ -144,7 +146,7 @@ export default function Landing() {
               <h2>Resume</h2>
             </div>
             <p className="card-copy">
-              Experience, education, and selected work.
+              Experience, education, and highlights.
             </p>
             <div className="peek">
               {/* Put image at public/previews/resume.jpg */}
