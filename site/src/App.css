@@ -25,9 +25,10 @@ body {
   margin: 0;
   font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   color: var(--fg);
-  background:
-    radial-gradient(900px 600px at 70% 15%, rgba(120,160,255,0.06), transparent 55%),
-    linear-gradient(135deg, #0b0d12, #10131a 55%, #0e1218);
+
+  /* Keep only a solid fallback here (no seams). */
+  background-color: #0b0d12;
+
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -36,7 +37,7 @@ body {
 .App { opacity: 0; transition: opacity .4s ease; }
 .App.visible { opacity: 1; }
 
-/* ===== Background animation ===== */
+/* ===== Background (animated, seam-free) ===== */
 #bg-animation{
   position: fixed; inset: 0;
   z-index: -2;
@@ -44,7 +45,69 @@ body {
   overflow: hidden;
 }
 
-/* Soft orbs */
+/* Big linear-gradient film that actually moves (via transform) */
+#bg-animation::before{
+  content:"";
+  position: absolute;
+  /* make it larger than the viewport so movement never reveals edges */
+  width: 140vw; height: 140vh;
+  left: -20vw; top: -20vh;
+
+  background: linear-gradient(135deg, #07090f 0%, #0a0d14 58%, #070a10 100%);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+
+  will-change: transform;
+  animation: filmDrift 80s linear infinite alternate;
+}
+
+/* Two soft glows whose positions animate */
+#bg-animation::after{
+  content:"";
+  position: absolute;
+  inset: -12vh -12vw;
+  background-image:
+    radial-gradient(1200px 900px at 72% 14%,
+      rgba(255,255,255,0.050) 0%,
+      rgba(255,255,255,0.030) 30%,
+      transparent 62%),
+    radial-gradient(1000px 780px at 18% 82%,
+      rgba(255,255,255,0.035) 0%,
+      rgba(255,255,255,0.020) 28%,
+      transparent 60%);
+  background-repeat: no-repeat, no-repeat;
+  /* starting positions must match the 'at x% y%' above */
+  background-position: 72% 14%, 18% 82%;
+  background-size: auto, auto;
+
+  will-change: background-position;
+  animation: glowSlide 55s ease-in-out infinite alternate;
+  filter: saturate(.85) contrast(.95);
+}
+
+/* Slow, visible motion for the film */
+@keyframes filmDrift{
+  0%   { transform: translate3d(0, 0, 0) rotate(0.15deg) scale(1.01); }
+  100% { transform: translate3d(-36px, 28px, 0) rotate(-0.2deg) scale(1.02); }
+}
+
+/* Subtle parallax: glows drift to new positions */
+@keyframes glowSlide{
+  0%   { background-position: 72% 14%, 18% 82%; }
+  100% { background-position: 67% 10%, 23% 86%; }
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce){
+  #bg-animation::before,
+  #bg-animation::after { animation: none !important; }
+}
+
+/* Debug turbo — add class="motion-test" to <body> to verify movement */
+body.motion-test #bg-animation::before { animation-duration: 8s !important; }
+body.motion-test #bg-animation::after  { animation-duration: 6s !important; }
+
+/* ===== Optional orbs (if you use them elsewhere) ===== */
 .bg-dot{
   position: absolute;
   --s: 280px; --x: 50%; --y: 60%; --h: 210; --a: 0.10;
@@ -67,7 +130,6 @@ body {
   border-radius: 50%;
   animation: floatUp 12s linear infinite;
 }
-
 @keyframes drift{
   0%{transform: translate3d(0,0,0) scale(1)}
   50%{transform: translate3d(-20px,-12px,0) scale(1.03)}
@@ -81,16 +143,16 @@ body {
 @media (prefers-reduced-motion: reduce){
   .bg-dot, .bg-dot.star { animation: none; }
 }
+
 /* ===== Content ===== */
 .App-main{
   height: fill;
   justify-content: center;
   align-items: center;
   align-content: center;
-  /* margin-top: 30px;
-  padding-bottom: 30px; */
 }
-/* ===== App header ===== */
+
+/* ===== App header (unchanged from your base) ===== */
 .App-header{
   padding: 1rem 2rem .7rem;
   background: linear-gradient(180deg, rgba(10,12,18,.72), rgba(10,12,18,0));
@@ -109,7 +171,8 @@ body {
   100%{background-position:0% 50%}
 }
 
-/* .site-title{
+/* Title gradient text base */
+.site-title{
   margin: 0;
   font-size: 2.1rem;
   font-weight: 800;
@@ -120,7 +183,42 @@ body {
   color: transparent;
   background-size: 300% 300%;
   animation: titleShift 12s ease infinite;
-} */
+  will-change: transform, filter, text-shadow, letter-spacing;
+}
+
+/* Interactive wrapper for the name */
+.site-title-link{
+  position: relative;
+  display: inline-block;
+  text-decoration: none;
+  color: inherit;
+  padding: 2px 8px;
+  border-radius: 10px;
+  outline: none;
+  transition:
+    transform .22s ease,
+    filter .22s ease,
+    text-shadow .22s ease;
+}
+.site-title-link::before{
+  content:"";
+  position: absolute;
+  left: 10px; right: 10px;
+  bottom: 2px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--accentA), var(--accentB));
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform .28s ease;
+  opacity: .95;
+}
+.site-title-link:hover::before{ transform: scaleX(1); }
+.site-title-link:focus-visible {
+  outline: 2px solid #9ed8ff;
+  outline-offset: 4px;
+  border-radius: 10px;
+}
 
 /* ===== Nav ===== */
 .nav-bar{
@@ -129,7 +227,6 @@ body {
   gap: 1.1rem;
   flex-wrap: wrap;
 }
-
 .nav-link{
   position: relative;
   color: #c9d1e1;
@@ -142,8 +239,6 @@ body {
   background: transparent;
   outline: none;
 }
-
-/* Gradient underline only (no dot) */
 .nav-link::after{
   content:'';
   position: absolute;
@@ -155,8 +250,6 @@ body {
   border-radius: 1px;
   transition: transform .28s ease;
 }
-
-/* Hover */
 .nav-link:hover{
   color: #ffffff;
   background-color: rgba(255,255,255,0.06);
@@ -166,8 +259,6 @@ body {
     inset 0 0 0 1px rgba(255,255,255,0.06);
 }
 .nav-link:hover::after{ transform: translateX(-50%) scaleX(1); }
-
-/* Active */
 .nav-link.active{
   color: #ffffff;
   background-color: rgba(255,255,255,0.10);
@@ -203,57 +294,4 @@ body {
     font-size: .9rem;
     padding: .3rem .55rem;
   }
-}
-
-/* Title gradient text base */
-.site-title{
-  margin: 0;
-  font-size: 2.1rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-  background: linear-gradient(45deg, #dfe6ff, #b7c5ff 40%, #9ed8ff, #b8ffd8);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  background-size: 300% 300%;
-  animation: titleShift 12s ease infinite;
-  will-change: transform, filter, text-shadow, letter-spacing;
-}
-
-/* === Interactive wrapper for the name (subtle + elegant) === */
-.site-title-link{
-  position: relative;
-  display: inline-block;
-  text-decoration: none;
-  color: inherit;
-  padding: 2px 8px;
-  border-radius: 10px;
-  outline: none;
-  transition:
-    transform .22s ease,
-    filter .22s ease,
-    text-shadow .22s ease;
-}
-/* Gradient micro-underline that grows in */
-.site-title-link::before{
-  content:"";
-  position: absolute;
-  left: 10px; right: 10px;
-  bottom: 2px;
-  height: 2px;
-  border-radius: 2px;
-  background: linear-gradient(90deg, var(--accentA), var(--accentB));
-  transform: scaleX(0);
-  transform-origin: center;
-  transition: transform .28s ease;
-  opacity: .95;
-}
-.site-title-link:hover::before{ transform: scaleX(1); }
-
-
-/* Keyboard focus (accessible) */
-.site-title-link:focus-visible {
-  outline: 2px solid #9ed8ff;
-  outline-offset: 4px;
-  border-radius: 10px;
 }
