@@ -157,6 +157,19 @@ export default function SkillsMap() {
     simulationRef.current.alphaTarget(0.005).restart();
 
     const g = svg.append('g');
+    // // Zoom & pan
+    // const zoom = d3.zoom()
+    //   .scaleExtent([0.5, 2.5])
+    //   .on('zoom', (event) => g.attr('transform', event.transform));
+
+    // d3.select(svgRef.current).call(zoom);
+    // defs: glow filter
+    // const defs = svg.append('defs');
+    // const glow = defs.append('filter').attr('id', 'node-glow');
+    // glow.append('feGaussianBlur').attr('stdDeviation', 4).attr('result', 'blur');
+    // const merge = glow.append('feMerge');
+    // merge.append('feMergeNode').attr('in', 'blur');
+    // merge.append('feMergeNode').attr('in', 'SourceGraphic');
 
     const link = g.append('g')
       .attr('stroke', '#555')
