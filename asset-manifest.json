@@ -1,15 +1,15 @@
 {
   "files": {
-    "main.css": "/hyder/static/css/main.f6b6b8eb.css",
-    "main.js": "/hyder/static/js/main.5300d8b5.js",
+    "main.css": "/hyder/static/css/main.8c8a5042.css",
+    "main.js": "/hyder/static/js/main.f3eae75b.js",
     "static/js/453.adc34edb.chunk.js": "/hyder/static/js/453.adc34edb.chunk.js",
     "index.html": "/hyder/index.html",
-    "main.f6b6b8eb.css.map": "/hyder/static/css/main.f6b6b8eb.css.map",
-    "main.5300d8b5.js.map": "/hyder/static/js/main.5300d8b5.js.map",
+    "main.8c8a5042.css.map": "/hyder/static/css/main.8c8a5042.css.map",
+    "main.f3eae75b.js.map": "/hyder/static/js/main.f3eae75b.js.map",
     "453.adc34edb.chunk.js.map": "/hyder/static/js/453.adc34edb.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.f6b6b8eb.css",
-    "static/js/main.5300d8b5.js"
+    "static/css/main.8c8a5042.css",
+    "static/js/main.f3eae75b.js"
   ]
 }
