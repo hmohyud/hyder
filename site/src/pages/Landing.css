@@ -29,10 +29,11 @@
   min-height: 100svh;
   position: relative;
   overflow: clip;
-  cursor: none; /* we draw our own, disabled via .reduced below */
+  cursor: none; /* custom cursor everywhere */
 }
 
-.reduced .landing { cursor: auto; }
+/* Keep I-beam for text fields so typing isn't weird */
+input, textarea, [contenteditable="true"] { cursor: text !important; }
 
 .wrap{
   max-width: 1120px;
@@ -42,17 +43,17 @@
   z-index: 3;
 }
 
-/* FX Layers */
+/* === FX Layers === */
 .cursor{
   position: fixed;
   width: 24px; height: 24px;
   border: 2px solid rgba(255,255,255,.85);
   border-radius: 50%;
   pointer-events: none;
-  mix-blend-mode: difference;
   z-index: 9999;
-  transform: translate(-9999px, -9999px);
-  transition: transform .08s linear;
+  will-change: transform;
+  transform: translate3d(-9999px, -9999px, 0) scale(1);
+  /* mix-blend-mode: difference;  // leave off for cross-GPU consistency */
 }
 .cursor-dot{
   position: fixed;
@@ -62,23 +63,23 @@
   pointer-events: none;
   z-index: 9998;
   box-shadow: 0 0 14px var(--portal-p1);
-  transform: translate(-9999px, -9999px);
-  transition: transform .15s ease-out, background .2s ease, box-shadow .2s ease;
+  will-change: transform;
+  transition: background .2s ease, box-shadow .2s ease; /* no transform transition */
+  transform: translate3d(-9999px, -9999px, 0) scale(1);
 }
-.cursor.down { transform: scale(.8); }
-.cursor-dot.down { transform: scale(1.6); }
-
 .mouse-glow{
   position: fixed;
-  width: 200px; height: 200px;
+  width: 160px; height: 160px; /* fixed, cheaper */
   border-radius: 50%;
   background: radial-gradient(circle, rgba(255, 107, 157, 0.10) 0%, transparent 70%);
-  filter: blur(30px);
+  filter: blur(18px);
   pointer-events: none;
   z-index: 2;
-  transform: translate(-9999px, -9999px);
+  will-change: transform;
+  transform: translate3d(-9999px, -9999px, 0);
 }
 
+/* decorative rings */
 .magic-circle{
   position: fixed;
   inset: 50% auto auto 50%;
@@ -88,6 +89,7 @@
   border: 1px solid rgba(255,255,255,0.05);
   z-index: 1;
   animation: spin 40s linear infinite;
+  pointer-events: none;
 }
 .magic-circle.alt { width: 400px; height: 400px; animation-duration: 30s; animation-direction: reverse; }
 .magic-circle.slow { width: 800px; height: 800px; animation-duration: 55s; }
@@ -103,14 +105,14 @@
   border-radius: 50%;
   opacity: .35;
   background: radial-gradient(circle, hsl(var(--h) 70% 60%) 0%, transparent 70%);
-  animation: float 18s ease-in-out infinite;
+  animation: float 22s ease-in-out infinite;
   filter: blur(1px);
 }
 .particle{
   position: absolute;
   background: white;
   border-radius: 50%;
-  animation: float 16s ease-in-out infinite;
+  animation: float 20s ease-in-out infinite;
 }
 
 /* HERO */
@@ -206,6 +208,13 @@
 }
 .card:hover .portal-glow{ opacity: .30; }
 
+/* Fallback RGBA versions (ensure consistency if color-mix not supported) */
+@supports not (color-mix(in oklab, #fff 50%, #000 50%)){
+  .portal-1{ background: radial-gradient(circle at 60% 30%, rgba(255,107,157,0.28) 0%, transparent 70%); }
+  .portal-2{ background: radial-gradient(circle at 60% 30%, rgba(163,107,255,0.28) 0%, transparent 70%); }
+  .portal-3{ background: radial-gradient(circle at 60% 30%, rgba(107,207,255,0.28) 0%, transparent 70%); }
+  .portal-4{ background: radial-gradient(circle at 60% 30%, rgba(107,255,157,0.28) 0%, transparent 70%); }
+}
 .portal-1{ background: radial-gradient(circle at 60% 30%, color-mix(in oklab, var(--portal-p1) 40%, transparent), transparent 70%); }
 .portal-2{ background: radial-gradient(circle at 60% 30%, color-mix(in oklab, var(--portal-p2) 40%, transparent), transparent 70%); }
 .portal-3{ background: radial-gradient(circle at 60% 30%, color-mix(in oklab, var(--portal-p3) 40%, transparent), transparent 70%); }
@@ -277,16 +286,4 @@
   25%{ transform: translate(28px, -24px) }
   50%{ transform: translate(-26px, 20px) }
   75%{ transform: translate(18px, 26px) }
-}
-
-/* Respect reduced motion + touch */
-.reduced .cursor,
-.reduced .cursor-dot,
-.reduced .mouse-glow,
-.reduced .magic-circle,
-.reduced .floating-elements,
-.reduced .particles { display: none !important; }
-@media (pointer: coarse){
-  .cursor, .cursor-dot { display: none !important; }
-  .landing { cursor: auto; }
 }

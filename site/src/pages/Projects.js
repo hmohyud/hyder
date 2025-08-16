@@ -90,7 +90,8 @@ const projects = [
       `Streams progress and tallies results; resilient to blocks with multiple fetch strategies and timeouts.`,
     ],
     links: [
-      { label: 'GitHub (azizproj)', href: 'https://github.com/hmohyud/azizproj' },
+      { label: 'Visit Site', href: 'https://hmohyud.github.io/azizproj/' },
+      { label: 'GitHub', href: 'https://github.com/hmohyud/azizproj' },
       // If you put up a hosted demo later, add it here:
       // { label: 'Live demo', href: 'https://your-demo-url.example' },
     ]

@@ -43,107 +43,129 @@ export default function Landing() {
   const floatRef = useRef(null);
 
   useEffect(() => {
-    const prefersReduced =
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    const isTouch =
-      window.matchMedia?.("(pointer: coarse)").matches ||
-      "ontouchstart" in window;
-
-    // Build particles & floating blobs once
-    const buildParticles = () => {
+    // --- Build ambience with fixed counts for consistent look ---
+    const buildParticles = (count) => {
       if (!particlesRef.current) return;
       const frag = document.createDocumentFragment();
-      const count = prefersReduced ? 20 : 70;
       for (let i = 0; i < count; i++) {
         const p = document.createElement("span");
         p.className = "particle";
         p.style.left = Math.random() * 100 + "%";
         p.style.top = Math.random() * 100 + "%";
-        p.style.width = `${1 + Math.random() * 2}px`;
-        p.style.height = p.style.width;
-        p.style.animationDuration = `${10 + Math.random() * 18}s`;
+        const s = 1 + Math.random() * 2;
+        p.style.width = `${s}px`;
+        p.style.height = `${s}px`;
+        p.style.animationDuration = `${18 + Math.random() * 10}s`;
         p.style.animationDelay = `${Math.random() * 5}s`;
-        p.style.opacity = String(0.2 + Math.random() * 0.6);
+        p.style.opacity = String(0.25 + Math.random() * 0.5);
         frag.appendChild(p);
       }
+      particlesRef.current.innerHTML = "";
       particlesRef.current.appendChild(frag);
     };
 
-    const buildFloaters = () => {
+    const buildFloaters = (count) => {
       if (!floatRef.current) return;
       const frag = document.createDocumentFragment();
-      const count = prefersReduced ? 4 : 10;
+      const hues = [340, 260, 200, 140];
       for (let i = 0; i < count; i++) {
         const el = document.createElement("span");
         el.className = "floating-element";
-        const size = 30 + Math.random() * 80;
+        const size = 60 + Math.random() * 80;
         el.style.width = `${size}px`;
         el.style.height = `${size}px`;
         el.style.left = Math.random() * 100 + "%";
         el.style.top = Math.random() * 100 + "%";
-        el.style.setProperty("--h", String([340, 260, 200, 140][Math.floor(Math.random() * 4)]));
+        el.style.setProperty("--h", String(hues[(Math.random() * hues.length) | 0]));
         el.style.animationDelay = `${Math.random() * 8}s`;
-        el.style.animationDuration = `${15 + Math.random() * 16}s`;
+        el.style.animationDuration = `${22 + Math.random() * 14}s`;
         frag.appendChild(el);
       }
+      floatRef.current.innerHTML = "";
       floatRef.current.appendChild(frag);
     };
 
-    buildParticles();
-    buildFloaters();
+    buildParticles(60);
+    buildFloaters(8);
 
-    if (prefersReduced || isTouch) {
-      document.documentElement.classList.add("reduced");
-      return; // skip fancy cursor
-    }
-
+    // --- Always-on custom cursor (pointer events) ---
     const cursor = cursorRef.current;
     const dot = dotRef.current;
     const glow = glowRef.current;
     if (!cursor || !dot || !glow) return;
 
     let rafId = 0;
-    let targetX = 0,
-      targetY = 0;
-    let dx = 0,
-      dy = 0;
+    let targetX = -9999, targetY = -9999;
+    let lerpX = -9999, lerpY = -9999;
+    let isDown = false;
+    let active = false;
+    const ease = 0.2;
+
+    const update = () => {
+      // Lerp ring; dot snaps (visually tighter)
+      lerpX += (targetX - lerpX) * ease;
+      lerpY += (targetY - lerpY) * ease;
+
+      const ringScale = isDown ? 0.85 : 1;
+      const dotScale  = isDown ? 1.6  : 1;
+
+      cursor.style.transform = `translate3d(${lerpX - 12}px, ${lerpY - 12}px, 0) scale(${ringScale})`;
+      dot.style.transform    = `translate3d(${targetX - 4}px, ${targetY - 4}px, 0) scale(${dotScale})`;
+      glow.style.transform   = `translate3d(${targetX - 80}px, ${targetY - 80}px, 0)`;
+
+      // Stop RAF when settled to save CPU
+      if (Math.abs(lerpX - targetX) < 0.1 && Math.abs(lerpY - targetY) < 0.1) {
+        active = false;
+        rafId = 0;
+        return;
+      }
+      rafId = requestAnimationFrame(update);
+    };
+
+    const kick = () => {
+      if (!active) {
+        active = true;
+        rafId = requestAnimationFrame(update);
+      }
+    };
 
     const onMove = (e) => {
       targetX = e.clientX;
       targetY = e.clientY;
-      glow.style.transform = `translate(${targetX - 100}px, ${targetY - 100}px)`; // center-ish
-      if (!rafId) rafId = requestAnimationFrame(update);
+      kick();
+    };
+    const onDown = () => { isDown = true;  kick(); };
+    const onUp   = () => { isDown = false; kick(); };
+
+    const onLeave = () => {
+      targetX = targetY = lerpX = lerpY = -9999;
+      cursor.style.transform = `translate3d(-9999px,-9999px,0)`;
+      dot.style.transform    = `translate3d(-9999px,-9999px,0)`;
+      glow.style.transform   = `translate3d(-9999px,-9999px,0)`;
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = 0;
+      active = false;
     };
 
-    const update = () => {
-      const rect = cursor.getBoundingClientRect();
-      const cx = rect.left + rect.width / 2;
-      const cy = rect.top + rect.height / 2;
-      dx = (targetX - cx) * 0.2;
-      dy = (targetY - cy) * 0.2;
-      cursor.style.transform = `translate(${cx + dx - 12}px, ${cy + dy - 12}px)`; // ring ~24px
-      dot.style.transform = `translate(${targetX - 4}px, ${targetY - 4}px)`; // dot ~8px
-      rafId = requestAnimationFrame(update);
+    const onVisibility = () => {
+      if (document.hidden) onLeave();
     };
 
-    const onDown = () => {
-      cursor.classList.add("down");
-      dot.classList.add("down");
-    };
-    const onUp = () => {
-      cursor.classList.remove("down");
-      dot.classList.remove("down");
-    };
-
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mousedown", onDown);
-    window.addEventListener("mouseup", onUp);
+    window.addEventListener("pointermove", onMove, { passive: true });
+    window.addEventListener("pointerdown", onDown, { passive: true });
+    window.addEventListener("pointerup", onUp, { passive: true });
+    window.addEventListener("pointercancel", onLeave, { passive: true });
+    window.addEventListener("mouseleave", onLeave, { passive: true });
+    document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
-      cancelAnimationFrame(rafId);
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mousedown", onDown);
-      window.removeEventListener("mouseup", onUp);
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onLeave);
+      window.removeEventListener("mouseleave", onLeave);
+      document.removeEventListener("visibilitychange", onVisibility);
       particlesRef.current && (particlesRef.current.innerHTML = "");
       floatRef.current && (floatRef.current.innerHTML = "");
     };
@@ -186,9 +208,7 @@ export default function Landing() {
               </span>
               <h2>Skills</h2>
             </div>
-            <p className="card-copy">
-              A visual and interactive map of my skills
-            </p>
+            <p className="card-copy">A visual and interactive map of my skills</p>
             <div className="peek">
               <img
                 src={process.env.PUBLIC_URL + "/previews/skills.jpg"}
