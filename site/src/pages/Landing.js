@@ -107,11 +107,11 @@ export default function Landing() {
       lerpY += (targetY - lerpY) * ease;
 
       const ringScale = isDown ? 0.85 : 1;
-      const dotScale  = isDown ? 1.6  : 1;
+      const dotScale = isDown ? 1.6 : 1;
 
       cursor.style.transform = `translate3d(${lerpX - 12}px, ${lerpY - 12}px, 0) scale(${ringScale})`;
-      dot.style.transform    = `translate3d(${targetX - 4}px, ${targetY - 4}px, 0) scale(${dotScale})`;
-      glow.style.transform   = `translate3d(${targetX - 80}px, ${targetY - 80}px, 0)`;
+      dot.style.transform = `translate3d(${targetX - 4}px, ${targetY - 4}px, 0) scale(${dotScale})`;
+      glow.style.transform = `translate3d(${targetX - 80}px, ${targetY - 80}px, 0)`;
 
       // Stop RAF when settled to save CPU
       if (Math.abs(lerpX - targetX) < 0.1 && Math.abs(lerpY - targetY) < 0.1) {
@@ -134,14 +134,14 @@ export default function Landing() {
       targetY = e.clientY;
       kick();
     };
-    const onDown = () => { isDown = true;  kick(); };
-    const onUp   = () => { isDown = false; kick(); };
+    const onDown = () => { isDown = true; kick(); };
+    const onUp = () => { isDown = false; kick(); };
 
     const onLeave = () => {
       targetX = targetY = lerpX = lerpY = -9999;
       cursor.style.transform = `translate3d(-9999px,-9999px,0)`;
-      dot.style.transform    = `translate3d(-9999px,-9999px,0)`;
-      glow.style.transform   = `translate3d(-9999px,-9999px,0)`;
+      dot.style.transform = `translate3d(-9999px,-9999px,0)`;
+      glow.style.transform = `translate3d(-9999px,-9999px,0)`;
       if (rafId) cancelAnimationFrame(rafId);
       rafId = 0;
       active = false;
@@ -188,14 +188,18 @@ export default function Landing() {
           <h1 className="title">Hyder Mohyuddin</h1>
           <p className="subtitle">AI &amp; Software • Systems • Interfaces</p>
 
-          <p className="mission">
+          {/* <p className="mission">
             I build dependable AI tools and interfaces. Recent work: real-time tensor
             devtools for <strong>Stable Diffusion/ComfyUI</strong> (custom memory routing,
             layer-targeted transforms, node instrumentation) and a production
             <strong> SPIM research UI</strong> (controls + analysis). I’m also experienced
             with <strong>GPT models</strong> and <strong>modern web development </strong>
             (React/JS, D3, Flask). For the full toolset and stack, see my resume.
+          </p> */}
+          <p className="mission">
+            I build dependable AI tools and interfaces. At UChicago with <strong>Professor Jason Salavon</strong>, I absorbed responsibilities previously held across three <strong>CS M.S. teammates</strong> and got comfortable being handed unknowns—researching, shipping, and owning production systems. Recent work: real-time tensor devtools for <strong>Stable Diffusion/ComfyUI</strong> (custom memory routing, layer-targeted transforms, node instrumentation) and a production <strong>SPIM research UI</strong> (controls + analysis). Also experienced with <strong>GPT models</strong> and <strong>modern web development</strong> (React/JS, D3, Flask). See my resume for the full stack.
           </p>
+
         </header>
 
         <section className="grid" aria-label="Site sections">
