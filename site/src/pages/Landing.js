@@ -196,9 +196,9 @@ export default function Landing() {
             with <strong>GPT models</strong> and <strong>modern web development </strong>
             (React/JS, D3, Flask). For the full toolset and stack, see my resume.
           </p> */}
-          <p className="mission">
-            I build dependable AI tools and interfaces. At UChicago with <strong>Professor Jason Salavon</strong>, I absorbed responsibilities previously held across three <strong>CS M.S. teammates</strong> and got comfortable being handed unknowns—researching, shipping, and owning production systems. Recent work: real-time tensor devtools for <strong>Stable Diffusion/ComfyUI</strong> (custom memory routing, layer-targeted transforms, node instrumentation) and a production <strong>SPIM research UI</strong> (controls + analysis). Also experienced with <strong>GPT models</strong> and <strong>modern web development</strong> (React/JS, D3, Flask). See my resume for the full stack.
-          </p>
+<p className="mission">
+  I build dependable AI tools and interfaces. At UChicago with <strong>Professor Jason Salavon</strong>, I absorbed responsibilities previously held across three <strong>CS M.S. teammates</strong> and got comfortable being handed unknowns—researching, shipping, and owning production systems. Recent work: real-time tensor devtools for <strong>Stable Diffusion/ComfyUI</strong> (custom memory routing, layer-targeted transforms, node instrumentation) and a production <strong>SPIM research UI</strong> (controls + analysis). Also experienced with <strong>GPT models</strong> and <strong>modern web development</strong> (React/JS, D3, Flask). I built this site to showcase my skills and how I work—see my <strong>resume</strong> for the full stack.
+</p>
 
         </header>
 

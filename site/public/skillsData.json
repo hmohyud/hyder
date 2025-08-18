@@ -328,6 +328,13 @@
             "category": "Professional Skills",
             "proficiency": 10,
             "learnedFrom": "My time working with Professor Jason Salavon at the University of Chicago was my first truly intensive role where the success of the operation often depended directly on my ability to research, understand, and implement new technologies. When I joined, there were three master's students specializing in crypto, general coding, and design; after they graduated or moved on, I inherited many of their responsibilities. This forced me to develop an extremely adaptable skillset—jumping from real-time AI tensor manipulation, to full-stack web development, to secure server management. Over roughly two years, I gained the confidence and systems-level thinking needed to pick up new languages, frameworks, and technical domains quickly and effectively."
+        },
+        {
+            "id": "iOS App Development",
+            "description": "Building native Apple apps with Swift/SwiftUI in Xcode.",
+            "category": "Mobile Development",
+            "proficiency": 4,
+            "learnedFrom": "I built a Cooking AI iOS app in SwiftUI that turns pantry items + dietary preferences into step-by-step recipes. Features include ingredient substitutions, serving scaling, favorites, and a lightweight meal planner. It calls a model API via async/await URLSession, uses MVVM with NavigationStack, handles errors/retries, and persists user data with Core Data (plus UserDefaults for small settings). I tested on device, used the Simulator/Console for debugging, and shipped a TestFlight build."
         }
     ]
 }
