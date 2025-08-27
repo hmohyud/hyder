@@ -82,7 +82,7 @@ const projects = [
   // Aerospace project with repo link
   {
     title: 'Aerospace Part Finder (Async Scraper + Local LLM)',
-    color: '#6bcfff',
+    color: '#b3fff2ff',
     image: '/images/aero-placeholder.jpg',
     description: [
       `Personal convenience tool to search suppliers for exact aerospace part numbers and officially documented equivalents.`,

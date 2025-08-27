@@ -52,7 +52,7 @@ export default function About() {
 
       {/* Teaching + Empathy */}
       <section style={{ marginBottom: '2rem' }}>
-        <h2 style={{ fontSize: '1.6rem', color: '#00c4ff' }}>Teaching and Tech</h2>
+        <h2 style={{ fontSize: '1.6rem', color: '#b48bff' }}>Teaching and Tech</h2>
         <p>
           I've taught programming to high school students, mentored veterans transitioning into tech, and tutored thousands of hours across math, science, and writing. These experiences shaped how I think about clarity, empathy, and the responsibility we carry when we build software for other people.
         </p>
