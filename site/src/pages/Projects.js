@@ -7,7 +7,6 @@ const projects = [
   {
     title: 'SPIM (Salavon’s Pathology Inducing Machine)',
     color: '#00d1ff',
-    // Rotating set in /public/hyder/projects
     images: SPIM_IMAGES,
     description: [
       `An experimental platform that lets users manipulate the internal layers of diffusion models to generate off-manifold, dreamlike imagery.`,
@@ -138,7 +137,44 @@ const projects = [
 const qrSrc = (data, size = 520) =>
   `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(data)}`;
 
-// --------- RotatingImage component (height-fit, centered, with graceful fallback) ---------
+/** Preload a list of URLs and tell which ones succeeded */
+function usePreloaded(srcs) {
+  const [ok, setOk] = useState(() => srcs.map(() => false));
+
+  useEffect(() => {
+    let alive = true;
+    setOk(srcs.map(() => false));
+
+    srcs.forEach((src, i) => {
+      if (!src) return;
+      const img = new Image();
+
+      const mark = () => alive && setOk(prev => {
+        if (prev[i]) return prev;
+        const next = [...prev];
+        next[i] = true;
+        return next;
+      });
+
+      img.onload = mark;
+      img.onerror = () => {}; // ignore; failed ones stay false
+      img.decoding = 'async';
+      img.src = src;
+
+      // handle already-cached
+      if (img.complete && img.naturalWidth > 0) {
+        // queue microtask to mimic async onload
+        Promise.resolve().then(mark);
+      }
+    });
+
+    return () => { alive = false; };
+  }, [srcs]);
+
+  return ok; // boolean per src
+}
+
+// --------- RotatingImage (background layers; no <img> icons; robust) ---------
 function RotatingImage({
   images = [],
   width = 280,
@@ -149,128 +185,81 @@ function RotatingImage({
   onClick,
   fit = 'height', // 'height' | 'contain' | 'cover' | 'width'
 }) {
+  const ok = usePreloaded(images);
+  const visibleIdxs = useMemo(() => images.map((_, i) => (ok[i] ? i : -1)).filter(i => i >= 0), [images, ok]);
   const [idx, setIdx] = useState(0);
-  const [bad, setBad] = useState(() => images.map(() => false));      // track broken images
-  const [loaded, setLoaded] = useState(() => images.map(() => false)); // track loaded images
   const timerRef = useRef(null);
 
-  // Reset when images change
+  // keep idx in bounds as visible set changes
   useEffect(() => {
-    setBad(images.map(() => false));
-    setLoaded(images.map(() => false));
-    setIdx(0);
-  }, [images]);
+    if (idx >= visibleIdxs.length) setIdx(0);
+  }, [visibleIdxs.length, idx]);
 
-  // Preload
+  const next = () => setIdx(i => (i + 1) % Math.max(visibleIdxs.length, 1));
+
+  // autoplay among visible
   useEffect(() => {
-    images.forEach((src) => { const img = new Image(); img.src = src; });
-  }, [images]);
-
-  const hasVisible = useMemo(
-    () => images.some((_, i) => loaded[i] && !bad[i]),
-    [images, loaded, bad]
-  );
-
-  // Find next valid (non-bad AND loaded) index after `start`
-  const nextGood = (start) => {
-    if (!images.length) return 0;
-    for (let k = 1; k <= images.length; k++) {
-      const j = (start + k) % images.length;
-      if (!bad[j] && loaded[j]) return j;
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (visibleIdxs.length > 1) {
+      timerRef.current = setInterval(next, intervalMs);
     }
-    return start; // if none loaded yet, stay
-  };
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [intervalMs, visibleIdxs.length]);
 
-  // If current becomes bad or is not yet loaded but another is, advance to a visible one
-  useEffect(() => {
-    if (!images.length) return;
-    if (bad[idx] || (!loaded[idx] && hasVisible)) {
-      setIdx((i) => nextGood(i));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bad, loaded, hasVisible]);
+  // bg-size mapping
+  const bgSize =
+    fit === 'cover' ? 'cover' :
+    fit === 'contain' ? 'contain' :
+    fit === 'width' ? '100% auto' :
+    'auto 100%'; // height
 
-  // Autoplay among visible (loaded & not-bad)
-  const stop = () => { if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; } };
-  const start = () => {
-    const visibleCount = images.filter((_, i) => loaded[i] && !bad[i]).length;
-    if (!timerRef.current && visibleCount > 1) {
-      timerRef.current = setInterval(() => {
-        setIdx((i) => nextGood(i));
-      }, intervalMs);
-    }
-  };
-  useEffect(() => { stop(); start(); return stop; }, [intervalMs, images, loaded, bad]);
-
-  const baseImgStyle = {
-    position: 'absolute',
-    transition: 'opacity 600ms ease',
-    opacity: 0,
-    userSelect: 'none',
-    pointerEvents: 'none',
-  };
-  const fitStyles = {
-    contain: { inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center' },
-    cover:   { inset: 0, width: '100%', height: '100%', objectFit: 'cover',   objectPosition: 'center' },
-    height:  { top: '50%', left: '50%', transform: 'translate(-50%, -50%)', height: '100%', width: 'auto' },
-    width:   { top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '100%',  height: 'auto' },
-  };
+  const activeReal = visibleIdxs.length ? visibleIdxs[idx] : -1;
+  const usable = visibleIdxs.length > 0;
 
   return (
     <div
       role="img"
       aria-label={`${altBase} — slideshow`}
-      onMouseEnter={stop}
-      onMouseLeave={start}
-      onClick={() => { if (hasVisible) onClick?.(idx); }}
+      onMouseEnter={() => { if (timerRef.current) clearInterval(timerRef.current); }}
+      onMouseLeave={() => {
+        if (!timerRef.current && visibleIdxs.length > 1) {
+          timerRef.current = setInterval(next, intervalMs);
+        }
+      }}
+      onClick={() => { if (usable) onClick?.(idx); }}
       style={{
         position: 'relative',
         width,
         height,
         flex: `0 0 ${width}px`,
-        cursor: hasVisible ? 'pointer' : 'default',
+        cursor: usable ? 'pointer' : 'default',
         overflow: 'hidden',
-        backgroundColor: '#1a1a1a', // dark placeholder background
+        backgroundColor: '#1a1a1a', // clean placeholder
         borderRadius: 8,
         border: `1px solid ${borderColor}`,
         boxShadow: '0 0 10px rgba(255,255,255,0.04)'
       }}
     >
-      {images.map((src, i) => (
-        <img
-          key={src + i}
-          src={src}
-          alt={`${altBase} ${i + 1}`}
-          onLoad={() =>
-            setLoaded(prev => {
-              if (prev[i]) return prev;
-              const next = [...prev];
-              next[i] = true;
-              return next;
-            })
-          }
-          onError={() =>
-            setBad(prev => {
-              if (prev[i]) return prev;
-              const next = [...prev];
-              next[i] = true;
-              return next;
-            })
-          }
-          style={{
-            ...baseImgStyle,
-            ...(fitStyles[fit] || fitStyles.height),
-            opacity: (loaded[i] && !bad[i] && i === idx) ? 1 : 0,
-            display: (loaded[i] && !bad[i]) ? 'block' : 'none',
-          }}
-          draggable={false}
-          decoding="async"
-        />
-      ))}
-      {/* If nothing visible yet, show a blank dark box (no text, no broken icon) */}
-      {!hasVisible && (
-        <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: '#1a1a1a' }} />
-      )}
+      {images.map((src, i) => {
+        if (!ok[i]) return null; // never render failed/not-yet-loaded frames
+        return (
+          <div
+            key={src + i}
+            aria-hidden={activeReal !== i}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage: `url(${src})`,
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+              backgroundSize: bgSize,
+              transition: 'opacity 600ms ease',
+              opacity: activeReal === i ? 1 : 0
+            }}
+          />
+        );
+      })}
+      {!usable && <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: '#1a1a1a' }} />}
     </div>
   );
 }
@@ -359,7 +348,9 @@ export default function Projects() {
               fit="height" // fill height, centered (side-crop if needed)
               onClick={(index) => {
                 if (!images.length) return;
-                setLightbox({ title: proj.title, color: proj.color, images, index });
+                // Lightbox opens with the same list; it's okay if some are broken; previews no longer flash
+                const start = Math.min(index, (images.length || 1) - 1);
+                setLightbox({ title: proj.title, color: proj.color, images, index: start });
               }}
             />
 
@@ -560,6 +551,13 @@ export default function Projects() {
                 borderRadius: 12,
                 border: `1px solid ${lightbox.color}`,
                 boxShadow: '0 20px 60px rgba(0,0,0,0.6)'
+              }}
+              onError={() => {
+                // If a lightbox image fails, advance to the next (avoid broken icon in overlay)
+                setLightbox(lb => {
+                  const n = lb.images.length || 1;
+                  return { ...lb, index: (lb.index + 1) % n };
+                });
               }}
             />
             {lightbox.images.length > 1 && (
