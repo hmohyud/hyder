@@ -548,7 +548,7 @@ export default function Projects() {
                 width: 'auto',
                 height: 'auto',
                 objectFit: 'contain',
-                borderRadius: 12,
+                // borderRadius: 12,
                 border: `1px solid ${lightbox.color}`,
                 boxShadow: '0 20px 60px rgba(0,0,0,0.6)'
               }}
