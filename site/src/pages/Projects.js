@@ -1,18 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+
+// ---------- Helper: build an array of SPIM images in /public/hyder/projects ----------
+const SPIM_IMAGES = Array.from({ length: 5 }, (_, i) => `/hyder/projects/SPIM_${i + 1}.jpg`);
 
 const projects = [
   {
     title: 'SPIM (Salavon’s Pathology Inducing Machine)',
     color: '#00d1ff',
-    image: '/images/spim-placeholder.png',
+    // Rotating set in /public/hyder/projects
+    images: SPIM_IMAGES,
     description: [
       `An experimental platform that lets users manipulate the internal layers of diffusion models to generate off-manifold, dreamlike imagery.`,
       `I built the full-stack system: secure Python backend, custom memory management, tensor manipulation pipelines, and a React-based interface.`,
       `Also implemented filtering tools for statistical novelty, interpolation modules, and Voronoi-based ultra-high-res generation techniques.`
     ],
-    links: [
-      { label: 'Visit Site', href: 'https://latentculture.com/spim/' }
-    ]
+    links: [{ label: 'Visit Site', href: 'https://latentculture.com/spim/' }]
   },
   {
     title: 'Environmental Data Globe (Booth School of Business)',
@@ -37,7 +39,7 @@ const projects = [
   {
     title: 'ComfyUI Character Pipeline — Consistent Kids’ Book Art',
     color: '#b48bff',
-    image: '/images/comfyui-kidsbook.jpg', // add a screenshot/export
+    image: '/images/comfyui-kidsbook.jpg',
     description: [
       'A reproducible ComfyUI workflow to keep a main character consistent across a whole picture book: poses, outfits, angles, scenes.',
       'Techniques: identity conditioning (IP-Adapter / LoRA) blending, ControlNet pose, prompt/seed scheduling, palette locks, and layout templates.',
@@ -74,9 +76,7 @@ const projects = [
       `To bypass character limits, the text is rendered onto an AI-generated background image before posting.`,
       `Includes basic scheduling, retries/rate-limit handling, and content moderation checks.`,
     ],
-    links: [
-      { label: 'View on X', href: 'https://x.com/JarJarbinksays' }
-    ]
+    links: [{ label: 'View on X', href: 'https://x.com/JarJarbinksays' }]
   },
 
   // Aerospace project with repo link
@@ -92,8 +92,6 @@ const projects = [
     links: [
       { label: 'Visit Site', href: 'https://hmohyud.github.io/azizproj/' },
       { label: 'GitHub', href: 'https://github.com/hmohyud/azizproj' },
-      // If you put up a hosted demo later, add it here:
-      // { label: 'Live demo', href: 'https://your-demo-url.example' },
     ]
   },
 
@@ -114,9 +112,7 @@ const projects = [
       `A simple, quiet website to present my grandmother’s poetry collection across the years.`,
       `Typography-focused, accessible, and easy to maintain.`,
     ],
-    links: [
-      { label: 'Visit Site', href: 'https://hmohyud.github.io/motam/' }
-    ]
+    links: [{ label: 'Visit Site', href: 'https://hmohyud.github.io/motam/' }]
   },
 
   {
@@ -130,12 +126,10 @@ const projects = [
     ],
     links: [
       {
-        // Opens a web page that lets users open the app if they have Expo Go installed.
         label: 'Open preview (Expo Go installed)',
         href: 'https://expo.dev/preview/update?message=Initial+commit%0A%0AGenerated+by+create-expo-app+3.4.2.&updateRuntimeVersion=1.0.0&createdAt=2025-06-30T12%3A23%3A53.766Z&slug=exp&projectId=bf485ddb-a27e-47b0-b8ba-444f4dbde301&group=ee75b629-263a-4bc1-aa43-7aa4a5313843'
       },
     ],
-    // For the fullscreen QR overlay button
     qrData: 'https://expo.dev/preview/update?message=Initial+commit%0A%0AGenerated+by+create-expo-app+3.4.2.&updateRuntimeVersion=1.0.0&createdAt=2025-06-30T12%3A23%3A53.766Z&slug=exp&projectId=bf485ddb-a27e-47b0-b8ba-444f4dbde301&group=ee75b629-263a-4bc1-aa43-7aa4a5313843'
   }
 ];
@@ -144,26 +138,190 @@ const projects = [
 const qrSrc = (data, size = 520) =>
   `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(data)}`;
 
-export default function Projects() {
-  const [qrOpen, setQrOpen] = useState(null); // { title, data, color } | null
+// --------- RotatingImage component (height-fit, centered, with graceful fallback) ---------
+function RotatingImage({
+  images = [],
+  width = 280,
+  height = 180,
+  borderColor = '#4af',
+  altBase = 'project image',
+  intervalMs = 5000,
+  onClick,
+  fit = 'height', // 'height' | 'contain' | 'cover' | 'width'
+}) {
+  const [idx, setIdx] = useState(0);
+  const [bad, setBad] = useState(() => images.map(() => false));      // track broken images
+  const [loaded, setLoaded] = useState(() => images.map(() => false)); // track loaded images
+  const timerRef = useRef(null);
 
-  // Lock background scroll when overlay is open
+  // Reset when images change
   useEffect(() => {
-    if (qrOpen) {
-      const prev = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-      return () => { document.body.style.overflow = prev; };
-    }
-  }, [qrOpen]);
+    setBad(images.map(() => false));
+    setLoaded(images.map(() => false));
+    setIdx(0);
+  }, [images]);
 
-  // Close on Escape
+  // Preload
+  useEffect(() => {
+    images.forEach((src) => { const img = new Image(); img.src = src; });
+  }, [images]);
+
+  const hasVisible = useMemo(
+    () => images.some((_, i) => loaded[i] && !bad[i]),
+    [images, loaded, bad]
+  );
+
+  // Find next valid (non-bad AND loaded) index after `start`
+  const nextGood = (start) => {
+    if (!images.length) return 0;
+    for (let k = 1; k <= images.length; k++) {
+      const j = (start + k) % images.length;
+      if (!bad[j] && loaded[j]) return j;
+    }
+    return start; // if none loaded yet, stay
+  };
+
+  // If current becomes bad or is not yet loaded but another is, advance to a visible one
+  useEffect(() => {
+    if (!images.length) return;
+    if (bad[idx] || (!loaded[idx] && hasVisible)) {
+      setIdx((i) => nextGood(i));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bad, loaded, hasVisible]);
+
+  // Autoplay among visible (loaded & not-bad)
+  const stop = () => { if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; } };
+  const start = () => {
+    const visibleCount = images.filter((_, i) => loaded[i] && !bad[i]).length;
+    if (!timerRef.current && visibleCount > 1) {
+      timerRef.current = setInterval(() => {
+        setIdx((i) => nextGood(i));
+      }, intervalMs);
+    }
+  };
+  useEffect(() => { stop(); start(); return stop; }, [intervalMs, images, loaded, bad]);
+
+  const baseImgStyle = {
+    position: 'absolute',
+    transition: 'opacity 600ms ease',
+    opacity: 0,
+    userSelect: 'none',
+    pointerEvents: 'none',
+  };
+  const fitStyles = {
+    contain: { inset: 0, width: '100%', height: '100%', objectFit: 'contain', objectPosition: 'center' },
+    cover:   { inset: 0, width: '100%', height: '100%', objectFit: 'cover',   objectPosition: 'center' },
+    height:  { top: '50%', left: '50%', transform: 'translate(-50%, -50%)', height: '100%', width: 'auto' },
+    width:   { top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: '100%',  height: 'auto' },
+  };
+
+  return (
+    <div
+      role="img"
+      aria-label={`${altBase} — slideshow`}
+      onMouseEnter={stop}
+      onMouseLeave={start}
+      onClick={() => { if (hasVisible) onClick?.(idx); }}
+      style={{
+        position: 'relative',
+        width,
+        height,
+        flex: `0 0 ${width}px`,
+        cursor: hasVisible ? 'pointer' : 'default',
+        overflow: 'hidden',
+        backgroundColor: '#1a1a1a', // dark placeholder background
+        borderRadius: 8,
+        border: `1px solid ${borderColor}`,
+        boxShadow: '0 0 10px rgba(255,255,255,0.04)'
+      }}
+    >
+      {images.map((src, i) => (
+        <img
+          key={src + i}
+          src={src}
+          alt={`${altBase} ${i + 1}`}
+          onLoad={() =>
+            setLoaded(prev => {
+              if (prev[i]) return prev;
+              const next = [...prev];
+              next[i] = true;
+              return next;
+            })
+          }
+          onError={() =>
+            setBad(prev => {
+              if (prev[i]) return prev;
+              const next = [...prev];
+              next[i] = true;
+              return next;
+            })
+          }
+          style={{
+            ...baseImgStyle,
+            ...(fitStyles[fit] || fitStyles.height),
+            opacity: (loaded[i] && !bad[i] && i === idx) ? 1 : 0,
+            display: (loaded[i] && !bad[i]) ? 'block' : 'none',
+          }}
+          draggable={false}
+          decoding="async"
+        />
+      ))}
+      {/* If nothing visible yet, show a blank dark box (no text, no broken icon) */}
+      {!hasVisible && (
+        <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: '#1a1a1a' }} />
+      )}
+    </div>
+  );
+}
+
+export default function Projects() {
+  const [qrOpen, setQrOpen] = useState(null);      // { title, data, color } | null
+  const [lightbox, setLightbox] = useState(null);  // { title, color, images, index }
+
+  // Lock background scroll when any overlay is open
+  useEffect(() => {
+    const anyOpen = Boolean(qrOpen || lightbox);
+    const prev = document.body.style.overflow;
+    if (anyOpen) document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [qrOpen, lightbox]);
+
+  // Keyboard: Esc closes overlays, arrows navigate lightbox
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') setQrOpen(null);
+      if (e.key === 'Escape') {
+        if (lightbox) setLightbox(null);
+        else if (qrOpen) setQrOpen(null);
+      }
+      if (lightbox) {
+        if (e.key === 'ArrowRight') setLightbox((lb) => ({ ...lb, index: (lb.index + 1) % lb.images.length }));
+        if (e.key === 'ArrowLeft')  setLightbox((lb) => ({ ...lb, index: (lb.index - 1 + lb.images.length) % lb.images.length }));
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [qrOpen, lightbox]);
+
+  const navButtonStyle = (color, side) => ({
+    position: 'absolute',
+    [side]: 16,
+    top: '50%',
+    transform: 'translateY(-50%)',
+    width: 44,
+    height: 44,
+    padding: 0,
+    display: 'grid',
+    placeItems: 'center',
+    borderRadius: '9999px',
+    border: `1px solid ${color}`,
+    background: 'rgba(0,0,0,0.45)',
+    color,
+    cursor: 'pointer',
+    userSelect: 'none',
+    lineHeight: 1,
+    fontSize: 22,
+  });
 
   return (
     <div style={{
@@ -183,94 +341,90 @@ export default function Projects() {
         Projects
       </h1>
 
-      {projects.map((proj, i) => (
-        <div key={i} style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          marginBottom: '3rem',
-          gap: '1.5rem',
-          alignItems: 'flex-start'
-        }}>
-          <div
-            role="img"
-            aria-label={`${proj.title} preview`}
-            style={{
-              flex: '0 0 280px',
-              height: '180px',
-              backgroundColor: '#1a1a1a',
-              backgroundImage: `url(${proj.image})`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              borderRadius: '8px',
-              border: `1px solid ${proj.color}`,
-              boxShadow: '0 0 10px rgba(255, 255, 255, 0.04)'
-            }}
-          />
+      {projects.map((proj, i) => {
+        const images = proj.images || (proj.image ? [proj.image] : []);
+        return (
+          <div key={i} style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            marginBottom: '3rem',
+            gap: '1.5rem',
+            alignItems: 'flex-start'
+          }}>
+            {/* Image box (slideshow if multiple images) */}
+            <RotatingImage
+              images={images}
+              borderColor={proj.color}
+              altBase={`${proj.title} preview`}
+              fit="height" // fill height, centered (side-crop if needed)
+              onClick={(index) => {
+                if (!images.length) return;
+                setLightbox({ title: proj.title, color: proj.color, images, index });
+              }}
+            />
 
-          <div style={{ flex: '1 1 500px' }}>
-            <h2 style={{ color: proj.color, margin: '0 0 0.5rem 0', fontSize: '1.3rem' }}>
-              {proj.title}
-            </h2>
-            {proj.description.map((line, j) => (
-              <p key={j} style={{ margin: '0 0 0.75rem 0' }}>{line}</p>
-            ))}
+            {/* Text/content */}
+            <div style={{ flex: '1 1 500px' }}>
+              <h2 style={{ color: proj.color, margin: '0 0 0.5rem 0', fontSize: '1.3rem' }}>
+                {proj.title}
+              </h2>
+              {proj.description?.map((line, j) => (
+                <p key={j} style={{ margin: '0 0 0.75rem 0' }}>{line}</p>
+              ))}
 
-            {proj.links?.length ? (
-              <div style={{ display: 'flex', gap: '10px', marginTop: '0.5rem', flexWrap: 'wrap' }}>
-                {proj.links.map((l, k) => (
-                  <a
-                    key={k}
-                    href={l.href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: 'inline-block',
-                      padding: '6px 10px',
-                      borderRadius: '999px',
-                      border: `1px solid ${proj.color}`,
-                      color: proj.color,
-                      textDecoration: 'none',
-                      fontSize: '0.9rem',
-                      transition: 'all .2s ease'
-                    }}
-                    onMouseEnter={e => {
-                      e.currentTarget.style.backgroundColor = `${proj.color}22`;
-                    }}
-                    onMouseLeave={e => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                    }}
-                  >
-                    {l.label}
-                  </a>
-                ))}
+              {proj.links?.length ? (
+                <div style={{ display: 'flex', gap: '10px', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                  {proj.links.map((l, k) => (
+                    <a
+                      key={k}
+                      href={l.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-block',
+                        padding: '6px 10px',
+                        borderRadius: '999px',
+                        border: `1px solid ${proj.color}`,
+                        color: proj.color,
+                        textDecoration: 'none',
+                        fontSize: '0.9rem',
+                        transition: 'all .2s ease'
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.backgroundColor = `${proj.color}22`; }}
+                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                    >
+                      {l.label}
+                    </a>
+                  ))}
 
-                {/* Fullscreen QR overlay trigger (only for items with qrData) */}
-                {proj.qrData ? (
-                  <button
-                    type="button"
-                    onClick={() => setQrOpen({ title: proj.title, data: proj.qrData, color: proj.color })}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: '999px',
-                      border: `1px solid ${proj.color}`,
-                      background: 'transparent',
-                      color: proj.color,
-                      fontSize: '0.9rem',
-                      cursor: 'pointer'
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = `${proj.color}22`; }}
-                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                    aria-haspopup="dialog"
-                    aria-expanded={qrOpen ? true : false}
-                  >
-                    Show QR (scan in Expo Go)
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
+                  {/* Fullscreen QR overlay trigger (only for items with qrData) */}
+                  {proj.qrData ? (
+                    <button
+                      type="button"
+                      onClick={() => setQrOpen({ title: proj.title, data: proj.qrData, color: proj.color })}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: '999px',
+                        border: `1px solid ${proj.color}`,
+                        background: 'transparent',
+                        color: proj.color,
+                        fontSize: '0.9rem',
+                        cursor: 'pointer'
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.backgroundColor = `${proj.color}22`; }}
+                      onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                      aria-haspopup="dialog"
+                      aria-expanded={qrOpen ? true : false}
+                    >
+                      Show QR (scan in Expo Go)
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       <p style={{ fontStyle: 'italic', marginTop: '2rem' }}>
         More projects — including visual experiments, creative tools, and exploratory AI work — coming soon.
@@ -282,33 +436,22 @@ export default function Projects() {
           role="dialog"
           aria-modal="true"
           aria-label="QR code overlay"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setQrOpen(null); // close on backdrop click
-          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setQrOpen(null); }}
           style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.72)',
-            backdropFilter: 'blur(4px)',
-            zIndex: 9999,
-            display: 'grid',
-            placeItems: 'center',
-            padding: '24px'
+            position: 'fixed', inset: 0,
+            background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)', zIndex: 9999,
+            display: 'grid', placeItems: 'center', padding: 24
           }}
         >
-          <div
-            style={{
-              width: 'min(92vw, 720px)',
-              borderRadius: 16,
-              border: `1px solid ${qrOpen.color || '#4af'}`,
-              background: '#0b0f14',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
-              padding: '20px',
-              display: 'grid',
-              gap: '14px',
-              animation: 'zoomIn .15s ease'
-            }}
-          >
+          <div style={{
+            width: 'min(92vw, 720px)',
+            borderRadius: 16,
+            border: `1px solid ${qrOpen.color || '#4af'}`,
+            background: '#0b0f14',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+            padding: 20, display: 'grid', gap: 14,
+            animation: 'zoomIn .15s ease'
+          }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
               <h3 style={{ margin: 0, color: '#eaeaea', fontSize: 18 }}>
                 Scan to open: <span style={{ color: qrOpen.color }}>{qrOpen.title}</span>
@@ -316,14 +459,7 @@ export default function Projects() {
               <button
                 type="button"
                 onClick={() => setQrOpen(null)}
-                style={{
-                  border: '1px solid #2a2f3a',
-                  background: 'transparent',
-                  color: '#bfc6d6',
-                  borderRadius: 8,
-                  padding: '6px 10px',
-                  cursor: 'pointer'
-                }}
+                style={{ border: '1px solid #2a2f3a', background: 'transparent', color: '#bfc6d6', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' }}
                 onMouseEnter={e => { e.currentTarget.style.background = '#151a21'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
               >
@@ -340,13 +476,8 @@ export default function Projects() {
                 src={qrSrc(qrOpen.data, 720)}
                 alt="QR code for Expo preview"
                 style={{
-                  width: 'min(80vw, 70vh)',
-                  height: 'auto',
-                  maxWidth: 560,
-                  borderRadius: 12,
-                  border: '1px solid #2a2f3a',
-                  background: '#0f141c',
-                  padding: 12
+                  width: 'min(80vw, 70vh)', height: 'auto', maxWidth: 560,
+                  borderRadius: 12, border: '1px solid #2a2f3a', background: '#0f141c', padding: 12
                 }}
               />
             </div>
@@ -357,12 +488,8 @@ export default function Projects() {
                 target="_blank"
                 rel="noreferrer"
                 style={{
-                  padding: '8px 12px',
-                  borderRadius: 10,
-                  border: `1px solid ${qrOpen.color}`,
-                  color: qrOpen.color,
-                  textDecoration: 'none',
-                  background: 'transparent',
+                  padding: '8px 12px', borderRadius: 10, border: `1px solid ${qrOpen.color}`,
+                  color: qrOpen.color, textDecoration: 'none', background: 'transparent',
                 }}
                 onMouseEnter={e => { e.currentTarget.style.backgroundColor = `${qrOpen.color}22`; }}
                 onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
@@ -380,12 +507,8 @@ export default function Projects() {
                   }
                 }}
                 style={{
-                  padding: '8px 12px',
-                  borderRadius: 10,
-                  border: '1px solid #2a2f3a',
-                  background: 'transparent',
-                  color: '#eaeaea',
-                  cursor: 'pointer'
+                  padding: '8px 12px', borderRadius: 10, border: '1px solid #2a2f3a',
+                  background: 'transparent', color: '#eaeaea', cursor: 'pointer'
                 }}
                 onMouseEnter={e => { e.currentTarget.style.background = '#151a21'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
@@ -396,11 +519,72 @@ export default function Projects() {
           </div>
 
           <style>{`
-            @keyframes zoomIn {
-              from { transform: scale(0.98); opacity: 0; }
-              to { transform: scale(1); opacity: 1; }
-            }
+            @keyframes zoomIn { from { transform: scale(0.98); opacity: 0; } to { transform: scale(1); opacity: 1; } }
           `}</style>
+        </div>
+      )}
+
+      {/* Lightbox overlay for image previews */}
+      {lightbox && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${lightbox.title} image viewer`}
+          onClick={(e) => { if (e.target === e.currentTarget) setLightbox(null); }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10000,
+                   display: 'grid', gridTemplateRows: 'auto 1fr auto', padding: 16 }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+            <h3 style={{ margin: 0, color: '#eaeaea', fontSize: 18 }}>{lightbox.title}</h3>
+            <button
+              type="button"
+              onClick={() => setLightbox(null)}
+              style={{ border: '1px solid #2a2f3a', background: 'transparent', color: '#bfc6d6', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#151a21'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              Close (Esc)
+            </button>
+          </div>
+
+          <div style={{ position: 'relative', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
+            <img
+              src={lightbox.images[lightbox.index]}
+              alt={`${lightbox.title} ${lightbox.index + 1}`}
+              style={{
+                maxWidth: 'min(92vw, 1400px)',
+                maxHeight: 'min(80vh, 90vh)',
+                width: 'auto',
+                height: 'auto',
+                objectFit: 'contain',
+                borderRadius: 12,
+                border: `1px solid ${lightbox.color}`,
+                boxShadow: '0 20px 60px rgba(0,0,0,0.6)'
+              }}
+            />
+            {lightbox.images.length > 1 && (
+              <>
+                <button
+                  aria-label="Previous image"
+                  onClick={(e) => { e.stopPropagation(); setLightbox(lb => ({ ...lb, index: (lb.index - 1 + lb.images.length) % lb.images.length })); }}
+                  style={navButtonStyle(lightbox.color, 'left')}
+                >
+                  ‹
+                </button>
+                <button
+                  aria-label="Next image"
+                  onClick={(e) => { e.stopPropagation(); setLightbox(lb => ({ ...lb, index: (lb.index + 1) % lb.images.length })); }}
+                  style={navButtonStyle(lightbox.color, 'right')}
+                >
+                  ›
+                </button>
+              </>
+            )}
+          </div>
+
+          <div style={{ textAlign: 'center', color: '#bfc6d6', fontSize: 14 }}>
+            {lightbox.images.length > 1 ? `${lightbox.index + 1} / ${lightbox.images.length}` : ''}
+          </div>
         </div>
       )}
     </div>
