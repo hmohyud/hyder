@@ -99,7 +99,7 @@ const projects = [
 
   {
     title: 'Client Sites & Revamps',
-    color: '#c3ff7f',
+    color: '#fe5757ff',
     image: '/images/sites-placeholder.jpg',
     description: [
       `Edited and refreshed sites for several people: accessibility passes, responsive layouts, perf budgets, and SEO fixes.`,
@@ -136,7 +136,7 @@ const projects = [
   },
   {
   title: 'Pocket Sous Chef',
-  color: '#fe5757ff',
+  color: '#c3ff7f',
   images: COOK_IMAGES,
   description: [
     'iOS recipe assistant that turns pantry photos or typed ingredients into step-by-step recipes.',
