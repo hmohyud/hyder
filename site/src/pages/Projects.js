@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 const SPIM_IMAGES = Array.from({ length: 5 }, (_, i) => `/hyder/projects/SPIM_${i + 1}.jpg`);
 const JARJAR_IMAGES = Array.from({ length: 4 }, (_, i) => `/hyder/projects/JARJAR_${i + 1}.jpg`);
 const SPEC_IMAGES = Array.from({ length: 5 }, (_, i) => `/hyder/projects/SPEC_${i + 1}.jpg`);
+const COOK_IMAGES = Array.from({ length: 4 }, (_, i) => `/hyder/projects/COOK_${i + 1}.jpg`);
 
 const projects = [
   {
@@ -132,7 +133,22 @@ const projects = [
       },
     ],
     qrData: 'https://expo.dev/preview/update?message=Initial+commit%0A%0AGenerated+by+create-expo-app+3.4.2.&updateRuntimeVersion=1.0.0&createdAt=2025-06-30T12%3A23%3A53.766Z&slug=exp&projectId=bf485ddb-a27e-47b0-b8ba-444f4dbde301&group=ee75b629-263a-4bc1-aa43-7aa4a5313843'
-  }
+  },
+  {
+  title: 'Pocket Sous Chef',
+  color: '#fe5757ff',
+  images: COOK_IMAGES,
+  description: [
+    'iOS recipe assistant that turns pantry photos or typed ingredients into step-by-step recipes.',
+    'Built with SwiftUI + SwiftData; OpenAI proxy for text + vision; saved recipes with nutrition.',
+    'Privacy-minded: no account; recipes saved on device.'
+  ],
+  links: [
+    { label: 'App Store', href: 'https://apps.apple.com/us/app/pocket-sous-chef/id6751048251' },
+    { label: 'Support', href: 'https://hmohyud.github.io/pocketsouschef-support/' }
+  ]
+},
+
 ];
 
 // Build a QR image URL (no extra deps)
