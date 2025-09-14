@@ -9,7 +9,7 @@ const COOK_IMAGES = Array.from({ length: 4 }, (_, i) => `/hyder/projects/COOK_${
 const projects = [
   {
     title: 'SPIM (Salavon’s Pathology Inducing Machine)',
-    color: '#00d1ff',
+    color: '#00ff88',
     images: SPIM_IMAGES,
     description: [
       `An experimental platform that lets users manipulate the internal layers of diffusion models to generate off-manifold, dreamlike imagery.`,
@@ -20,8 +20,8 @@ const projects = [
   },
   {
     title: 'Environmental Data Globe (Booth School of Business)',
-    color: '#00ff88',
-    image: '/images/globe-placeholder.png',
+    color: '#00d1ff',
+    image: '/hyder/projects/GLOBE_1.jpg',
     description: [
       `Built an interactive globe for visualizing over 200GB of environmental data using JavaScript and Three.js.`,
       `Developed dynamic cluster filtering, palette switching, and automated SQL data preprocessing in Python to support visual clarity and performance.`,
