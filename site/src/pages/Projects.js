@@ -84,7 +84,7 @@ const projects = [
   // Aerospace project with repo link
   {
     title: 'Aerospace Part Finder (Async Scraper + Local LLM)',
-    color: '#b3fff2ff',
+    color: '#c3ff7f',
     images: SPEC_IMAGES,
     description: [
       `Personal convenience tool to search suppliers for exact aerospace part numbers and officially documented equivalents.`,
@@ -136,7 +136,7 @@ const projects = [
   },
   {
   title: 'Pocket Sous Chef',
-  color: '#c3ff7f',
+  color: '#b3fff2ff',
   images: COOK_IMAGES,
   description: [
     'iOS recipe assistant that turns pantry photos or typed ingredients into step-by-step recipes.',
