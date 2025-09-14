@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 
 // ---------- Helper: build an array of SPIM images in /public/hyder/projects ----------
 const SPIM_IMAGES = Array.from({ length: 5 }, (_, i) => `/hyder/projects/SPIM_${i + 1}.jpg`);
+const JARJAR_IMAGES = Array.from({ length: 4 }, (_, i) => `/hyder/projects/JARJAR_${i + 1}.jpg`);
+const SPEC_IMAGES = Array.from({ length: 5 }, (_, i) => `/hyder/projects/JARJAR_${i + 1}.jpg`);
 
 const projects = [
   {
@@ -69,7 +71,7 @@ const projects = [
   {
     title: 'Jar Jar Quote Bot (Twitter/X)',
     color: '#ff6b9d',
-    image: '/images/jarjar-placeholder.jpg',
+    images: JARJAR_IMAGES,
     description: [
       `Daily pipeline that scrapes a random historical quote, translates it into Jar Jar Binks (Gungan) speech, and posts the result.`,
       `To bypass character limits, the text is rendered onto an AI-generated background image before posting.`,
@@ -82,7 +84,7 @@ const projects = [
   {
     title: 'Aerospace Part Finder (Async Scraper + Local LLM)',
     color: '#b3fff2ff',
-    image: '/images/aero-placeholder.jpg',
+    images: SPEC_IMAGES,
     description: [
       `Personal convenience tool to search suppliers for exact aerospace part numbers and officially documented equivalents.`,
       `Stack: async DuckDuckGo fallback, trafilatura (static) + Playwright (JS) scraping, concurrency, deduping, and a local llama.cpp model for structured JSON review.`,
