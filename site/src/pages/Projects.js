@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 // ---------- Helper: build an array of SPIM images in /public/hyder/projects ----------
 const SPIM_IMAGES = Array.from({ length: 5 }, (_, i) => `/hyder/projects/SPIM_${i + 1}.jpg`);
 const JARJAR_IMAGES = Array.from({ length: 4 }, (_, i) => `/hyder/projects/JARJAR_${i + 1}.jpg`);
-const SPEC_IMAGES = Array.from({ length: 5 }, (_, i) => `/hyder/projects/JARJAR_${i + 1}.jpg`);
+const SPEC_IMAGES = Array.from({ length: 5 }, (_, i) => `/hyder/projects/SPEC_${i + 1}.jpg`);
 
 const projects = [
   {
