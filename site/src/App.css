@@ -281,17 +281,26 @@ body.motion-test #bg-animation::after  { animation-duration: 6s !important; }
     background: rgba(10,12,18,.55);
   }
   .site-title{
-    font-size: 1rem;
+    font-size: 0.7rem;
     animation: none;
     letter-spacing: 0;
   }
   .nav-bar{
-    gap: .6rem;
+    gap: 0.5rem;
     flex-wrap: nowrap;
     justify-content: flex-end;
+    
   }
   .nav-link{
     font-size: .9rem;
     padding: .3rem .55rem;
   }
+}
+
+@media (max-height: 800px), (max-width: 400px){
+
+  .nav-bar{
+    gap: 0.1rem;    
+  }
+
 }

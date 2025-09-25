@@ -1,10 +1,15 @@
+/* src/pages/Resume.css — mobile-friendly PDF embed */
+
 .resume-pdf-wrapper {
-  /* padding: 2rem 1rem; */
   max-width: 1000px;
   margin: 0 auto;
   text-align: center;
   color: #e6e6e6;
-    justify-content: center;
+
+  /* center the viewer block */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   align-items: center;
 }
 
@@ -15,10 +20,84 @@
   text-shadow: 0 0 8px #58a6ff33;
 }
 
+/* Works for <object> or <iframe> */
 .resume-pdf-frame {
   width: 100%;
-  height: 86vh;
+  height: 86vh;                 /* desktop/tablet default */
   border: none;
   border-radius: 8px;
   box-shadow: 0 0 10px rgba(88, 166, 255, 0.1);
+  display: block;               /* avoid inline gaps */
+  background: #0b0d12;          /* pleasant fallback while loading */
 }
+
+/* Fallback text/link styling (shown if PDF can’t render inline) */
+.resume-fallback {
+  padding: 16px;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color: #e8ebf4;
+  text-align: left;
+}
+.resume-fallback a {
+  color: #9fe1ff;
+  text-decoration: underline;
+}
+
+/* Phones: keep same placement but ensure a solid, tall viewport height */
+@media (max-width: 600px) {
+  .resume-pdf-wrapper {
+    max-width: 100%;
+    padding: 0 8px;
+  }
+  .resume-pdf-frame {
+    height: 82vh;               /* a bit shorter to avoid iOS toolbars overlap */
+    border-radius: 6px;
+  }
+}
+
+/* iOS Safari: prefer dynamic viewport units so the PDF fills the screen correctly
+   (works whether the element is <object> or <iframe>) */
+@supports (-webkit-touch-callout: none) {
+  .resume-pdf-frame {
+    height: 85dvh;              /* accounts for browser UI chrome on iOS */
+  }
+}
+
+/* Safety: if placed in a flex parent that can collapse, keep the viewer visible */
+.resume-pdf-wrapper > .resume-pdf-frame {
+  min-height: 320px;            /* prevents zero-height edge cases */
+}
+
+
+.doc-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 12px;
+  justify-content: center;
+  flex-wrap: wrap; /* safe on phones */
+}
+
+.doc-toggle-btn {
+  appearance: none;
+  border: 1px solid #2a2f3a;
+  background: #0f141c;
+  color: #e6e6e6;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.doc-toggle-btn.active {
+  border-color: #8fd3ff;
+  box-shadow: 0 0 0 1px #8fd3ff33 inset;
+}
+
+.doc-actions {
+  display: flex; gap: 10px; margin-left: 8px;
+}
+.doc-actions a {
+  color: #9fe1ff; text-decoration: none; border-bottom: 1px dashed #9fe1ff66;
+}
+.doc-actions a:hover { border-bottom-style: solid; }
