@@ -445,7 +445,9 @@ export default function Projects() {
           role="dialog"
           aria-modal="true"
           aria-label="QR code overlay"
-          onClick={(e) => { if (e.target === e.currentTarget) setQrOpen(null); }}
+          onClick={() => { if (lightbox) setLightbox(null); else if (qrOpen) setQrOpen(null); }}
+
+          // onClick={(e) => { if (e.target === e.currentTarget) setQrOpen(null); }}
           style={{
             position: 'fixed', inset: 0,
             background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(4px)', zIndex: 9999,
@@ -539,7 +541,9 @@ export default function Projects() {
           role="dialog"
           aria-modal="true"
           aria-label={`${lightbox.title} image viewer`}
-          onClick={(e) => { if (e.target === e.currentTarget) setLightbox(null); }}
+          // onClick={(e) => { if (e.target === e.currentTarget) setLightbox(null); }}
+          onClick={() => { if (lightbox) setLightbox(null); else if (qrOpen) setQrOpen(null); }}
+
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10000,
                    display: 'grid', gridTemplateRows: 'auto 1fr auto', padding: 16 }}
         >
@@ -557,9 +561,11 @@ export default function Projects() {
           </div>
 
           <div style={{ position: 'relative', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
+            
             <img
               src={lightbox.images[lightbox.index]}
               alt={`${lightbox.title} ${lightbox.index + 1}`}
+              onClick={(e) => e.stopPropagation()}
               style={{
                 maxWidth: 'min(92vw, 1400px)',
                 maxHeight: 'min(80vh, 90vh)',
