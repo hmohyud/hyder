@@ -90,7 +90,7 @@
   cursor: pointer;
 }
 .doc-toggle-btn.active {
-  border-color: #8fd3ff;
+  border-color: #78ffa8;
   box-shadow: 0 0 0 1px #8fd3ff33 inset;
 }
 
