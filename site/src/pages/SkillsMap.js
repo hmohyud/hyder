@@ -23,6 +23,7 @@ export default function SkillsMap() {
     .domain([1, 10])
     .range([8, 40]);
 
+  const DEFAULT_ID = 'Learning Agility';
 
   function stringToColor(str) {
     let hash = 0;
@@ -78,6 +79,17 @@ export default function SkillsMap() {
 
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    if (!data.skillNodes.length) return;
+    if (expandedNodesRef.current.size === 0) {
+      if (data.skillNodes.some(n => n.id === DEFAULT_ID)) {
+        expandedNodesRef.current.add(DEFAULT_ID);
+        forceRerender(x => x + 1); // update right panel + list
+      }
+    }
+  }, [data.skillNodes]);
+
 
   useEffect(() => {
     let dragStartScreenPos = null;
