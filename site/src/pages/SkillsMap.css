@@ -403,3 +403,123 @@
   border-left: 1px solid var(--box-border);
   border-right: 1px solid var(--box-border);
 }
+
+/* --- Centered hint in the card area --- */
+.hint-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 12; /* above .speed-indicator (10) and .link-mode-selector (11) */
+  pointer-events: auto;
+  padding: 16px;
+}
+
+.hint-card {
+  max-width: 520px;
+  width: min(92%, 520px);
+  text-align: center;
+  background: rgba(12, 14, 18, 0.92); /* var(--box-black) with alpha */
+  border: 1px solid var(--box-border);
+  color: #fff;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+  backdrop-filter: blur(4px);
+  padding: 14px 18px;
+  border-radius: 12px;
+  font-family: monospace;
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+/* Elegant, minimalist attention: animated underline bar */
+.hint-title {
+  position: relative;
+  margin-bottom: 8px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: #fff;
+}
+
+.hint-accent {
+  position: absolute;
+  left: 50%;
+  bottom: -6px;
+  transform: translateX(-50%);
+  height: 2px;
+  width: 56%;
+  background: linear-gradient(90deg, transparent, #fff, transparent);
+  opacity: 0.9;
+  border-radius: 2px;
+  animation: hintSweep 1.8s ease-in-out infinite;
+}
+
+@keyframes hintSweep {
+  0%   { transform: translateX(-60%) scaleX(0.6); opacity: 0.25; }
+  40%  { transform: translateX(-50%) scaleX(1.0); opacity: 0.9;  }
+  100% { transform: translateX(-40%) scaleX(0.6); opacity: 0.25; }
+}
+
+.hint-text { opacity: 0.95; }
+
+.hint-dismiss {
+  margin-top: 10px;
+  background: transparent;
+  border: 1px solid var(--box-border);
+  color: #ddd;
+  font-weight: 700;
+  font-size: 13px;
+  line-height: 1;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color .15s ease, border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.hint-dismiss:hover {
+  color: #fff;
+  border-color: #777;
+  transform: translateY(-1px);
+  box-shadow: 0 0 8px rgba(255,255,255,0.08);
+}
+
+/* Slightly smaller on compact layouts */
+@media (max-width: 700px), (max-height: 700px) {
+  .hint-card {
+    font-size: 13px;
+    padding: 12px 14px;
+    border-radius: 10px;
+  }
+}
+
+
+/* Inline circle that matches graph node vibe (gray fill, black 2px stroke) */
+.hint-node-circle {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;                /* equal width/height -> circle */
+  height: 28px;
+  margin: 0 6px 0 4px;
+  background: #666;           /* node fill */
+  border: 2px solid #000;     /* node stroke */
+  border-radius: 50%;         /* circle */
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.06); /* subtle lift like UI */
+  vertical-align: middle;
+  user-select: none;
+}
+
+.hint-node-circle > span {
+  color: #fff;                /* node label color */
+  font-family: monospace;     /* match your labels */
+  font-size: 9px;             /* small enough to fit the circle */
+  line-height: 1;
+  text-transform: lowercase;
+  letter-spacing: -0.2px;
+  transform: translateY(0.5px); /* tiny optical centering */
+}
+
+/* optional: very gentle pulse to draw attention without being loud */
+@keyframes nodeCirclePulse {
+  0%   { box-shadow: 0 0 0 2px rgba(255,255,255,0.06); }
+  50%  { box-shadow: 0 0 0 2px rgba(255,255,255,0.09); }
+  100% { box-shadow: 0 0 0 2px rgba(255,255,255,0.06); }
+}
+.hint-node-circle { animation: nodeCirclePulse 2s ease-in-out infinite; }

@@ -23,6 +23,28 @@ export default function SkillsMap() {
     .domain([1, 10])
     .range([8, 40]);
 
+  // --- HINT STATE + PHONE MODE ---
+  const [isPhone, setIsPhone] = useState(false);
+  const [showHint, setShowHint] = useState(true);
+
+  // Hide hint on first interaction, safely no-op if already hidden
+  const acknowledgeInteraction = () => { if (showHint) setShowHint(false); };
+
+  // Detect phone mode (matches CSS @media that removes .node-graph at 500px)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 500px)');
+    const update = () => setIsPhone(mq.matches);
+    update();
+    mq.addEventListener?.('change', update);
+    return () => mq.removeEventListener?.('change', update);
+  }, []);
+
+  // Auto-hide once a card exists (expandedNodesRef size > 0)
+  // `_` changes whenever you forceRerender, so this effect will run then.
+  useEffect(() => {
+    if (showHint && expandedNodesRef.current.size > 0) setShowHint(false);
+  }, [_, showHint]);
+
   const DEFAULT_ID = 'Learning Agility';
 
   function stringToColor(str) {
@@ -80,15 +102,15 @@ export default function SkillsMap() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  useEffect(() => {
-    if (!data.skillNodes.length) return;
-    if (expandedNodesRef.current.size === 0) {
-      if (data.skillNodes.some(n => n.id === DEFAULT_ID)) {
-        expandedNodesRef.current.add(DEFAULT_ID);
-        forceRerender(x => x + 1); // update right panel + list
-      }
-    }
-  }, [data.skillNodes]);
+  // useEffect(() => {
+  //   if (!data.skillNodes.length) return;
+  //   if (expandedNodesRef.current.size === 0) {
+  //     if (data.skillNodes.some(n => n.id === DEFAULT_ID)) {
+  //       expandedNodesRef.current.add(DEFAULT_ID);
+  //       forceRerender(x => x + 1); // update right panel + list
+  //     }
+  //   }
+  // }, [data.skillNodes]);
 
 
   useEffect(() => {
@@ -526,7 +548,46 @@ export default function SkillsMap() {
 
       </div>
 
-      <div className="tooltip-container">
+      <div className="tooltip-container" style={{ position: 'relative' }}>
+        {showHint && (
+          <div
+            className="hint-overlay"
+            role="status"
+            aria-live="polite"
+            onClick={() => setShowHint(false)}
+          >
+            <div
+              className="hint-card"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="hint-title">
+                {/* Tip */}
+                {/* <span className="hint-accent" aria-hidden="true" /> */}
+              </div>
+              <div className="hint-text">
+                {isPhone ? (
+                  <>
+                    Tap a <strong>skill in the list</strong> to add a card. Tap a <strong>card</strong> to expand it and see how I learned that skill.
+                  </>
+                ) : (
+                  <>
+                    Click a <span className="hint-node-circle" aria-label="graph node example"><span>node</span></span>
+                    to add a card. Click a <strong>card</strong> to expand it and see how I learned that skill.
+                  </>
+                )}
+              </div>
+
+              <button
+                type="button"
+                className="hint-dismiss"
+                aria-label="Dismiss tip"
+                onClick={() => setShowHint(false)}
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        )}
         {[...Array.from(expandedNodesRef.current).reverse()].map(id => {
           const node = data.skillNodes.find(n => n.id === id);
           if (!node) return null;
