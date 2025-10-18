@@ -416,6 +416,7 @@
 }
 
 .hint-card {
+  position: relative;              /* <-- added so the glow anchors to the card */
   max-width: 520px;
   width: min(92%, 520px);
   text-align: center;
@@ -430,6 +431,47 @@
   font-size: 14px;
   line-height: 1.35;
 }
+
+
+.hint-card::before {
+  content: "";
+  position: absolute;
+  inset: -16px;                 /* a touch larger bleed */
+  z-index: -1;
+  border-radius: 18px;
+  pointer-events: none;
+
+  /* punchier glow mix */
+  background:
+    radial-gradient(60% 70% at 40% 30%, rgba(111,178,255,0.22), transparent 68%),
+    radial-gradient(60% 70% at 65% 70%, rgba(163,107,255,0.18), transparent 70%),
+    radial-gradient(75% 80% at 50% 50%, rgba(107,255,157,0.10), transparent 72%);
+
+  filter: blur(22px);
+  opacity: 0.75;
+
+  /* faster + livelier */
+  animation: hintGlowDrift 1.8s ease-in-out infinite alternate,
+             hintGlowPulse 1.6s ease-in-out infinite;
+  transform-origin: 50% 50%;
+}
+
+@keyframes hintGlowDrift {
+  0%   { transform: translate3d(-2px, -1px, 0) scale(0.97); }
+  100% { transform: translate3d(2px, 2px, 0)   scale(1.03); }
+}
+
+@keyframes hintGlowPulse {
+  0%   { opacity: 0.45; filter: blur(18px) brightness(0.95); }
+  50%  { opacity: 0.95; filter: blur(28px) brightness(1.25); }
+  100% { opacity: 0.60; filter: blur(22px) brightness(1.05); }
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .hint-card::before { animation: none; opacity: 0.45; }
+}
+
 
 /* Elegant, minimalist attention: animated underline bar */
 .hint-title {

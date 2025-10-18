@@ -287,3 +287,21 @@ input, textarea, [contenteditable="true"] { cursor: text !important; }
   50%{ transform: translate(-26px, 20px) }
   75%{ transform: translate(18px, 26px) }
 }
+
+/* Your cursor/glow layers should already have this,
+   but just in case: */
+.cursor,
+.cursor-dot,
+.mouse-glow,
+.magic-circle,
+.floating-elements,
+.particles {
+  pointer-events: none;
+}
+
+/* Let the magnifier capture events inside the card */
+.card .peek,
+.preview-zoom {
+  pointer-events: auto;
+  position: relative;
+}

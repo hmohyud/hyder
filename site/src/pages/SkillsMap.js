@@ -23,12 +23,18 @@ export default function SkillsMap() {
     .domain([1, 10])
     .range([8, 40]);
 
-  // --- HINT STATE + PHONE MODE ---
+  // --- HINT STATE + PHONE MODE (cookie-backed “Got it”) ---
   const [isPhone, setIsPhone] = useState(false);
-  const [showHint, setShowHint] = useState(true);
 
-  // Hide hint on first interaction, safely no-op if already hidden
-  const acknowledgeInteraction = () => { if (showHint) setShowHint(false); };
+  // simple cookie helpers
+  const COOKIE_NAME = 'skills.hintAck';
+  const hasHintAck = () => document.cookie.split('; ').some(c => c.startsWith(`${COOKIE_NAME}=1`));
+  const setHintAckCookie = () => {
+    // 1 day
+    document.cookie = `${COOKIE_NAME}=1; max-age=86400; path=/; SameSite=Lax`;
+  };
+
+  const [hintAck, setHintAck] = useState(() => hasHintAck());
 
   // Detect phone mode (matches CSS @media that removes .node-graph at 500px)
   useEffect(() => {
@@ -39,11 +45,8 @@ export default function SkillsMap() {
     return () => mq.removeEventListener?.('change', update);
   }, []);
 
-  // Auto-hide once a card exists (expandedNodesRef size > 0)
-  // `_` changes whenever you forceRerender, so this effect will run then.
-  useEffect(() => {
-    if (showHint && expandedNodesRef.current.size > 0) setShowHint(false);
-  }, [_, showHint]);
+  // derived: show hint only if NOT acknowledged AND nothing selected
+  const shouldShowHint = !hintAck && expandedNodesRef.current.size === 0;
 
   const DEFAULT_ID = 'Learning Agility';
 
@@ -549,12 +552,12 @@ export default function SkillsMap() {
       </div>
 
       <div className="tooltip-container" style={{ position: 'relative' }}>
-        {showHint && (
+        {shouldShowHint && (
           <div
             className="hint-overlay"
             role="status"
             aria-live="polite"
-            onClick={() => setShowHint(false)}
+          // onClick={() => setShowHint(false)}
           >
             <div
               className="hint-card"
@@ -581,8 +584,10 @@ export default function SkillsMap() {
                 type="button"
                 className="hint-dismiss"
                 aria-label="Dismiss tip"
-                onClick={() => setShowHint(false)}
-              >
+                onClick={() => {
+                  setHintAck(true);
+                  setHintAckCookie(); // persist for 1 day
+                }}              >
                 Got it
               </button>
             </div>
