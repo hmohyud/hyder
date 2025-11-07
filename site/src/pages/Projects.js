@@ -5,7 +5,9 @@ const SPIM_IMAGES = Array.from({ length: 5 }, (_, i) => `/hyder/projects/SPIM_${
 const JARJAR_IMAGES = Array.from({ length: 4 }, (_, i) => `/hyder/projects/JARJAR_${i + 1}.jpg`);
 const SPEC_IMAGES = Array.from({ length: 5 }, (_, i) => `/hyder/projects/SPEC_${i + 1}.jpg`);
 const COOK_IMAGES = Array.from({ length: 4 }, (_, i) => `/hyder/projects/COOK_${i + 1}.jpg`);
+const COMIC_IMAGES = Array.from({ length: 6 }, (_, i) => `/hyder/projects/COMIC_${i + 1}.jpg`);
 
+// ---------- Project data ----------
 const projects = [
   {
     title: 'SPIM (Salavon’s Pathology Inducing Machine)',
@@ -37,6 +39,7 @@ const projects = [
     ]
   },
 
+
   // NEW: ComfyUI character pipeline
   {
     title: 'ComfyUI Character Pipeline — Consistent Kids’ Book Art',
@@ -48,6 +51,7 @@ const projects = [
       'Exports print-ready spreads (bleed & safe margins) and auto-generates a “character bible” sheet from the same graph.'
     ],
   },
+
 
   {
     title: 'Educational Tech & Curriculum',
@@ -96,7 +100,21 @@ const projects = [
       { label: 'GitHub', href: 'https://github.com/hmohyud/azizproj' },
     ]
   },
+  {
+    title: 'The Echoes of the Colorful Shadows',
+    color: '#4b7f96ff',
+    images: COMIC_IMAGES,
+    description: [
+      'A timeboxed comic made near the start of AI image generation: a burned-out artist stumbles into four linked realms—Colorful Shadows, Whispers, Mirrored Realities, Fragmented Time—guided by spirits, books, and sound to rekindle his spark and steady a world in decay.',
+      'Built fast with early AI tools: outline → beat-by-beat prompt runs → tight curation (~2k gens → 244 workable → 130 used) → light cleanups/upscales → lettering & print layout (~28 hours end-to-end).'
+    ],
+    links: [
 
+      { label: 'Flowcode Landing', href: 'https://flowcode.com/p/2c3S4xwGF' }
+    ],
+    // Point QR at your canonical route so it never goes stale
+    qrData: '/hyder/projects/QR_COMIC.png'
+  },
   {
     title: 'Client Sites & Revamps',
     color: '#fe5757ff',
@@ -135,19 +153,19 @@ const projects = [
     qrData: 'https://expo.dev/preview/update?message=Initial+commit%0A%0AGenerated+by+create-expo-app+3.4.2.&updateRuntimeVersion=1.0.0&createdAt=2025-06-30T12%3A23%3A53.766Z&slug=exp&projectId=bf485ddb-a27e-47b0-b8ba-444f4dbde301&group=ee75b629-263a-4bc1-aa43-7aa4a5313843'
   },
   {
-  title: 'Pocket Sous Chef',
-  color: '#b3fff2ff',
-  images: COOK_IMAGES,
-  description: [
-    'iOS recipe assistant that turns pantry photos or typed ingredients into step-by-step recipes.',
-    'Built with SwiftUI + SwiftData; OpenAI proxy for text + vision; saved recipes with nutrition.',
-    'Privacy-minded: no account; recipes saved on device.'
-  ],
-  links: [
-    { label: 'App Store', href: 'https://apps.apple.com/us/app/pocket-sous-chef/id6751048251' },
-    { label: 'Support', href: 'https://hmohyud.github.io/pocketsouschef-support/' }
-  ]
-},
+    title: 'Pocket Sous Chef',
+    color: '#b3fff2ff',
+    images: COOK_IMAGES,
+    description: [
+      'iOS recipe assistant that turns pantry photos or typed ingredients into step-by-step recipes.',
+      'Built with SwiftUI + SwiftData; OpenAI proxy for text + vision; saved recipes with nutrition.',
+      'Privacy-minded: no account; recipes saved on device.'
+    ],
+    links: [
+      { label: 'App Store', href: 'https://apps.apple.com/us/app/pocket-sous-chef/id6751048251' },
+      { label: 'Support', href: 'https://hmohyud.github.io/pocketsouschef-support/' }
+    ]
+  },
 
 ];
 
@@ -175,7 +193,7 @@ function usePreloaded(srcs) {
       });
 
       img.onload = mark;
-      img.onerror = () => {}; // ignore; failed ones stay false
+      img.onerror = () => { }; // ignore; failed ones stay false
       img.decoding = 'async';
       img.src = src;
 
@@ -227,9 +245,9 @@ function RotatingImage({
   // bg-size mapping
   const bgSize =
     fit === 'cover' ? 'cover' :
-    fit === 'contain' ? 'contain' :
-    fit === 'width' ? '100% auto' :
-    'auto 100%'; // height
+      fit === 'contain' ? 'contain' :
+        fit === 'width' ? '100% auto' :
+          'auto 100%'; // height
 
   const activeReal = visibleIdxs.length ? visibleIdxs[idx] : -1;
   const usable = visibleIdxs.length > 0;
@@ -303,7 +321,7 @@ export default function Projects() {
       }
       if (lightbox) {
         if (e.key === 'ArrowRight') setLightbox((lb) => ({ ...lb, index: (lb.index + 1) % lb.images.length }));
-        if (e.key === 'ArrowLeft')  setLightbox((lb) => ({ ...lb, index: (lb.index - 1 + lb.images.length) % lb.images.length }));
+        if (e.key === 'ArrowLeft') setLightbox((lb) => ({ ...lb, index: (lb.index - 1 + lb.images.length) % lb.images.length }));
       }
     };
     window.addEventListener('keydown', onKey);
@@ -425,7 +443,10 @@ export default function Projects() {
                       aria-haspopup="dialog"
                       aria-expanded={qrOpen ? true : false}
                     >
-                      Show QR (scan in Expo Go)
+                      {(typeof proj.qrData === 'string' && proj.qrData.toLowerCase().includes('expo.dev'))
+                        ? 'Show QR (scan in Expo Go)'
+                        : 'Show QR'
+                      }
                     </button>
                   ) : null}
                 </div>
@@ -454,86 +475,105 @@ export default function Projects() {
             display: 'grid', placeItems: 'center', padding: 24
           }}
         >
-          <div style={{
-            width: 'min(92vw, 720px)',
-            borderRadius: 16,
-            border: `1px solid ${qrOpen.color || '#4af'}`,
-            background: '#0b0f14',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
-            padding: 20, display: 'grid', gap: 14,
-            animation: 'zoomIn .15s ease'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-              <h3 style={{ margin: 0, color: '#eaeaea', fontSize: 18 }}>
-                Scan to open: <span style={{ color: qrOpen.color }}>{qrOpen.title}</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setQrOpen(null)}
-                style={{ border: '1px solid #2a2f3a', background: 'transparent', color: '#bfc6d6', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#151a21'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-              >
-                Close (Esc)
-              </button>
-            </div>
+          {(() => {
+            const dataStr = String(qrOpen.data || '');
+            const isExpo = dataStr.toLowerCase().includes('expo.dev');
+            // const isInternal = dataStr.startsWith('/');
 
-            <p style={{ margin: 0, color: '#bfc6d6', fontSize: 14 }}>
-              Tip: Install <b>Expo Go</b> on iOS/Android. Then scan this QR to open the preview.
-            </p>
+            const tipText = isExpo
+              ? <>Tip: Install <b>Expo Go</b> on iOS/Android, then scan this QR to open the preview.</>
+              : <>Tip: Open your phone’s camera (or any QR app) and scan to open the page.</>;
 
-            <div style={{ display: 'grid', placeItems: 'center', padding: '8px 0 2px' }}>
-              <img
-                src={qrSrc(qrOpen.data, 720)}
-                alt="QR code for Expo preview"
-                style={{
-                  width: 'min(80vw, 70vh)', height: 'auto', maxWidth: 560,
-                  borderRadius: 12, border: '1px solid #2a2f3a', background: '#0f141c', padding: 12
-                }}
-              />
-            </div>
+            const imgAlt = isExpo ? 'QR code for Expo preview' : 'QR code for site link';
+            const linkLabel = isExpo ? 'Open preview in browser' : 'Open site in new tab';
+            // const copiedMsg = isExpo ? 'Preview URL copied to clipboard' : 'Link copied to clipboard';
+            const imgLoc = isExpo ? qrOpen.data : "https://flowcode.com/p/2c3S4xwGF"
 
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-              <a
-                href={qrOpen.data}
-                target="_blank"
-                rel="noreferrer"
-                style={{
-                  padding: '8px 12px', borderRadius: 10, border: `1px solid ${qrOpen.color}`,
-                  color: qrOpen.color, textDecoration: 'none', background: 'transparent',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = `${qrOpen.color}22`; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-              >
-                Open preview in browser
-              </a>
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(qrOpen.data);
-                    alert('Preview URL copied to clipboard');
-                  } catch {
-                    prompt('Copy this URL:', qrOpen.data);
-                  }
-                }}
-                style={{
-                  padding: '8px 12px', borderRadius: 10, border: '1px solid #2a2f3a',
-                  background: 'transparent', color: '#eaeaea', cursor: 'pointer'
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#151a21'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-              >
-                Copy preview URL
-              </button>
-            </div>
-          </div>
+            return (
+              <div style={{
+                width: 'min(92vw, 720px)',
+                borderRadius: 16,
+                border: `1px solid ${qrOpen.color || '#4af'}`,
+                background: '#0b0f14',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.6)',
+                padding: 20, display: 'grid', gap: 14,
+                animation: 'zoomIn .15s ease'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                  <h3 style={{ margin: 0, color: '#eaeaea', fontSize: 18 }}>
+                    Scan to open: <span style={{ color: qrOpen.color }}>{qrOpen.title}</span>
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setQrOpen(null)}
+                    style={{ border: '1px solid #2a2f3a', background: 'transparent', color: '#bfc6d6', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#151a21'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    Close (Esc)
+                  </button>
+                </div>
+
+                <p style={{ margin: 0, color: '#bfc6d6', fontSize: 14 }}>
+                  {tipText}
+                </p>
+
+                <div style={{ display: 'grid', placeItems: 'center', padding: '8px 0 2px' }}>
+                  <img
+                    src={isExpo ? qrSrc(qrOpen.data, 720) : qrOpen.data}
+                    alt={imgAlt}
+                    style={{
+                      width: 'min(80vw, 70vh)', height: 'auto', maxWidth: 560,
+                      borderRadius: 12, border: '1px solid #2a2f3a', background: '#313944ff', padding: 12
+                    }}
+                  />
+                  {/* {imgAlt} */}
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                  <a
+                    href={isExpo ? qrOpen.data : "https://flowcode.com/p/2c3S4xwGF"}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      padding: '8px 12px', borderRadius: 10, border: `1px solid ${qrOpen.color}`,
+                      color: qrOpen.color, textDecoration: 'none', background: 'transparent',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = `${qrOpen.color}22`; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                  >
+                    {linkLabel}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(imgLoc);
+                        // alert(copiedMsg);
+                      } catch {
+                        prompt('Copy this URL:', imgLoc);
+                      }
+                    }}
+                    style={{
+                      padding: '8px 12px', borderRadius: 10, border: '1px solid #2a2f3a',
+                      background: 'transparent', color: '#eaeaea', cursor: 'pointer'
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = '#151a21'; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    Copy link
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
 
           <style>{`
-            @keyframes zoomIn { from { transform: scale(0.98); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-          `}</style>
+      @keyframes zoomIn { from { transform: scale(0.98); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    `}</style>
         </div>
       )}
+
 
       {/* Lightbox overlay for image previews */}
       {lightbox && (
@@ -544,8 +584,10 @@ export default function Projects() {
           // onClick={(e) => { if (e.target === e.currentTarget) setLightbox(null); }}
           onClick={() => { if (lightbox) setLightbox(null); else if (qrOpen) setQrOpen(null); }}
 
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10000,
-                   display: 'grid', gridTemplateRows: 'auto 1fr auto', padding: 16 }}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10000,
+            display: 'grid', gridTemplateRows: 'auto 1fr auto', padding: 16
+          }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
             <h3 style={{ margin: 0, color: '#eaeaea', fontSize: 18 }}>{lightbox.title}</h3>
@@ -561,7 +603,7 @@ export default function Projects() {
           </div>
 
           <div style={{ position: 'relative', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
-            
+
             <img
               src={lightbox.images[lightbox.index]}
               alt={`${lightbox.title} ${lightbox.index + 1}`}
