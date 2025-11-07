@@ -105,12 +105,13 @@ const projects = [
     color: '#4b7f96ff',
     images: COMIC_IMAGES,
     description: [
-      'A timeboxed comic made near the start of AI image generation: a burned-out artist stumbles into four linked realms—Colorful Shadows, Whispers, Mirrored Realities, Fragmented Time—guided by spirits, books, and sound to rekindle his spark and steady a world in decay.',
+      'A timeboxed comic made near the start of AI image generation for a college project: a burned-out artist stumbles into four linked realms—Colorful Shadows, Whispers, Mirrored Realities, Fragmented Time—guided by spirits, books, and sound to rekindle his spark and steady a world in decay.',
       'Built fast with early AI tools: outline → beat-by-beat prompt runs → tight curation (~2k gens → 244 workable → 130 used) → light cleanups/upscales → lettering & print layout (~28 hours end-to-end).'
     ],
     links: [
 
-      { label: 'Flowcode Landing', href: 'https://flowcode.com/p/2c3S4xwGF' }
+      // { label: 'pdf', href: 'https://flowcode.com/p/2c3S4xwGF' }
+      { label: 'pdf', href: 'https://hmohyud.github.io/hyder/projects/Echoes_of_the_Colorful_Shadows_5x7.pdf' }
     ],
     // Point QR at your canonical route so it never goes stale
     qrData: '/hyder/projects/QR_COMIC.png'
@@ -127,7 +128,7 @@ const projects = [
   {
     title: 'Motām — Poetry Collection',
     color: '#ffd166',
-    image: '/images/motam-preview.jpg',
+    image: '/hyder/projects/MOTAM_1.jpg',
     description: [
       `A simple, quiet website to present my grandmother’s poetry collection across the years.`,
       `Typography-focused, accessible, and easy to maintain.`,
@@ -487,7 +488,7 @@ export default function Projects() {
             const imgAlt = isExpo ? 'QR code for Expo preview' : 'QR code for site link';
             const linkLabel = isExpo ? 'Open preview in browser' : 'Open site in new tab';
             // const copiedMsg = isExpo ? 'Preview URL copied to clipboard' : 'Link copied to clipboard';
-            const imgLoc = isExpo ? qrOpen.data : "https://flowcode.com/p/2c3S4xwGF"
+            const imgLoc = isExpo ? qrOpen.data : "https://hmohyud.github.io/hyder/projects/Echoes_of_the_Colorful_Shadows_5x7.pdf"
 
             return (
               <div style={{
@@ -532,7 +533,7 @@ export default function Projects() {
 
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                   <a
-                    href={isExpo ? qrOpen.data : "https://flowcode.com/p/2c3S4xwGF"}
+                    href={isExpo ? qrOpen.data : "https://hmohyud.github.io/hyder/projects/Echoes_of_the_Colorful_Shadows_5x7.pdf"}
                     target="_blank"
                     rel="noreferrer"
                     style={{
