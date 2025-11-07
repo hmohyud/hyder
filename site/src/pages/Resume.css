@@ -1,74 +1,18 @@
-/* src/pages/Resume.css — mobile-friendly PDF embed */
+/* src/pages/Resume.css — desktop: <object>, phone: react-pdf */
 
+:root { --viewer-max: 1000px; }
+
+/* Shell */
 .resume-pdf-wrapper {
-  max-width: 1000px;
+  max-width: var(--viewer-max);
   margin: 0 auto;
-  text-align: center;
   color: #e6e6e6;
-
-  /* center the viewer block */
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  align-items: center;
+  align-items: stretch; /* critical so phone width measures correctly */
 }
 
-.resume-pdf-title {
-  font-size: 2rem;
-  margin-bottom: 1rem;
-  color: #ffffff;
-  text-shadow: 0 0 8px #58a6ff33;
-}
-
-/* Works for <object> or <iframe> */
-.resume-pdf-frame {
-  width: 100%;
-  height: 86vh;                 /* desktop/tablet default */
-  border: none;
-  border-radius: 8px;
-  box-shadow: 0 0 10px rgba(88, 166, 255, 0.1);
-  display: block;               /* avoid inline gaps */
-  background: #0b0d12;          /* pleasant fallback while loading */
-}
-
-/* Fallback text/link styling (shown if PDF can’t render inline) */
-.resume-fallback {
-  padding: 16px;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-  color: #e8ebf4;
-  text-align: left;
-}
-.resume-fallback a {
-  color: #9fe1ff;
-  text-decoration: underline;
-}
-
-/* Phones: keep same placement but ensure a solid, tall viewport height */
-@media (max-width: 600px) {
-  .resume-pdf-wrapper {
-    max-width: 100%;
-    padding: 0 8px;
-  }
-  .resume-pdf-frame {
-    height: 82vh;               /* a bit shorter to avoid iOS toolbars overlap */
-    border-radius: 6px;
-  }
-}
-
-/* iOS Safari: prefer dynamic viewport units so the PDF fills the screen correctly
-   (works whether the element is <object> or <iframe>) */
-@supports (-webkit-touch-callout: none) {
-  .resume-pdf-frame {
-    height: 85dvh;              /* accounts for browser UI chrome on iOS */
-  }
-}
-
-/* Safety: if placed in a flex parent that can collapse, keep the viewer visible */
-.resume-pdf-wrapper > .resume-pdf-frame {
-  min-height: 320px;            /* prevents zero-height edge cases */
-}
-
-
+/* Toggle */
 .doc-toggle {
   width: 100%;
   display: flex;
@@ -76,9 +20,8 @@
   gap: 8px;
   margin: 6px 0 12px;
   justify-content: center;
-  flex-wrap: wrap; /* safe on phones */
+  flex-wrap: wrap;
 }
-
 .doc-toggle-btn {
   appearance: none;
   border: 1px solid #2a2f3a;
@@ -94,10 +37,113 @@
   box-shadow: 0 0 0 1px #8fd3ff33 inset;
 }
 
-.doc-actions {
-  display: flex; gap: 10px; margin-left: 8px;
+/* PHONE MODE viewer (react-pdf) */
+.pdf-viewport {
+  position: relative;            /* for the floating action buttons */
+  width: 100%;
+  max-width: var(--viewer-max);
+  margin: 0 auto;
 }
-.doc-actions a {
-  color: #9fe1ff; text-decoration: none; border-bottom: 1px dashed #9fe1ff66;
+
+/* Floating top-right action buttons */
+.pdf-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 8px;
+  z-index: 5;
 }
-.doc-actions a:hover { border-bottom-style: solid; }
+
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 20, 28, 0.85);
+  border: 1px solid rgba(42, 47, 58, 0.9);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25), 0 0 0 1px rgba(143,211,255,0.12) inset;
+  color: #e6e6e6;
+  text-decoration: none;
+  backdrop-filter: blur(6px);
+}
+.icon-btn:hover {
+  border-color: #78ffa8;
+  box-shadow:
+    0 2px 14px rgba(88,166,255,0.18),
+    0 0 0 1px rgba(143,211,255,0.35) inset;
+}
+.icon-btn:active { transform: translateY(1px); }
+
+.icon-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+/* Visually-hidden text for accessibility */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0,0,0,0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* Scroll container */
+.pdf-scroll {
+  width: 100%;
+  overflow: auto;
+  height: calc(100svh - 120px);
+  -webkit-overflow-scrolling: touch;
+  background: #0b0d12;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(88, 166, 255, 0.1);
+}
+
+/* Make canvases fill the container width */
+.react-pdf__Page canvas {
+  width: 100% !important;
+  height: auto !important;
+  display: block;
+  margin: 0 auto 12px;
+}
+
+/* Loading / fallback */
+.pdf-loading { padding: 24px; text-align: center; color: #e8ebf4; }
+.resume-fallback {
+  padding: 16px;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color: #e8ebf4;
+  text-align: left;
+}
+.resume-fallback a { color: #9fe1ff; text-decoration: underline; }
+
+/* NORMAL MODE viewer (legacy <object>) */
+.resume-pdf-frame {
+  width: 100%;
+  height: 86vh;
+  border: none;
+  border-radius: 8px;
+  display: block;
+  background: #0b0d12;
+}
+
+/* iOS dynamic viewport correction */
+@supports (-webkit-touch-callout: none) {
+  .pdf-scroll, .resume-pdf-frame { height: 85dvh; }
+}
+
+/* Small screens */
+@media (max-width: 600px) {
+  .resume-pdf-wrapper { padding: 0 8px; }
+  .pdf-scroll, .resume-pdf-frame { height: 82vh; border-radius: 6px; }
+  .pdf-actions { top: 6px; right: 6px; }
+  .icon-btn { width: 34px; height: 34px; }
+}
