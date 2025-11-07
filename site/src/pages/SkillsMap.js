@@ -18,8 +18,13 @@ export default function SkillsMap() {
   const [_, forceRerender] = useState(0);
   const [linkMode, setLinkMode] = useState('category'); // or 'proficiency', etc.
   const canvasRef = useRef(null);
+
+  // offscreen buffers to tint only the lines
+  const gridCanvasRef = useRef(null);
+  const tintCanvasRef = useRef(null);
+
   const radiusScale = d3.scalePow()
-    .exponent(2.2) // tweak this value to control curve steepness
+    .exponent(2.2)
     .domain([1, 10])
     .range([8, 40]);
 
@@ -30,13 +35,12 @@ export default function SkillsMap() {
   const COOKIE_NAME = 'skills.hintAck';
   const hasHintAck = () => document.cookie.split('; ').some(c => c.startsWith(`${COOKIE_NAME}=1`));
   const setHintAckCookie = () => {
-    // 1 day
     document.cookie = `${COOKIE_NAME}=1; max-age=86400; path=/; SameSite=Lax`;
   };
 
   const [hintAck, setHintAck] = useState(() => hasHintAck());
+  const shouldShowHint = !hintAck && expandedNodesRef.current.size === 0;
 
-  // Detect phone mode (matches CSS @media that removes .node-graph at 500px)
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 500px)');
     const update = () => setIsPhone(mq.matches);
@@ -45,28 +49,25 @@ export default function SkillsMap() {
     return () => mq.removeEventListener?.('change', update);
   }, []);
 
-  // derived: show hint only if NOT acknowledged AND nothing selected
-  const shouldShowHint = !hintAck && expandedNodesRef.current.size === 0;
-
-  const DEFAULT_ID = 'Learning Agility';
-
   function stringToColor(str) {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       hash = str.charCodeAt(i) + ((hash << 5) - hash);
     }
-
-    // Use hash to pick a hue
-    const hue = Math.abs(hash) % 360; // full hue wheel
-
-    // Saturation and lightness tuned for pastel/techy
-    const saturation = 50 + (Math.abs(hash) % 20); // 50–70%
-    const lightness = 65 + (Math.abs(hash) % 10);  // 65–75%
-
+    const hue = Math.abs(hash) % 360;
+    const saturation = 50 + (Math.abs(hash) % 20);
+    const lightness = 65 + (Math.abs(hash) % 10);
     return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
   }
 
-
+  // inject alpha into hsl() -> hsla()
+  function withAlpha(hsl, a) {
+    if (!hsl) return `rgba(255,255,255,${a})`;
+    if (hsl.startsWith('hsl(')) {
+      return hsl.replace(/^hsl\(/, 'hsla(').replace(/\)$/, `, ${a})`);
+    }
+    return hsl;
+  }
 
   useEffect(() => {
     fetch(`${process.env.PUBLIC_URL}/skillsData.json`)
@@ -88,43 +89,25 @@ export default function SkillsMap() {
       const height = svgRef.current.clientHeight;
 
       simulationRef.current
-        // .force('center', d3.forceCenter(width / 2, height / 2))
-        // .force('rhombusCollide', forceRhombusCollide(nodes))
-        // .force('x', d3.forceX(width / 2).strength(0.01))
-        // .force('y', d3.forceY(height / 2).strength(0.01))
         .force('center', d3.forceCenter(width / 2, height / 2))
-
-
         .alpha(0.5)
         .restart();
     };
-
     window.addEventListener('resize', handleResize);
-    handleResize(); // apply correct size on mount
-
+    handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, []);
-
-  // useEffect(() => {
-  //   if (!data.skillNodes.length) return;
-  //   if (expandedNodesRef.current.size === 0) {
-  //     if (data.skillNodes.some(n => n.id === DEFAULT_ID)) {
-  //       expandedNodesRef.current.add(DEFAULT_ID);
-  //       forceRerender(x => x + 1); // update right panel + list
-  //     }
-  //   }
-  // }, [data.skillNodes]);
-
 
   useEffect(() => {
     let dragStartScreenPos = null;
     let isActuallyDragging = false;
 
-
     if (!data.skillNodes.length) return;
 
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
+
+    // main visible canvas
     const canvas = canvasRef.current;
     if (canvas) {
       const ctx = canvas.getContext('2d');
@@ -133,36 +116,33 @@ export default function SkillsMap() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
 
+    // setup offscreen canvases for grid and tint mask
+    if (!gridCanvasRef.current) gridCanvasRef.current = document.createElement('canvas');
+    if (!tintCanvasRef.current) tintCanvasRef.current = document.createElement('canvas');
+
     const fullWidth = svgRef.current.clientWidth;
     const fullHeight = svgRef.current.clientHeight;
     const padding = 40;
 
-    const nodes = data.skillNodes.map((d, i) => ({
+    const nodes = data.skillNodes.map((d) => ({
       ...d,
       x: d.x || fullWidth / 2 + Math.random() * 50 - 25,
       y: d.y || fullHeight / 2 + Math.random() * 50 - 25,
       fx: null,
       fy: null,
-      ringColor: stringToColor(d.id), // ✅ generate once
+      ringColor: stringToColor(d.id),
     }));
 
-
-    const idSet = new Set(nodes.map(n => n.id));
     const links = [];
-
-
     if (linkMode === 'proficiency') {
       const groupsByProficiency = {};
       nodes.forEach(n => {
         if (!groupsByProficiency[n.proficiency]) groupsByProficiency[n.proficiency] = [];
         groupsByProficiency[n.proficiency].push(n.id);
       });
-
       Object.values(groupsByProficiency).forEach(group => {
         for (let i = 0; i < group.length; i++) {
-          for (let j = i + 1; j < group.length; j++) {
-            links.push({ source: group[i], target: group[j] });
-          }
+          for (let j = i + 1; j < group.length; j++) links.push({ source: group[i], target: group[j] });
         }
       });
     } else if (linkMode === 'category') {
@@ -171,42 +151,25 @@ export default function SkillsMap() {
         if (!groupsByCategory[n.category]) groupsByCategory[n.category] = [];
         groupsByCategory[n.category].push(n.id);
       });
-
       Object.values(groupsByCategory).forEach(group => {
         for (let i = 0; i < group.length; i++) {
-          for (let j = i + 1; j < group.length; j++) {
-            links.push({ source: group[i], target: group[j] });
-          }
+          for (let j = i + 1; j < group.length; j++) links.push({ source: group[i], target: group[j] });
         }
       });
     }
 
     simulationRef.current = d3.forceSimulation(nodes)
       .alphaMin(0.001)
-      .alphaDecay(0.01) // slower decay
-      .velocityDecay(0.2) // less resistance
-      .force('link', d3.forceLink(links).id(d => d.id).distance(130).strength(0.1)) // softer springs
-      .force('charge', d3.forceManyBody().strength(-20)) // less push apart
+      .alphaDecay(0.01)
+      .velocityDecay(0.2)
+      .force('link', d3.forceLink(links).id(d => d.id).distance(130).strength(0.1))
+      .force('charge', d3.forceManyBody().strength(-20))
       .force('center', d3.forceCenter(fullWidth / 2, fullHeight / 2))
-      .force('collide', d3.forceCollide().radius(d => radiusScale(d.proficiency || 1) + 6).strength(0.5))
-    // .force('rhombusCollide', forceRhombusCollide(nodes))
+      .force('collide', d3.forceCollide().radius(d => radiusScale(d.proficiency || 1) + 6).strength(0.5));
 
     simulationRef.current.alphaTarget(0.005).restart();
 
     const g = svg.append('g');
-    // // Zoom & pan
-    // const zoom = d3.zoom()
-    //   .scaleExtent([0.5, 2.5])
-    //   .on('zoom', (event) => g.attr('transform', event.transform));
-
-    // d3.select(svgRef.current).call(zoom);
-    // defs: glow filter
-    // const defs = svg.append('defs');
-    // const glow = defs.append('filter').attr('id', 'node-glow');
-    // glow.append('feGaussianBlur').attr('stdDeviation', 4).attr('result', 'blur');
-    // const merge = glow.append('feMerge');
-    // merge.append('feMergeNode').attr('in', 'blur');
-    // merge.append('feMergeNode').attr('in', 'SourceGraphic');
 
     const link = g.append('g')
       .attr('stroke', '#555')
@@ -220,31 +183,14 @@ export default function SkillsMap() {
       .data(nodes)
       .join('g')
       .style('cursor', 'pointer')
-      .each(function (d) {
-        d.gElement = d3.select(this);
-      })
+      .each(function (d) { d.gElement = d3.select(this); })
       .on('click', function (event, d) {
-        if (isActuallyDragging) return; // ignore if drag occurred
-
+        if (isActuallyDragging) return;
         const set = expandedNodesRef.current;
-        // if (set.has(d.id)) {
-        //   set.delete(d.id);
-        // } else {
-        //   set.add(d.id);
-        // }
-        if (expandedNodesRef.current.has(d.id)) {
-          expandedNodesRef.current.delete(d.id);
-        } else {
-          expandedNodesRef.current.add(d.id);
-        }
-        forceRerender(x => x + 1); // trigger immediate re-render
+        set.has(d.id) ? set.delete(d.id) : set.add(d.id);
+        forceRerender(x => x + 1);
 
-        // d3.selectAll('circle')
-        //   .attr('stroke', c => set.has(c.id) ? '#ffcc00' : '#000')
-        // .attr('fill', c => set.has(c.id) ? '#f0f0f0' : '#666');
-        d3.selectAll('circle')
-          .attr('stroke', c => set.has(c.id) ? c.ringColor : '#000');
-
+        d3.selectAll('circle').attr('stroke', c => set.has(c.id) ? c.ringColor : '#000');
         d3.selectAll('text').style('display', 'block');
 
         if (tooltipInfoRef.current) {
@@ -262,80 +208,48 @@ export default function SkillsMap() {
           el.style.setProperty('--ring', n.ringColor);
           el.style.setProperty('--ring-tint', `${n.ringColor}33`);
           el.dataset.selected = set.has(id) ? 'true' : 'false';
-          // clear any old inline fallback styles
           el.style.removeProperty('background');
           el.style.removeProperty('border-left');
         });
-
       })
-
-
       .on('mouseover', function () {
         d3.select(this).select('circle').transition().duration(200).attr('fill', '#88f');
       })
       .on('mouseout', function (event, d) {
         d3.select(this).select('circle').transition().duration(200)
-
           .attr('fill', d => d.id === expandedIdRef.current ? '#f0f0f0' : '#666');
-        // .attr('fill', d => d.id === expandedIdRef.current ? '#f0f0f0' : '#7090ff');
       })
       .call(d3.drag()
         .on('start', (event, d) => {
           dragStartScreenPos = [event.sourceEvent.clientX, event.sourceEvent.clientY];
           isActuallyDragging = false;
-
           if (!event.active) simulationRef.current.alphaTarget(0.03).restart();
-          d.fx = d.x;
-          d.fy = d.y;
+          d.fx = d.x; d.fy = d.y;
         })
         .on('drag', (event, d) => {
-          const [startX, startY] = dragStartScreenPos;
-          const dx = event.sourceEvent.clientX - startX;
-          const dy = event.sourceEvent.clientY - startY;
-          const dist = Math.sqrt(dx * dx + dy * dy);
+          const [sx, sy] = dragStartScreenPos;
+          const dx = event.sourceEvent.clientX - sx;
+          const dy = event.sourceEvent.clientY - sy;
+          if (Math.sqrt(dx*dx + dy*dy) > 4) isActuallyDragging = true;
 
-          if (dist > 4) {
-            isActuallyDragging = true;
-          }
-
-          const svg = svgRef.current;
-          if (!svg) return;
-
-          const width = svg.clientWidth;
-          const height = svg.clientHeight;
-          const padding = 40;
-
-          d.fx = Math.max(padding, Math.min(width - padding, event.x));
-          d.fy = Math.max(padding, Math.min(height - padding, event.y));
+          const svg = svgRef.current; if (!svg) return;
+          const width = svg.clientWidth, height = svg.clientHeight, pad = 40;
+          d.fx = Math.max(pad, Math.min(width - pad, event.x));
+          d.fy = Math.max(pad, Math.min(height - pad, event.y));
         })
         .on('end', (event, d) => {
           if (!event.active) simulationRef.current.alphaTarget(0);
-          d.fx = null;
-          d.fy = null;
+          d.fx = null; d.fy = null;
         })
       );
 
-
-
-
-
-
     node.append('circle')
-      // .attr('r', 18)
-      // .attr('r', d => 10 + (d.proficiency || 1) * 1.5) // base radius + scaled size
       .attr('r', d => radiusScale(d.proficiency || 1))
-
       .attr('fill', '#666')
-      // .attr('fill', '#7090ff')
-
       .attr('stroke', '#000')
       .attr('stroke-width', 2);
 
-
-
-    // Re-apply visual highlighting for selected nodes after graph re-render
-    d3.selectAll('circle')
-      .attr('stroke', d => expandedNodesRef.current.has(d.id) ? d.ringColor : '#000');
+    d3.selectAll('circle').attr('stroke', d => expandedNodesRef.current.has(d.id) ? d.ringColor : '#000');
 
     Object.entries(nodeListRefs.current).forEach(([id, el]) => {
       const node = data.skillNodes.find(n => n.id === id);
@@ -356,24 +270,26 @@ export default function SkillsMap() {
       .style('pointer-events', 'none')
       .style('user-select', 'none');
 
-
-
-
+    // -------------------------------------------------------
+    // Animated net + LINE-ONLY tint near selected nodes.
+    // FIX: use destination-in to keep gradient color, masked by grid.
+    // Also brighten base grid slightly so the tint reads clearly.
+    // -------------------------------------------------------
 
     let lastFrame = 0;
 
     d3.timer((elapsed) => {
-      if (elapsed - lastFrame < 15) return; // throttle to ~10 FPS
+      if (elapsed - lastFrame < 15) return; // ~10-12 FPS
       lastFrame = elapsed;
-
       const start = performance.now();
 
       const currentWidth = svgRef.current?.clientWidth ?? 800;
       const currentHeight = svgRef.current?.clientHeight ?? 600;
 
+      const paddingLocal = 40;
       node.attr('transform', d => {
-        d.x = Math.max(padding, Math.min(currentWidth - padding, d.x));
-        d.y = Math.max(padding, Math.min(currentHeight - padding, d.y));
+        d.x = Math.max(paddingLocal, Math.min(currentWidth - paddingLocal, d.x));
+        d.y = Math.max(paddingLocal, Math.min(currentHeight - paddingLocal, d.y));
         return `translate(${d.x}, ${d.y})`;
       });
 
@@ -385,17 +301,35 @@ export default function SkillsMap() {
 
       const canvas = canvasRef.current;
       if (canvas && svgRef.current) {
-        const ctx = canvas.getContext('2d');
+        const main = canvas.getContext('2d');
+
+        // resize buffers
         const w = canvas.width = svgRef.current.clientWidth;
         const h = canvas.height = svgRef.current.clientHeight;
-        ctx.clearRect(0, 0, w, h);
 
-        ctx.strokeStyle = '#0a0a0a';
-        ctx.lineWidth = 1;
+        const gridCanvas = gridCanvasRef.current;
+        const tintCanvas = tintCanvasRef.current;
+        if (gridCanvas.width !== w || gridCanvas.height !== h) {
+          gridCanvas.width = w; gridCanvas.height = h;
+        }
+        if (tintCanvas.width !== w || tintCanvas.height !== h) {
+          tintCanvas.width = w; tintCanvas.height = h;
+        }
 
+        const gctx = gridCanvas.getContext('2d');
+        const tctx = tintCanvas.getContext('2d');
+
+        // clear all
+        main.clearRect(0, 0, w, h);
+        gctx.clearRect(0, 0, w, h);
+        tctx.clearRect(0, 0, w, h);
+
+        // --- Warp setup (based on node positions) ---
         const gridSpacing = 13;
+        gctx.lineWidth = 1;
+        // slightly brighter than before so tint is visible
+        gctx.strokeStyle = '#0a0a0a'; // dark blue-gray (GitHub-ish)
 
-        // Precompute influence values per node
         const warpNodes = nodes.map(d => {
           const r = radiusScale(d.proficiency || 1);
           return {
@@ -412,7 +346,6 @@ export default function SkillsMap() {
             const distX = x - d.x;
             const distY = y - d.y;
             const distSq = distX * distX + distY * distY;
-
             if (distSq < d.r2) {
               const dist = Math.sqrt(distSq) || 0.001;
               const force = (1 - dist / Math.sqrt(d.r2)) ** 2;
@@ -420,25 +353,77 @@ export default function SkillsMap() {
               dy += (distY / dist) * force * d.strength;
             }
           }
+          // micro time wave to avoid static feel
+          const t = elapsed * 0.001;
+          dx += Math.sin((x + t * 60) * 0.005) * 0.8;
+          dy += Math.cos((y - t * 40) * 0.005) * 0.8;
           return [x + dx, y + dy];
         };
 
+        // --- DRAW GRID (to gridCanvas) ---
         for (let y = 0; y <= h; y += gridSpacing) {
-          ctx.beginPath();
+          gctx.beginPath();
           for (let x = 0; x <= w; x += gridSpacing) {
             const [wx, wy] = warp(x, y);
-            ctx.lineTo(wx, wy);
+            gctx.lineTo(wx, wy);
           }
-          ctx.stroke();
+          gctx.stroke();
         }
-
         for (let x = 0; x <= w; x += gridSpacing) {
-          ctx.beginPath();
+          gctx.beginPath();
           for (let y = 0; y <= h; y += gridSpacing) {
             const [wx, wy] = warp(x, y);
-            ctx.lineTo(wx, wy);
+            gctx.lineTo(wx, wy);
           }
-          ctx.stroke();
+          gctx.stroke();
+        }
+
+        // draw the plain grid to the main canvas first
+        main.drawImage(gridCanvas, 0, 0);
+
+        // --- TINT LINES ONLY NEAR SELECTED NODES ---
+        const selected = expandedNodesRef.current;
+        if (selected.size > 0) {
+          // subtle pulse (very small)
+          const pulse = 1 + Math.sin(elapsed * 0.0015) * 0.025;
+
+          selected.forEach(id => {
+            const n = nodes.find(nn => nn.id === id);
+            if (!n) return;
+
+            const baseR = 100 + radiusScale(n.proficiency || 1) * 4.0;
+            const r = baseR * pulse;
+
+            // paint a soft radial COLOR on the tint canvas
+            tctx.clearRect(0, 0, w, h);
+
+            const grad = tctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r);
+            // ↑ stronger alphas so it reads; lower if too punchy
+            grad.addColorStop(0.00, withAlpha(n.ringColor, 0.35));
+            grad.addColorStop(0.45, withAlpha(n.ringColor, 0.15));
+            grad.addColorStop(1.00, withAlpha(n.ringColor, 0.00));
+            tctx.fillStyle = grad;
+            tctx.beginPath();
+            tctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+            tctx.fill();
+
+            // FIXED: keep gradient color, clip to the grid lines
+            // Use destination-in (NOT source-in)
+            tctx.globalCompositeOperation = 'destination-in';
+            tctx.drawImage(gridCanvas, 0, 0);
+            tctx.globalCompositeOperation = 'source-over';
+
+            // blend onto the main canvas so dark lines get “lit”
+            // prefer screen; fallback to lighter if screen looks too subtle
+            main.globalCompositeOperation = 'screen';
+            main.drawImage(tintCanvas, 0, 0);
+            main.globalCompositeOperation = 'source-over';
+
+            // Optional tiny boost (uncomment if you still want more)
+            // main.globalCompositeOperation = 'lighter';
+            // main.drawImage(tintCanvas, 0, 0);
+            // main.globalCompositeOperation = 'source-over';
+          });
         }
       }
 
@@ -446,16 +431,10 @@ export default function SkillsMap() {
       setCalcMs(Math.round(end - start));
     });
 
-
-
-
   }, [data, linkMode]);
 
-
   return (
-
     <div ref={containerRef} className="skills-container">
-      {/* <div ref={containerRef} style={{ width: '100%', height: '80vh', overflow: 'visible', position: 'relative', display: 'flex', outline: "solid 1px white" }}> */}
       <div className="list-container">
         {[...data.skillNodes]
           .sort((a, b) => a.id.localeCompare(b.id))
@@ -467,7 +446,6 @@ export default function SkillsMap() {
                 className="sidebar-node"
                 ref={(el) => { if (el) nodeListRefs.current[node.id] = el; }}
                 data-selected={isSelected ? 'true' : 'false'}
-                /* expose colors to CSS */
                 style={{
                   '--ring': node.ringColor,
                   '--ring-tint': `${node.ringColor}33`,
@@ -491,7 +469,6 @@ export default function SkillsMap() {
                     }
                   }
 
-                  // just flip the flag + keep vars fresh; no gray inline paints
                   Object.entries(nodeListRefs.current).forEach(([id, el]) => {
                     const n = data.skillNodes.find(n => n.id === id);
                     if (!n || !el) return;
@@ -507,17 +484,12 @@ export default function SkillsMap() {
           })}
       </div>
 
-      <div className="node-graph" >
-
+      <div className="node-graph">
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
           <canvas ref={canvasRef} className="ripple-canvas" />
-
-
           <svg ref={svgRef} style={{ width: '100%', height: '100%', overflow: 'visible', outline: "solid 1px white" }} />
-          <div className="speed-indicator">
-            ⏱: {calcMs}ms
-          </div>
-          {/* Deselect All Spiral Button */}
+          <div className="speed-indicator">⏱: {calcMs}ms</div>
+
           <select
             className="link-mode-selector"
             value={linkMode}
@@ -527,16 +499,13 @@ export default function SkillsMap() {
             <option value="category">Group by Category</option>
           </select>
 
-
           <div
             className="deselect-button"
             title="Deselect all"
             onClick={() => {
               expandedNodesRef.current.clear();
               setOpenLearnedFromIds(new Set());
-
               d3.selectAll('circle').attr('stroke', '#000');
-
               Object.entries(nodeListRefs.current).forEach(([id, el]) => {
                 el.style.background = '#222';
                 el.style.borderLeft = '1px solid #444';
@@ -545,58 +514,36 @@ export default function SkillsMap() {
           >
             ⟳
           </div>
-
-
         </div>
-
       </div>
 
       <div className="tooltip-container" style={{ position: 'relative' }}>
         {shouldShowHint && (
-          <div
-            className="hint-overlay"
-            role="status"
-            aria-live="polite"
-          // onClick={() => setShowHint(false)}
-          >
-            <div
-              className="hint-card"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="hint-title">
-                {/* Tip */}
-                {/* <span className="hint-accent" aria-hidden="true" /> */}
-              </div>
+          <div className="hint-overlay" role="status" aria-live="polite">
+            <div className="hint-card" onClick={(e) => e.stopPropagation()}>
+              <div className="hint-title"></div>
               <div className="hint-text">
                 {isPhone ? (
-                  <>
-                    Tap a <strong>skill in the list</strong> to add a card. Tap a <strong>card</strong> to expand it and see how I learned that skill.
-                  </>
+                  <>Tap a <strong>skill in the list</strong> to add a card. Tap a <strong>card</strong> to expand it and see how I learned that skill.</>
                 ) : (
-                  <>
-                    Click a <span className="hint-node-circle" aria-label="graph node example"><span>node</span></span>
-                    to add a card. Click a <strong>card</strong> to expand it and see how I learned that skill.
-                  </>
+                  <>Click a <span className="hint-node-circle" aria-label="graph node example"><span>node</span></span> to add a card. Click a <strong>card</strong> to expand it and see how I learned that skill.</>
                 )}
               </div>
-
               <button
                 type="button"
                 className="hint-dismiss"
                 aria-label="Dismiss tip"
-                onClick={() => {
-                  setHintAck(true);
-                  setHintAckCookie(); // persist for 1 day
-                }}              >
+                onClick={() => { setHintAck(true); setHintAckCookie(); }}
+              >
                 Got it
               </button>
             </div>
           </div>
         )}
+
         {[...Array.from(expandedNodesRef.current).reverse()].map(id => {
           const node = data.skillNodes.find(n => n.id === id);
           if (!node) return null;
-
           const isOpen = openLearnedFromIds.has(id);
 
           return (
@@ -613,15 +560,12 @@ export default function SkillsMap() {
                 border: `2px solid ${node.ringColor}`,
               }}
             >
-
-              {/* Title row with dropdown + close */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <strong style={{ fontSize: '13px' }}>{node.id}</strong>
                   <span style={{ fontSize: '13px', color: '#777' }}>{isOpen ? '▾' : '▸'}</span>
                 </div>
 
-                {/* Close (X) button */}
                 <button
                   type="button"
                   aria-label={`Close ${node.id}`}
@@ -661,18 +605,15 @@ export default function SkillsMap() {
                       next.delete(id);
                       return next;
                     });
-
                     d3.selectAll('circle').attr('stroke', c =>
                       expandedNodesRef.current.has(c.id) ? c.ringColor : '#000'
                     );
-
                     Object.entries(nodeListRefs.current).forEach(([nid, el]) => {
                       const n = data.skillNodes.find(n => n.id === nid);
                       if (!n || !el) return;
                       el.style.background = expandedNodesRef.current.has(nid) ? `${n.ringColor}33` : '#222';
                       el.style.borderLeft = expandedNodesRef.current.has(nid)
-                        ? `5px solid ${n.ringColor}`
-                        : '1px solid #444';
+                        ? `5px solid ${n.ringColor}` : '1px solid #444';
                     });
                   }}
                   onKeyDown={(e) => {
@@ -684,10 +625,11 @@ export default function SkillsMap() {
                 >
                   ×
                 </button>
-
               </div>
 
-              <div style={{ margin: '6px 0', fontSize: '11px' }}>{node.description || 'No details available.'}</div>
+              <div style={{ margin: '6px 0', fontSize: '11px' }}>
+                {node.description || 'No details available.'}
+              </div>
 
               <div style={{ margin: '8px 0' }}>
                 <div style={{ fontSize: '12px', color: '#333', marginBottom: '2px' }}>
@@ -722,16 +664,10 @@ export default function SkillsMap() {
                   )}
                 </div>
               )}
-
-
-
             </div>
           );
         })}
       </div>
-
-
-
     </div>
   );
 }
