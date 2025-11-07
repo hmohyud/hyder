@@ -15,29 +15,50 @@ export default function SkillsMap() {
   const expandedNodesRef = useRef(new Set());
   const nodeListRefs = useRef({});
   const [openLearnedFromIds, setOpenLearnedFromIds] = useState(new Set());
+  // eslint-disable-next-line no-unused-vars
   const [_, forceRerender] = useState(0);
-  const [linkMode, setLinkMode] = useState('category'); // or 'proficiency', etc.
+  const [linkMode, setLinkMode] = useState('category');
   const canvasRef = useRef(null);
 
   // offscreen buffers to tint only the lines
   const gridCanvasRef = useRef(null);
   const tintCanvasRef = useRef(null);
 
+  // Node circle radius by proficiency (unchanged)
   const radiusScale = d3.scalePow()
     .exponent(2.2)
     .domain([1, 10])
     .range([8, 40]);
 
-  // --- HINT STATE + PHONE MODE (cookie-backed “Got it”) ---
-  const [isPhone, setIsPhone] = useState(false);
+  // ---- Area-based interpolation helpers (NEW) ----
+  const [rMin, rMax] = [radiusScale.range()[0], radiusScale.range()[1]];
+  const area = r => Math.PI * r * r;
+  const areaMin = area(rMin);
+  const areaMax = area(rMax);
+  const clamp01 = v => Math.max(0, Math.min(1, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
 
-  // simple cookie helpers
-  const COOKIE_NAME = 'skills.hintAck';
-  const hasHintAck = () => document.cookie.split('; ').some(c => c.startsWith(`${COOKIE_NAME}=1`));
-  const setHintAckCookie = () => {
-    document.cookie = `${COOKIE_NAME}=1; max-age=86400; path=/; SameSite=Lax`;
+  // Light radius and alpha will be derived from the *relative node area*:
+  // tArea = (area(r_prof) - areaMin) / (areaMax - areaMin)
+  const tAreaFromProf = (prof) => {
+    const p = Math.max(1, Math.min(10, prof || 1));
+    const r = radiusScale(p);
+    return clamp01((area(r) - areaMin) / (areaMax - areaMin));
   };
 
+  // Light tuning ranges (feel free to tweak)
+  const LIGHT_R_MIN = 190;   // px
+  const LIGHT_R_MAX = 360;  // px
+  const ALPHA_INNER_MIN = 0.10;
+  const ALPHA_INNER_MAX = 0.45;
+  const ALPHA_MID_MIN   = 0.03;
+  const ALPHA_MID_MAX   = 0.18;
+
+  // --- HINT STATE + PHONE MODE ---
+  const [isPhone, setIsPhone] = useState(false);
+  const COOKIE_NAME = 'skills.hintAck';
+  const hasHintAck = () => document.cookie.split('; ').some(c => c.startsWith(`${COOKIE_NAME}=1`));
+  const setHintAckCookie = () => { document.cookie = `${COOKIE_NAME}=1; max-age=86400; path=/; SameSite=Lax`; };
   const [hintAck, setHintAck] = useState(() => hasHintAck());
   const shouldShowHint = !hintAck && expandedNodesRef.current.size === 0;
 
@@ -87,7 +108,6 @@ export default function SkillsMap() {
       if (!svgRef.current || !simulationRef.current) return;
       const width = svgRef.current.clientWidth;
       const height = svgRef.current.clientHeight;
-
       simulationRef.current
         .force('center', d3.forceCenter(width / 2, height / 2))
         .alpha(0.5)
@@ -272,14 +292,13 @@ export default function SkillsMap() {
 
     // -------------------------------------------------------
     // Animated net + LINE-ONLY tint near selected nodes.
-    // FIX: use destination-in to keep gradient color, masked by grid.
-    // Also brighten base grid slightly so the tint reads clearly.
+    // Light radius & intensity now interpolate by RELATIVE NODE AREA.
     // -------------------------------------------------------
 
     let lastFrame = 0;
 
     d3.timer((elapsed) => {
-      if (elapsed - lastFrame < 15) return; // ~10-12 FPS
+      if (elapsed - lastFrame < 15) return;
       lastFrame = elapsed;
       const start = performance.now();
 
@@ -327,8 +346,8 @@ export default function SkillsMap() {
         // --- Warp setup (based on node positions) ---
         const gridSpacing = 13;
         gctx.lineWidth = 1;
-        // slightly brighter than before so tint is visible
-        gctx.strokeStyle = '#0a0a0a'; // dark blue-gray (GitHub-ish)
+        // Keep original starting stroke color
+        gctx.strokeStyle = '#0a0a0a';
 
         const warpNodes = nodes.map(d => {
           const r = radiusScale(d.proficiency || 1);
@@ -353,7 +372,7 @@ export default function SkillsMap() {
               dy += (distY / dist) * force * d.strength;
             }
           }
-          // micro time wave to avoid static feel
+          // micro time wave
           const t = elapsed * 0.001;
           dx += Math.sin((x + t * 60) * 0.005) * 0.8;
           dy += Math.cos((y - t * 40) * 0.005) * 0.8;
@@ -384,45 +403,38 @@ export default function SkillsMap() {
         // --- TINT LINES ONLY NEAR SELECTED NODES ---
         const selected = expandedNodesRef.current;
         if (selected.size > 0) {
-          // subtle pulse (very small)
           const pulse = 1 + Math.sin(elapsed * 0.0015) * 0.025;
 
           selected.forEach(id => {
             const n = nodes.find(nn => nn.id === id);
             if (!n) return;
 
-            const baseR = 100 + radiusScale(n.proficiency || 1) * 4.0;
-            const r = baseR * pulse;
+            const tArea = tAreaFromProf(n.proficiency);
+            const r = lerp(LIGHT_R_MIN, LIGHT_R_MAX, tArea) * pulse;
+            const aInner = lerp(ALPHA_INNER_MIN, ALPHA_INNER_MAX, tArea);
+            const aMid   = lerp(ALPHA_MID_MIN,   ALPHA_MID_MAX,   tArea);
 
             // paint a soft radial COLOR on the tint canvas
             tctx.clearRect(0, 0, w, h);
 
             const grad = tctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r);
-            // ↑ stronger alphas so it reads; lower if too punchy
-            grad.addColorStop(0.00, withAlpha(n.ringColor, 0.35));
-            grad.addColorStop(0.45, withAlpha(n.ringColor, 0.15));
+            grad.addColorStop(0.00, withAlpha(n.ringColor, aInner));
+            grad.addColorStop(0.45, withAlpha(n.ringColor, aMid));
             grad.addColorStop(1.00, withAlpha(n.ringColor, 0.00));
             tctx.fillStyle = grad;
             tctx.beginPath();
             tctx.arc(n.x, n.y, r, 0, Math.PI * 2);
             tctx.fill();
 
-            // FIXED: keep gradient color, clip to the grid lines
-            // Use destination-in (NOT source-in)
+            // Clip gradient to grid lines so only lines glow
             tctx.globalCompositeOperation = 'destination-in';
             tctx.drawImage(gridCanvas, 0, 0);
             tctx.globalCompositeOperation = 'source-over';
 
-            // blend onto the main canvas so dark lines get “lit”
-            // prefer screen; fallback to lighter if screen looks too subtle
+            // Light the grid (screen blend)
             main.globalCompositeOperation = 'screen';
             main.drawImage(tintCanvas, 0, 0);
             main.globalCompositeOperation = 'source-over';
-
-            // Optional tiny boost (uncomment if you still want more)
-            // main.globalCompositeOperation = 'lighter';
-            // main.drawImage(tintCanvas, 0, 0);
-            // main.globalCompositeOperation = 'source-over';
           });
         }
       }
