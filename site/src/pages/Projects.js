@@ -6,6 +6,7 @@ const JARJAR_IMAGES = Array.from({ length: 4 }, (_, i) => `/hyder/projects/JARJA
 const SPEC_IMAGES = Array.from({ length: 5 }, (_, i) => `/hyder/projects/SPEC_${i + 1}.jpg`);
 const COOK_IMAGES = Array.from({ length: 4 }, (_, i) => `/hyder/projects/COOK_${i + 1}.jpg`);
 const COMIC_IMAGES = Array.from({ length: 6 }, (_, i) => `/hyder/projects/COMIC_${i + 1}.jpg`);
+const TEACH_IMAGES = Array.from({ length: 2 }, (_, i) => `/hyder/projects/TEACH_${i + 1}.jpg`);
 
 // ---------- Project data ----------
 const projects = [
@@ -56,7 +57,7 @@ const projects = [
   {
     title: 'Educational Tech & Curriculum',
     color: '#ff8888',
-    image: '/images/teaching-placeholder.png',
+    images: TEACH_IMAGES,
     description: [
       `Taught programming through nonprofits (Code Platoon, Code Your Dreams) and private tutoring.`,
       `Built MIT App Inventor examples, interactive modules, and developed beginner-friendly teaching content for both students and veterans.`
@@ -174,33 +175,37 @@ const projects = [
 const qrSrc = (data, size = 520) =>
   `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(data)}`;
 
-/** Preload a list of URLs and tell which ones succeeded */
+/** Preload a list of URLs and return { ok, w, h } per src */
 function usePreloaded(srcs) {
-  const [ok, setOk] = useState(() => srcs.map(() => false));
+  const [meta, setMeta] = useState(() =>
+    srcs.map(() => ({ ok: false, w: 0, h: 0 }))
+  );
 
   useEffect(() => {
     let alive = true;
-    setOk(srcs.map(() => false));
+    setMeta(srcs.map(() => ({ ok: false, w: 0, h: 0 })));
 
     srcs.forEach((src, i) => {
       if (!src) return;
       const img = new Image();
 
-      const mark = () => alive && setOk(prev => {
-        if (prev[i]) return prev;
-        const next = [...prev];
-        next[i] = true;
-        return next;
-      });
+      const mark = () => {
+        if (!alive) return;
+        const w = img.naturalWidth || 0;
+        const h = img.naturalHeight || 0;
+        setMeta(prev => {
+          const next = [...prev];
+          next[i] = { ok: true, w, h };
+          return next;
+        });
+      };
 
       img.onload = mark;
-      img.onerror = () => { }; // ignore; failed ones stay false
+      img.onerror = () => { /* leave as not ok */ };
       img.decoding = 'async';
       img.src = src;
 
-      // handle already-cached
       if (img.complete && img.naturalWidth > 0) {
-        // queue microtask to mimic async onload
         Promise.resolve().then(mark);
       }
     });
@@ -208,10 +213,11 @@ function usePreloaded(srcs) {
     return () => { alive = false; };
   }, [srcs]);
 
-  return ok; // boolean per src
+  return meta; // [{ ok, w, h }]
 }
 
-// --------- RotatingImage (background layers; no <img> icons; robust) ---------
+
+// --------- RotatingImage (no overflow; uses <img> + object-fit: contain) ---------
 function RotatingImage({
   images = [],
   width = 280,
@@ -220,21 +226,23 @@ function RotatingImage({
   altBase = 'project image',
   intervalMs = 5000,
   onClick,
-  fit = 'height', // 'height' | 'contain' | 'cover' | 'width'
 }) {
-  const ok = usePreloaded(images);
-  const visibleIdxs = useMemo(() => images.map((_, i) => (ok[i] ? i : -1)).filter(i => i >= 0), [images, ok]);
+  const meta = usePreloaded(images);
+  const ok = meta.map(m => m.ok);
+
+  const visibleIdxs = useMemo(
+    () => images.map((_, i) => (ok[i] ? i : -1)).filter(i => i >= 0),
+    [images, ok]
+  );
   const [idx, setIdx] = useState(0);
   const timerRef = useRef(null);
 
-  // keep idx in bounds as visible set changes
   useEffect(() => {
     if (idx >= visibleIdxs.length) setIdx(0);
   }, [visibleIdxs.length, idx]);
 
   const next = () => setIdx(i => (i + 1) % Math.max(visibleIdxs.length, 1));
 
-  // autoplay among visible
   useEffect(() => {
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     if (visibleIdxs.length > 1) {
@@ -243,15 +251,8 @@ function RotatingImage({
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [intervalMs, visibleIdxs.length]);
 
-  // bg-size mapping
-  const bgSize =
-    fit === 'cover' ? 'cover' :
-      fit === 'contain' ? 'contain' :
-        fit === 'width' ? '100% auto' :
-          'auto 100%'; // height
-
-  const activeReal = visibleIdxs.length ? visibleIdxs[idx] : -1;
   const usable = visibleIdxs.length > 0;
+  const activeReal = visibleIdxs.length ? visibleIdxs[idx] : -1;
 
   return (
     <div
@@ -271,28 +272,34 @@ function RotatingImage({
         flex: `0 0 ${width}px`,
         cursor: usable ? 'pointer' : 'default',
         overflow: 'hidden',
-        backgroundColor: '#1a1a1a', // clean placeholder
+        backgroundColor: '#1a1a1a',
         borderRadius: 8,
         border: `1px solid ${borderColor}`,
-        boxShadow: '0 0 10px rgba(255,255,255,0.04)'
+        boxShadow: '0 0 10px rgba(255,255,255,0.04)',
       }}
     >
       {images.map((src, i) => {
-        if (!ok[i]) return null; // never render failed/not-yet-loaded frames
+        if (!ok[i]) return null;
         return (
-          <div
+          <img
             key={src + i}
+            src={src}
+            alt={`${altBase} ${i + 1}`}
             aria-hidden={activeReal !== i}
             style={{
               position: 'absolute',
               inset: 0,
-              backgroundImage: `url(${src})`,
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat',
-              backgroundSize: bgSize,
+              margin: 'auto',
+              maxWidth: '100%',
+              maxHeight: '100%',
+              width: 'auto',
+              height: 'auto',
+              objectFit: 'contain',   // ⟵ ensures no overflow on either axis
               transition: 'opacity 600ms ease',
-              opacity: activeReal === i ? 1 : 0
+              opacity: activeReal === i ? 1 : 0,
+              display: 'block',
             }}
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
           />
         );
       })}
@@ -300,6 +307,8 @@ function RotatingImage({
     </div>
   );
 }
+
+
 
 export default function Projects() {
   const [qrOpen, setQrOpen] = useState(null);      // { title, data, color } | null
