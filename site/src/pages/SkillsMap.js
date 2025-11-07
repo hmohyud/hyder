@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import './SkillsMap.css';
-import '../App.css'
+import '../App.css';
 
 export default function SkillsMap() {
   const svgRef = useRef(null);
@@ -30,7 +30,7 @@ export default function SkillsMap() {
     .domain([1, 10])
     .range([8, 40]);
 
-  // ---- Area-based interpolation helpers (NEW) ----
+  // ---- Area-based interpolation helpers ----
   const [rMin, rMax] = [radiusScale.range()[0], radiusScale.range()[1]];
   const area = r => Math.PI * r * r;
   const areaMin = area(rMin);
@@ -38,17 +38,16 @@ export default function SkillsMap() {
   const clamp01 = v => Math.max(0, Math.min(1, v));
   const lerp = (a, b, t) => a + (b - a) * t;
 
-  // Light radius and alpha will be derived from the *relative node area*:
-  // tArea = (area(r_prof) - areaMin) / (areaMax - areaMin)
+  // Light radius and alpha derived from relative node area
   const tAreaFromProf = (prof) => {
     const p = Math.max(1, Math.min(10, prof || 1));
     const r = radiusScale(p);
     return clamp01((area(r) - areaMin) / (areaMax - areaMin));
   };
 
-  // Light tuning ranges (feel free to tweak)
+  // Light tuning ranges
   const LIGHT_R_MIN = 190;   // px
-  const LIGHT_R_MAX = 360;  // px
+  const LIGHT_R_MAX = 360;   // px
   const ALPHA_INNER_MIN = 0.10;
   const ALPHA_INNER_MAX = 0.45;
   const ALPHA_MID_MIN   = 0.03;
@@ -142,7 +141,6 @@ export default function SkillsMap() {
 
     const fullWidth = svgRef.current.clientWidth;
     const fullHeight = svgRef.current.clientHeight;
-    const padding = 40;
 
     const nodes = data.skillNodes.map((d) => ({
       ...d,
@@ -187,7 +185,9 @@ export default function SkillsMap() {
       .force('center', d3.forceCenter(fullWidth / 2, fullHeight / 2))
       .force('collide', d3.forceCollide().radius(d => radiusScale(d.proficiency || 1) + 6).strength(0.5));
 
-    simulationRef.current.alphaTarget(0.005).restart();
+    // ---- WARM START: tick a bit so initial layout is already reasonable
+    for (let i = 0; i < 40; i++) simulationRef.current.tick();
+    simulationRef.current.alpha(0.2).restart();
 
     const g = svg.append('g');
 
@@ -235,7 +235,7 @@ export default function SkillsMap() {
       .on('mouseover', function () {
         d3.select(this).select('circle').transition().duration(200).attr('fill', '#88f');
       })
-      .on('mouseout', function (event, d) {
+      .on('mouseout', function () {
         d3.select(this).select('circle').transition().duration(200)
           .attr('fill', d => d.id === expandedIdRef.current ? '#f0f0f0' : '#666');
       })
@@ -252,8 +252,8 @@ export default function SkillsMap() {
           const dy = event.sourceEvent.clientY - sy;
           if (Math.sqrt(dx*dx + dy*dy) > 4) isActuallyDragging = true;
 
-          const svg = svgRef.current; if (!svg) return;
-          const width = svg.clientWidth, height = svg.clientHeight, pad = 40;
+          const svgEl = svgRef.current; if (!svgEl) return;
+          const width = svgEl.clientWidth, height = svgEl.clientHeight, pad = 40;
           d.fx = Math.max(pad, Math.min(width - pad, event.x));
           d.fy = Math.max(pad, Math.min(height - pad, event.y));
         })
@@ -272,11 +272,11 @@ export default function SkillsMap() {
     d3.selectAll('circle').attr('stroke', d => expandedNodesRef.current.has(d.id) ? d.ringColor : '#000');
 
     Object.entries(nodeListRefs.current).forEach(([id, el]) => {
-      const node = data.skillNodes.find(n => n.id === id);
-      if (!node || !el) return;
-      el.style.background = expandedNodesRef.current.has(id) ? `${node.ringColor}33` : '#222';
+      const nodeObj = data.skillNodes.find(n => n.id === id);
+      if (!nodeObj || !el) return;
+      el.style.background = expandedNodesRef.current.has(id) ? `${nodeObj.ringColor}33` : '#222';
       el.style.borderLeft = expandedNodesRef.current.has(id)
-        ? `5px solid ${node.ringColor}`
+        ? `5px solid ${nodeObj.ringColor}`
         : '1px solid #444';
     });
 
@@ -290,17 +290,14 @@ export default function SkillsMap() {
       .style('pointer-events', 'none')
       .style('user-select', 'none');
 
-    // -------------------------------------------------------
-    // Animated net + LINE-ONLY tint near selected nodes.
-    // Light radius & intensity now interpolate by RELATIVE NODE AREA.
-    // -------------------------------------------------------
+    // --------- rAF render loop (stable, in-lockstep with simulation) ---------
+    let rafId = null;
 
-    let lastFrame = 0;
-
-    d3.timer((elapsed) => {
-      if (elapsed - lastFrame < 15) return;
-      lastFrame = elapsed;
+    const renderFrame = () => {
       const start = performance.now();
+
+      const sim = simulationRef.current;
+      const alpha = sim ? sim.alpha() : 0;
 
       const currentWidth = svgRef.current?.clientWidth ?? 800;
       const currentHeight = svgRef.current?.clientHeight ?? 600;
@@ -318,45 +315,57 @@ export default function SkillsMap() {
         .attr('x2', d => d.target.x)
         .attr('y2', d => d.target.y);
 
-      const canvas = canvasRef.current;
-      if (canvas && svgRef.current) {
-        const main = canvas.getContext('2d');
+      const canvasEl = canvasRef.current;
+      if (canvasEl && svgRef.current) {
+        const main = canvasEl.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
 
-        // resize buffers
-        const w = canvas.width = svgRef.current.clientWidth;
-        const h = canvas.height = svgRef.current.clientHeight;
+        const cssW = svgRef.current.clientWidth;
+        const cssH = svgRef.current.clientHeight;
 
+        // size main canvas for DPR
+        if (canvasEl.width !== Math.floor(cssW * dpr) || canvasEl.height !== Math.floor(cssH * dpr)) {
+          canvasEl.width = Math.floor(cssW * dpr);
+          canvasEl.height = Math.floor(cssH * dpr);
+          canvasEl.style.width = cssW + 'px';
+          canvasEl.style.height = cssH + 'px';
+        }
+        main.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        // size offscreen buffers for DPR
         const gridCanvas = gridCanvasRef.current;
         const tintCanvas = tintCanvasRef.current;
-        if (gridCanvas.width !== w || gridCanvas.height !== h) {
-          gridCanvas.width = w; gridCanvas.height = h;
+
+        if (gridCanvas.width !== Math.floor(cssW * dpr) || gridCanvas.height !== Math.floor(cssH * dpr)) {
+          gridCanvas.width = Math.floor(cssW * dpr);
+          gridCanvas.height = Math.floor(cssH * dpr);
+          gridCanvas.style.width = cssW + 'px';
+          gridCanvas.style.height = cssH + 'px';
         }
-        if (tintCanvas.width !== w || tintCanvas.height !== h) {
-          tintCanvas.width = w; tintCanvas.height = h;
+        if (tintCanvas.width !== Math.floor(cssW * dpr) || tintCanvas.height !== Math.floor(cssH * dpr)) {
+          tintCanvas.width = Math.floor(cssW * dpr);
+          tintCanvas.height = Math.floor(cssH * dpr);
+          tintCanvas.style.width = cssW + 'px';
+          tintCanvas.style.height = cssH + 'px';
         }
 
         const gctx = gridCanvas.getContext('2d');
         const tctx = tintCanvas.getContext('2d');
+        gctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        tctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        const w = cssW;
+        const h = cssH;
 
         // clear all
         main.clearRect(0, 0, w, h);
         gctx.clearRect(0, 0, w, h);
         tctx.clearRect(0, 0, w, h);
 
-        // --- Warp setup (based on node positions) ---
-        const gridSpacing = 13;
-        gctx.lineWidth = 1;
-        // Keep original starting stroke color
-        gctx.strokeStyle = '#0a0a0a';
-
+        // Build warp field from *current* node positions (no time wave)
         const warpNodes = nodes.map(d => {
           const r = radiusScale(d.proficiency || 1);
-          return {
-            x: d.x,
-            y: d.y,
-            r2: (50 + r * 2) ** 2,
-            strength: 8 + r * 0.8
-          };
+          return { x: d.x, y: d.y, r2: (50 + r * 2) ** 2, strength: 8 + r * 0.8 };
         });
 
         const warp = (x, y) => {
@@ -372,51 +381,54 @@ export default function SkillsMap() {
               dy += (distY / dist) * force * d.strength;
             }
           }
-          // micro time wave
-          const t = elapsed * 0.001;
-          dx += Math.sin((x + t * 60) * 0.005) * 0.8;
-          dy += Math.cos((y - t * 40) * 0.005) * 0.8;
           return [x + dx, y + dy];
         };
 
-        // --- DRAW GRID (to gridCanvas) ---
+        // Draw grid (use moveTo to avoid stray segments)
+        const gridSpacing = 13;
+        gctx.lineWidth = 1;
+        gctx.strokeStyle = '#0a0a0a';
+
+        // rows
         for (let y = 0; y <= h; y += gridSpacing) {
           gctx.beginPath();
+          let first = true;
           for (let x = 0; x <= w; x += gridSpacing) {
             const [wx, wy] = warp(x, y);
-            gctx.lineTo(wx, wy);
+            if (first) { gctx.moveTo(wx, wy); first = false; }
+            else { gctx.lineTo(wx, wy); }
           }
           gctx.stroke();
         }
+        // cols
         for (let x = 0; x <= w; x += gridSpacing) {
           gctx.beginPath();
+          let first = true;
           for (let y = 0; y <= h; y += gridSpacing) {
             const [wx, wy] = warp(x, y);
-            gctx.lineTo(wx, wy);
+            if (first) { gctx.moveTo(wx, wy); first = false; }
+            else { gctx.lineTo(wx, wy); }
           }
           gctx.stroke();
         }
 
-        // draw the plain grid to the main canvas first
+        // paint grid
         main.drawImage(gridCanvas, 0, 0);
 
-        // --- TINT LINES ONLY NEAR SELECTED NODES ---
+        // Tint lines near selected nodes — only when layout is cool enough
         const selected = expandedNodesRef.current;
-        if (selected.size > 0) {
-          const pulse = 1 + Math.sin(elapsed * 0.0015) * 0.025;
-
+        const canTint = selected.size > 0 && alpha < 0.12; // gate by alpha to avoid “stuck” glow
+        if (canTint) {
           selected.forEach(id => {
             const n = nodes.find(nn => nn.id === id);
             if (!n) return;
 
             const tArea = tAreaFromProf(n.proficiency);
-            const r = lerp(LIGHT_R_MIN, LIGHT_R_MAX, tArea) * pulse;
+            const r = lerp(LIGHT_R_MIN, LIGHT_R_MAX, tArea);
             const aInner = lerp(ALPHA_INNER_MIN, ALPHA_INNER_MAX, tArea);
             const aMid   = lerp(ALPHA_MID_MIN,   ALPHA_MID_MAX,   tArea);
 
-            // paint a soft radial COLOR on the tint canvas
             tctx.clearRect(0, 0, w, h);
-
             const grad = tctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r);
             grad.addColorStop(0.00, withAlpha(n.ringColor, aInner));
             grad.addColorStop(0.45, withAlpha(n.ringColor, aMid));
@@ -426,12 +438,11 @@ export default function SkillsMap() {
             tctx.arc(n.x, n.y, r, 0, Math.PI * 2);
             tctx.fill();
 
-            // Clip gradient to grid lines so only lines glow
+            // clip to grid lines
             tctx.globalCompositeOperation = 'destination-in';
             tctx.drawImage(gridCanvas, 0, 0);
             tctx.globalCompositeOperation = 'source-over';
 
-            // Light the grid (screen blend)
             main.globalCompositeOperation = 'screen';
             main.drawImage(tintCanvas, 0, 0);
             main.globalCompositeOperation = 'source-over';
@@ -439,9 +450,17 @@ export default function SkillsMap() {
         }
       }
 
-      const end = performance.now();
-      setCalcMs(Math.round(end - start));
-    });
+      setCalcMs(Math.round(performance.now() - start));
+      rafId = requestAnimationFrame(renderFrame);
+    };
+
+    // Start the loop
+    rafId = requestAnimationFrame(renderFrame);
+
+    // Cleanup on effect re-run/unmount
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+    };
 
   }, [data, linkMode]);
 
@@ -499,7 +518,7 @@ export default function SkillsMap() {
       <div className="node-graph">
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
           <canvas ref={canvasRef} className="ripple-canvas" />
-          <svg ref={svgRef} style={{ width: '100%', height: '100%', overflow: 'visible', outline: "solid 1px white" }} />
+          <svg ref={svgRef} style={{ width: '100%', height: '100%', overflow: 'visible', outline: 'solid 1px white' }} />
           <div className="speed-indicator">⏱: {calcMs}ms</div>
 
           <select
@@ -519,9 +538,12 @@ export default function SkillsMap() {
               setOpenLearnedFromIds(new Set());
               d3.selectAll('circle').attr('stroke', '#000');
               Object.entries(nodeListRefs.current).forEach(([id, el]) => {
+                if (!el) return;
                 el.style.background = '#222';
                 el.style.borderLeft = '1px solid #444';
               });
+              // tick UI
+              forceRerender(x => x + 1);
             }}
           >
             ⟳
@@ -627,6 +649,8 @@ export default function SkillsMap() {
                       el.style.borderLeft = expandedNodesRef.current.has(nid)
                         ? `5px solid ${n.ringColor}` : '1px solid #444';
                     });
+                    // bump to refresh the badge count if needed
+                    forceRerender(x => x + 1);
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
