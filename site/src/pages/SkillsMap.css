@@ -87,7 +87,7 @@
   border: 1px solid #444;
   padding: 4px;
   border-radius: 4px;
-  opacity: 0.4;
+  opacity: 0.85;
   transition: opacity 0.4s;
 
 }
@@ -143,6 +143,7 @@
   z-index: 10;
   pointer-events: none;
   user-select: none;
+  opacity: 0.85;
 }
 
 
