@@ -137,8 +137,8 @@ export default function SkillsMap() {
   const LIGHT_R_MAX = 360;   // px
   const ALPHA_INNER_MIN = 0.10;
   const ALPHA_INNER_MAX = 0.45;
-  const ALPHA_MID_MIN   = 0.03;
-  const ALPHA_MID_MAX   = 0.18;
+  const ALPHA_MID_MIN = 0.03;
+  const ALPHA_MID_MAX = 0.18;
 
   // --- HINT STATE + PHONE MODE ---
   const [isPhone, setIsPhone] = useState(false);
@@ -261,13 +261,25 @@ export default function SkillsMap() {
           for (let j = i + 1; j < group.length; j++) links.push({ source: group[i], target: group[j] });
         }
       });
+    } else if (linkMode === 'ungrouped') {
+      // no links on purpose
     }
 
+    const linkForce = d3
+      .forceLink(links)
+      .id(d => d.id);
+
+    if (linkMode === 'ungrouped') {
+      linkForce.strength(0); // effectively off
+    } else {
+      linkForce.distance(130).strength(0.1);
+    }
     simulationRef.current = d3.forceSimulation(nodes)
       .alphaMin(0.001)
       .alphaDecay(0.01)
       .velocityDecay(0.2)
-      .force('link', d3.forceLink(links).id(d => d.id).distance(130).strength(0.1))
+      // .force('link', d3.forceLink(links).id(d => d.id).distance(130).strength(0.1))
+      .force('link', linkForce)
       .force('charge', d3.forceManyBody().strength(-20))
       .force('center', d3.forceCenter(fullWidth / 2, fullHeight / 2))
       .force('collide', d3.forceCollide().radius(d => radiusScale(d.proficiency || 1) + 6).strength(0.5));
@@ -337,7 +349,7 @@ export default function SkillsMap() {
           const [sx, sy] = dragStartScreenPos;
           const dx = event.sourceEvent.clientX - sx;
           const dy = event.sourceEvent.clientY - sy;
-          if (Math.sqrt(dx*dx + dy*dy) > 4) isActuallyDragging = true;
+          if (Math.sqrt(dx * dx + dy * dy) > 4) isActuallyDragging = true;
 
           const svgEl = svgRef.current; if (!svgEl) return;
           const width = svgEl.clientWidth, height = svgEl.clientHeight, pad = 40;
@@ -515,7 +527,7 @@ export default function SkillsMap() {
               const tArea = tAreaFromProf(n.proficiency);
               const r = lerp(LIGHT_R_MIN, LIGHT_R_MAX, tArea);
               const aInner = lerp(ALPHA_INNER_MIN, ALPHA_INNER_MAX, tArea);
-              const aMid   = lerp(ALPHA_MID_MIN,   ALPHA_MID_MAX,   tArea);
+              const aMid = lerp(ALPHA_MID_MIN, ALPHA_MID_MAX, tArea);
 
               tctx.clearRect(0, 0, w, h);
               const grad = tctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r);
@@ -643,6 +655,7 @@ export default function SkillsMap() {
           >
             <option value="proficiency">Group by Proficiency</option>
             <option value="category">Group by Category</option>
+            <option value="ungrouped">Ungrouped</option>
           </select>
 
           <div
