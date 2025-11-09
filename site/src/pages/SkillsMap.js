@@ -30,6 +30,93 @@ export default function SkillsMap() {
     .domain([1, 10])
     .range([8, 40]);
 
+
+
+
+
+
+
+
+
+  // --- Page zoom logger (prints on start + on change; ignores pinch zoom) ---
+  const lastZoomRef = useRef(1);
+  const isZoomedRef = useRef(false);
+  const [isZoomed, setIsZoomed] = useState(false); // for rendering the floating hint
+
+  useEffect(() => {
+    const EPS = 0.02; // tolerance for float jitter
+    const vv = window.visualViewport || null;
+
+    const getPageZoomApprox = () => {
+      // Chrome/Edge desktop: outerWidth / innerWidth ≈ page zoom
+      const chromium = (window.outerWidth && window.innerWidth)
+        ? window.outerWidth / window.innerWidth
+        : null;
+
+      // Safari-ish: screen vs visual viewport width
+      const safariish = vv ? (window.screen.availWidth / vv.width) : null;
+
+      // Firefox fallback: DPR (rough)
+      const ff = window.devicePixelRatio || 1;
+
+      if (chromium && isFinite(chromium)) return chromium;
+      if (safariish && isFinite(safariish)) return safariish;
+      return ff;
+    };
+
+    const printZoom = (z) => {
+      isZoomedRef.current = Math.abs(z - 1) > EPS;
+      setIsZoomed(isZoomedRef.current);
+      // const rounded = Math.round(z * 100) / 100;
+      // console.log(`[page-zoom] ${rounded}x (isZoomed=${isZoomedRef.current})`);
+    };
+
+    // Initial print (always logs page zoom; doesn't care about pinch state)
+    const z0 = getPageZoomApprox();
+    if (isFinite(z0)) {
+      lastZoomRef.current = z0;
+      printZoom(z0);
+    }
+
+    const check = () => {
+      // Ignore pinch zoom; only track page zoom changes
+      const pinchScale = vv ? vv.scale : 1;
+      if (Math.abs(pinchScale - 1) > EPS) return;
+
+      const z = getPageZoomApprox();
+      if (!isFinite(z)) return;
+
+      if (Math.abs(z - lastZoomRef.current) > EPS) {
+        lastZoomRef.current = z;
+        printZoom(z);
+      }
+    };
+
+    // Throttle via rAF
+    let scheduled = false;
+    const schedule = () => {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => {
+        scheduled = false;
+        check();
+      });
+    };
+
+    // Events that reflect page-zoom changes
+    window.addEventListener('resize', schedule, { passive: true });
+    window.addEventListener('orientationchange', schedule, { passive: true });
+    vv?.addEventListener('resize', schedule, { passive: true });
+    vv?.addEventListener('scroll', schedule, { passive: true });
+
+    return () => {
+      window.removeEventListener('resize', schedule);
+      window.removeEventListener('orientationchange', schedule);
+      vv?.removeEventListener('resize', schedule);
+      vv?.removeEventListener('scroll', schedule);
+    };
+  }, []);
+
   // ---- Area-based interpolation helpers ----
   const [rMin, rMax] = [radiusScale.range()[0], radiusScale.range()[1]];
   const area = r => Math.PI * r * r;
@@ -362,91 +449,94 @@ export default function SkillsMap() {
         gctx.clearRect(0, 0, w, h);
         tctx.clearRect(0, 0, w, h);
 
-        // Build warp field from *current* node positions (no time wave)
-        const warpNodes = nodes.map(d => {
-          const r = radiusScale(d.proficiency || 1);
-          return { x: d.x, y: d.y, r2: (50 + r * 2) ** 2, strength: 8 + r * 0.8 };
-        });
-
-        const warp = (x, y) => {
-          let dx = 0, dy = 0;
-          for (const d of warpNodes) {
-            const distX = x - d.x;
-            const distY = y - d.y;
-            const distSq = distX * distX + distY * distY;
-            if (distSq < d.r2) {
-              const dist = Math.sqrt(distSq) || 0.001;
-              const force = (1 - dist / Math.sqrt(d.r2)) ** 2;
-              dx += (distX / dist) * force * d.strength;
-              dy += (distY / dist) * force * d.strength;
-            }
-          }
-          return [x + dx, y + dy];
-        };
-
-        // Draw grid (use moveTo to avoid stray segments)
-        const gridSpacing = 13;
-        gctx.lineWidth = 1;
-        gctx.strokeStyle = '#0a0a0a';
-
-        // rows
-        for (let y = 0; y <= h; y += gridSpacing) {
-          gctx.beginPath();
-          let first = true;
-          for (let x = 0; x <= w; x += gridSpacing) {
-            const [wx, wy] = warp(x, y);
-            if (first) { gctx.moveTo(wx, wy); first = false; }
-            else { gctx.lineTo(wx, wy); }
-          }
-          gctx.stroke();
-        }
-        // cols
-        for (let x = 0; x <= w; x += gridSpacing) {
-          gctx.beginPath();
-          let first = true;
-          for (let y = 0; y <= h; y += gridSpacing) {
-            const [wx, wy] = warp(x, y);
-            if (first) { gctx.moveTo(wx, wy); first = false; }
-            else { gctx.lineTo(wx, wy); }
-          }
-          gctx.stroke();
-        }
-
-        // paint grid
-        main.drawImage(gridCanvas, 0, 0);
-
-        // Tint lines near selected nodes — only when layout is cool enough
-        const selected = expandedNodesRef.current;
-        const canTint = selected.size > 0 && alpha < 0.12; // gate by alpha to avoid “stuck” glow
-        if (canTint) {
-          selected.forEach(id => {
-            const n = nodes.find(nn => nn.id === id);
-            if (!n) return;
-
-            const tArea = tAreaFromProf(n.proficiency);
-            const r = lerp(LIGHT_R_MIN, LIGHT_R_MAX, tArea);
-            const aInner = lerp(ALPHA_INNER_MIN, ALPHA_INNER_MAX, tArea);
-            const aMid   = lerp(ALPHA_MID_MIN,   ALPHA_MID_MAX,   tArea);
-
-            tctx.clearRect(0, 0, w, h);
-            const grad = tctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r);
-            grad.addColorStop(0.00, withAlpha(n.ringColor, aInner));
-            grad.addColorStop(0.45, withAlpha(n.ringColor, aMid));
-            grad.addColorStop(1.00, withAlpha(n.ringColor, 0.00));
-            tctx.fillStyle = grad;
-            tctx.beginPath();
-            tctx.arc(n.x, n.y, r, 0, Math.PI * 2);
-            tctx.fill();
-
-            // clip to grid lines
-            tctx.globalCompositeOperation = 'destination-in';
-            tctx.drawImage(gridCanvas, 0, 0);
-            tctx.globalCompositeOperation = 'source-over';
-
-            main.globalCompositeOperation = 'screen';
-            main.drawImage(tintCanvas, 0, 0);
-            main.globalCompositeOperation = 'source-over';
+        // ---- draw grid only if page zoom is at 100% ----
+        if (!isZoomedRef.current) {
+          // Build warp field from *current* node positions (original values)
+          const warpNodes = nodes.map(d => {
+            const r = radiusScale(d.proficiency || 1);
+            return { x: d.x, y: d.y, r2: (50 + r * 2) ** 2, strength: 8 + r * 0.8 };
           });
+
+          const warp = (x, y) => {
+            let dx = 0, dy = 0;
+            for (const d of warpNodes) {
+              const distX = x - d.x;
+              const distY = y - d.y;
+              const distSq = distX * distX + distY * distY;
+              if (distSq < d.r2) {
+                const dist = Math.sqrt(distSq) || 0.001;
+                const force = (1 - dist / Math.sqrt(d.r2)) ** 2;
+                dx += (distX / dist) * force * d.strength;
+                dy += (distY / dist) * force * d.strength;
+              }
+            }
+            return [x + dx, y + dy];
+          };
+
+          // Draw grid (use moveTo to avoid stray segments)
+          const gridSpacing = 13;
+          gctx.lineWidth = 1;
+          gctx.strokeStyle = '#0a0a0a';
+
+          // rows
+          for (let y = 0; y <= h; y += gridSpacing) {
+            gctx.beginPath();
+            let first = true;
+            for (let x = 0; x <= w; x += gridSpacing) {
+              const [wx, wy] = warp(x, y);
+              if (first) { gctx.moveTo(wx, wy); first = false; }
+              else { gctx.lineTo(wx, wy); }
+            }
+            gctx.stroke();
+          }
+          // cols
+          for (let x = 0; x <= w; x += gridSpacing) {
+            gctx.beginPath();
+            let first = true;
+            for (let y = 0; y <= h; y += gridSpacing) {
+              const [wx, wy] = warp(x, y);
+              if (first) { gctx.moveTo(wx, wy); first = false; }
+              else { gctx.lineTo(wx, wy); }
+            }
+            gctx.stroke();
+          }
+
+          // paint grid
+          main.drawImage(gridCanvas, 0, 0);
+
+          // Tint lines near selected nodes — only when layout is cool enough
+          const selected = expandedNodesRef.current;
+          const canTint = selected.size > 0 && alpha < 0.12; // gate by alpha to avoid “stuck” glow
+          if (canTint) {
+            selected.forEach(id => {
+              const n = nodes.find(nn => nn.id === id);
+              if (!n) return;
+
+              const tArea = tAreaFromProf(n.proficiency);
+              const r = lerp(LIGHT_R_MIN, LIGHT_R_MAX, tArea);
+              const aInner = lerp(ALPHA_INNER_MIN, ALPHA_INNER_MAX, tArea);
+              const aMid   = lerp(ALPHA_MID_MIN,   ALPHA_MID_MAX,   tArea);
+
+              tctx.clearRect(0, 0, w, h);
+              const grad = tctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r);
+              grad.addColorStop(0.00, withAlpha(n.ringColor, aInner));
+              grad.addColorStop(0.45, withAlpha(n.ringColor, aMid));
+              grad.addColorStop(1.00, withAlpha(n.ringColor, 0.00));
+              tctx.fillStyle = grad;
+              tctx.beginPath();
+              tctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+              tctx.fill();
+
+              // clip to grid lines
+              tctx.globalCompositeOperation = 'destination-in';
+              tctx.drawImage(gridCanvas, 0, 0);
+              tctx.globalCompositeOperation = 'source-over';
+
+              main.globalCompositeOperation = 'screen';
+              main.drawImage(tintCanvas, 0, 0);
+              main.globalCompositeOperation = 'source-over';
+            });
+          }
         }
       }
 
@@ -517,6 +607,31 @@ export default function SkillsMap() {
 
       <div className="node-graph">
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+          {/* Floating hint if page zoom != 100% */}
+          {isZoomed && (
+            <div
+              aria-live="polite"
+              className="zoom-hint"
+              style={{
+                position: 'absolute',
+                top: 12,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: 'rgba(0,0,0,0.72)',
+                color: '#fff',
+                padding: '8px 12px',
+                borderRadius: 10,
+                fontSize: 12,
+                zIndex: 5,
+                boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
+                backdropFilter: 'blur(2px)',
+                pointerEvents: 'none',
+              }}
+            >
+              Please reset browser page zoom (100%) to see the grid.
+            </div>
+          )}
+
           <canvas ref={canvasRef} className="ripple-canvas" />
           <svg ref={svgRef} style={{ width: '100%', height: '100%', overflow: 'visible', outline: 'solid 1px white' }} />
           <div className="speed-indicator">⏱: {calcMs}ms</div>
