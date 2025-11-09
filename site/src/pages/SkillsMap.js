@@ -626,7 +626,7 @@ export default function SkillsMap() {
               className="zoom-hint"
               style={{
                 position: 'absolute',
-                top: 12,
+                bottom: 12,
                 left: '50%',
                 transform: 'translateX(-50%)',
                 background: 'rgba(0,0,0,0.72)',
