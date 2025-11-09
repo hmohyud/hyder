@@ -4,7 +4,21 @@ import * as d3 from 'd3';
 import './SkillsMap.css';
 import '../App.css';
 
+// Load the dotlottie-player web component once (works with .lottie files)
+function useDotLottieScript() {
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.customElements?.get('dotlottie-player')) return;
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/@dotlottie/player-component@latest/dist/dotlottie-player.js';
+    script.async = true;
+    script.crossOrigin = 'anonymous';
+    document.head.appendChild(script);
+  }, []);
+}
+
 export default function SkillsMap() {
+  useDotLottieScript();
+
   const svgRef = useRef(null);
   const simulationRef = useRef(null);
   const [data, setData] = useState({ skillNodes: [] });
@@ -25,90 +39,50 @@ export default function SkillsMap() {
   const tintCanvasRef = useRef(null);
 
   // Node circle radius by proficiency (unchanged)
-  const radiusScale = d3.scalePow()
-    .exponent(2.2)
-    .domain([1, 10])
-    .range([8, 40]);
-
-
-
-
-
-
-
-
+  const radiusScale = d3.scalePow().exponent(2.2).domain([1, 10]).range([8, 40]);
 
   // --- Page zoom logger (prints on start + on change; ignores pinch zoom) ---
   const lastZoomRef = useRef(1);
   const isZoomedRef = useRef(false);
-  const [isZoomed, setIsZoomed] = useState(false); // for rendering the floating hint
+  const [isZoomed, setIsZoomed] = useState(false);
 
   useEffect(() => {
-    const EPS = 0.02; // tolerance for float jitter
+    const EPS = 0.02;
     const vv = window.visualViewport || null;
-
     const getPageZoomApprox = () => {
-      // Chrome/Edge desktop: outerWidth / innerWidth ≈ page zoom
-      const chromium = (window.outerWidth && window.innerWidth)
-        ? window.outerWidth / window.innerWidth
-        : null;
-
-      // Safari-ish: screen vs visual viewport width
+      const chromium = (window.outerWidth && window.innerWidth) ? window.outerWidth / window.innerWidth : null;
       const safariish = vv ? (window.screen.availWidth / vv.width) : null;
-
-      // Firefox fallback: DPR (rough)
       const ff = window.devicePixelRatio || 1;
-
       if (chromium && isFinite(chromium)) return chromium;
       if (safariish && isFinite(safariish)) return safariish;
       return ff;
     };
-
     const printZoom = (z) => {
       isZoomedRef.current = Math.abs(z - 1) > EPS;
       setIsZoomed(isZoomedRef.current);
-      // const rounded = Math.round(z * 100) / 100;
-      // console.log(`[page-zoom] ${rounded}x (isZoomed=${isZoomedRef.current})`);
     };
-
-    // Initial print (always logs page zoom; doesn't care about pinch state)
     const z0 = getPageZoomApprox();
-    if (isFinite(z0)) {
-      lastZoomRef.current = z0;
-      printZoom(z0);
-    }
-
+    if (isFinite(z0)) { lastZoomRef.current = z0; printZoom(z0); }
     const check = () => {
-      // Ignore pinch zoom; only track page zoom changes
       const pinchScale = vv ? vv.scale : 1;
       if (Math.abs(pinchScale - 1) > EPS) return;
-
       const z = getPageZoomApprox();
       if (!isFinite(z)) return;
-
       if (Math.abs(z - lastZoomRef.current) > EPS) {
         lastZoomRef.current = z;
         printZoom(z);
       }
     };
-
-    // Throttle via rAF
     let scheduled = false;
     const schedule = () => {
       if (scheduled) return;
       scheduled = true;
-      requestAnimationFrame(() => {
-        scheduled = false;
-        check();
-      });
+      requestAnimationFrame(() => { scheduled = false; check(); });
     };
-
-    // Events that reflect page-zoom changes
     window.addEventListener('resize', schedule, { passive: true });
     window.addEventListener('orientationchange', schedule, { passive: true });
     vv?.addEventListener('resize', schedule, { passive: true });
     vv?.addEventListener('scroll', schedule, { passive: true });
-
     return () => {
       window.removeEventListener('resize', schedule);
       window.removeEventListener('orientationchange', schedule);
@@ -124,17 +98,13 @@ export default function SkillsMap() {
   const areaMax = area(rMax);
   const clamp01 = v => Math.max(0, Math.min(1, v));
   const lerp = (a, b, t) => a + (b - a) * t;
-
-  // Light radius and alpha derived from relative node area
   const tAreaFromProf = (prof) => {
     const p = Math.max(1, Math.min(10, prof || 1));
     const r = radiusScale(p);
     return clamp01((area(r) - areaMin) / (areaMax - areaMin));
   };
-
-  // Light tuning ranges
-  const LIGHT_R_MIN = 190;   // px
-  const LIGHT_R_MAX = 360;   // px
+  const LIGHT_R_MIN = 190;
+  const LIGHT_R_MAX = 360;
   const ALPHA_INNER_MIN = 0.10;
   const ALPHA_INNER_MAX = 0.45;
   const ALPHA_MID_MIN = 0.03;
@@ -142,7 +112,8 @@ export default function SkillsMap() {
 
   // --- HINT STATE + PHONE MODE ---
   const [isPhone, setIsPhone] = useState(false);
-  const COOKIE_NAME = 'skills.hintAck';
+  // distinct cookie for the card hint (unchanged behavior, different name)
+  const COOKIE_NAME = 'skills.hintAck_v2';
   const hasHintAck = () => document.cookie.split('; ').some(c => c.startsWith(`${COOKIE_NAME}=1`));
   const setHintAckCookie = () => { document.cookie = `${COOKIE_NAME}=1; max-age=86400; path=/; SameSite=Lax`; };
   const [hintAck, setHintAck] = useState(() => hasHintAck());
@@ -158,16 +129,13 @@ export default function SkillsMap() {
 
   function stringToColor(str) {
     let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
+    for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
     const hue = Math.abs(hash) % 360;
     const saturation = 50 + (Math.abs(hash) % 20);
     const lightness = 65 + (Math.abs(hash) % 10);
     return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
   }
 
-  // inject alpha into hsl() -> hsla()
   function withAlpha(hsl, a) {
     if (!hsl) return `rgba(255,255,255,${a})`;
     if (hsl.startsWith('hsl(')) {
@@ -180,10 +148,7 @@ export default function SkillsMap() {
     fetch(`${process.env.PUBLIC_URL}/skillsData.json`)
       .then(res => res.json())
       .then(json => {
-        const skillNodesWithColors = json.skillNodes.map(d => ({
-          ...d,
-          ringColor: stringToColor(d.id),
-        }));
+        const skillNodesWithColors = json.skillNodes.map(d => ({ ...d, ringColor: stringToColor(d.id) }));
         setData({ ...json, skillNodes: skillNodesWithColors });
       })
       .catch(err => console.error('Failed to load skillsData.json:', err));
@@ -265,26 +230,22 @@ export default function SkillsMap() {
       // no links on purpose
     }
 
-    const linkForce = d3
-      .forceLink(links)
-      .id(d => d.id);
-
+    const linkForce = d3.forceLink(links).id(d => d.id);
     if (linkMode === 'ungrouped') {
-      linkForce.strength(0); // effectively off
+      linkForce.strength(0);
     } else {
       linkForce.distance(130).strength(0.1);
     }
+
     simulationRef.current = d3.forceSimulation(nodes)
       .alphaMin(0.001)
       .alphaDecay(0.01)
       .velocityDecay(0.2)
-      // .force('link', d3.forceLink(links).id(d => d.id).distance(130).strength(0.1))
       .force('link', linkForce)
       .force('charge', d3.forceManyBody().strength(-20))
       .force('center', d3.forceCenter(fullWidth / 2, fullHeight / 2))
       .force('collide', d3.forceCollide().radius(d => radiusScale(d.proficiency || 1) + 6).strength(0.5));
 
-    // ---- WARM START: tick a bit so initial layout is already reasonable
     for (let i = 0; i < 40; i++) simulationRef.current.tick();
     simulationRef.current.alpha(0.2).restart();
 
@@ -315,7 +276,7 @@ export default function SkillsMap() {
         if (tooltipInfoRef.current) {
           if (set.has(d.id)) {
             tooltipInfoRef.current.innerHTML =
-              `<strong style='font-size: 14px;'>${d.id}</strong><br/>${d.description || 'No details available.'}`;
+              `<strong style='font-size: 14px;'>${d.id}</strong><br/>${(d.description || 'No details available.')}`;
             tooltipInfoRef.current.style.display = 'block';
           } else {
             tooltipInfoRef.current.style.display = 'none';
@@ -566,6 +527,35 @@ export default function SkillsMap() {
 
   }, [data, linkMode]);
 
+  // ---------- COACHMARK (two Lotties side-by-side with smooth fade-out) ----------
+  const [coachVisible, setCoachVisible] = useState(true);
+  const [coachHiding, setCoachHiding] = useState(false);
+  const requestHideCoach = () => {
+    if (coachHiding) return;
+    setCoachHiding(true);
+    // match CSS transition duration
+    setTimeout(() => setCoachVisible(false), 400);
+  };
+
+  // Hide on first interaction or after 7s
+  useEffect(() => {
+    if (!coachVisible) return;
+    const svgEl = svgRef.current;
+    const canvasEl = canvasRef.current;
+    const onPointerDown = () => requestHideCoach();
+    const onKey = (e) => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') requestHideCoach(); };
+    svgEl?.addEventListener('pointerdown', onPointerDown, { passive: true });
+    canvasEl?.addEventListener('pointerdown', onPointerDown, { passive: true });
+    window.addEventListener('keydown', onKey);
+    const t = setTimeout(() => requestHideCoach(), 7000);
+    return () => {
+      clearTimeout(t);
+      svgEl?.removeEventListener('pointerdown', onPointerDown);
+      canvasEl?.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [coachVisible, coachHiding]);
+
   return (
     <div ref={containerRef} className="skills-container">
       <div className="list-container">
@@ -579,23 +569,19 @@ export default function SkillsMap() {
                 className="sidebar-node"
                 ref={(el) => { if (el) nodeListRefs.current[node.id] = el; }}
                 data-selected={isSelected ? 'true' : 'false'}
-                style={{
-                  '--ring': node.ringColor,
-                  '--ring-tint': `${node.ringColor}33`,
-                }}
+                style={{ '--ring': node.ringColor, '--ring-tint': `${node.ringColor}33` }}
                 onClick={() => {
                   const set = expandedNodesRef.current;
                   set.has(node.id) ? set.delete(node.id) : set.add(node.id);
                   forceRerender(x => x + 1);
 
-                  d3.selectAll('circle')
-                    .attr('stroke', c => set.has(c.id) ? c.ringColor : '#000');
+                  d3.selectAll('circle').attr('stroke', c => set.has(c.id) ? c.ringColor : '#000');
                   d3.selectAll('text').style('display', 'block');
 
                   if (tooltipInfoRef.current) {
                     if (set.has(node.id)) {
                       tooltipInfoRef.current.innerHTML =
-                        `<strong style='font-size: 14px;'>${node.id}</strong><br/>${node.description || 'No details available.'}`;
+                        `<strong style='font-size: 14px;'>${node.id}</strong><br/>${(node.description || 'No details available.')}`;
                       tooltipInfoRef.current.style.display = 'block';
                     } else {
                       tooltipInfoRef.current.style.display = 'none';
@@ -646,6 +632,79 @@ export default function SkillsMap() {
 
           <canvas ref={canvasRef} className="ripple-canvas" />
           <svg ref={svgRef} style={{ width: '100%', height: '100%', overflow: 'visible', outline: 'solid 1px white' }} />
+
+          {/* --- COACHMARK OVERLAY: two panels side-by-side (fades out smoothly) --- */}
+          {coachVisible && (
+            <>
+              <style>{`
+                .coach-overlay{
+                  position:absolute;inset:0;display:grid;place-items:center;
+                  z-index:1000;pointer-events:none;
+                  opacity:1; transition:opacity .4s ease;
+                }
+                .coach-overlay.is-hiding{ opacity:0 }
+                .coach-row{
+                  display:flex;gap:22px;align-items:center;justify-content:center;
+                  background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.12);
+                  padding:14px 18px;border-radius:12px;backdrop-filter:blur(2px)
+                }
+                .coach-panel{
+                  display:flex;flex-direction:column;align-items:center;justify-content:center;
+                  width:200px
+                }
+                .coach-target{
+                  position:relative;width:180px;height:180px;display:grid;place-items:center
+                }
+                .coach-target::before{
+                  content:"";position:absolute;inset:8px;border:2px dashed rgba(255,255,255,.15);
+                  border-radius:50%;
+                }
+                .coach-label{
+                  margin-top:8px;color:#eef;font-size:12px;white-space:nowrap
+                }
+                @media (max-width: 600px){
+                  .coach-row{ flex-direction:column; gap:12px; }
+                  .coach-panel{ width:auto; }
+                }
+              `}</style>
+
+              <div
+                className={`coach-overlay ${coachHiding ? 'is-hiding' : ''}`}
+                aria-hidden="true"
+              >
+                <div className="coach-row">
+                  <div className="coach-panel">
+                    <div className="coach-target">
+                      <dotlottie-player
+                        autoplay
+                        loop
+                        mode="normal"
+                        speed="1"
+                        style={{ width: '180px', height: '180px' }}
+                        src={`${process.env.PUBLIC_URL}/click.lottie`}
+                      ></dotlottie-player>
+                    </div>
+                    <div className="coach-label">Click a node to select</div>
+                  </div>
+
+                  <div className="coach-panel">
+                    <div className="coach-target">
+                      <dotlottie-player
+                        autoplay
+                        loop
+                        mode="normal"
+                        speed="1"
+                        style={{ width: '180px', height: '180px' }}
+                        src={`${process.env.PUBLIC_URL}/drag.lottie`}
+                      ></dotlottie-player>
+                    </div>
+                    <div className="coach-label">Drag a node to move</div>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
           <div className="speed-indicator">⏱: {calcMs}ms</div>
 
           <select
@@ -670,7 +729,6 @@ export default function SkillsMap() {
                 el.style.background = '#222';
                 el.style.borderLeft = '1px solid #444';
               });
-              // tick UI
               forceRerender(x => x + 1);
             }}
           >
@@ -717,10 +775,7 @@ export default function SkillsMap() {
                 isOpen ? newSet.delete(id) : newSet.add(id);
                 setOpenLearnedFromIds(newSet);
               }}
-              style={{
-                boxShadow: `0 0 6px ${node.ringColor}`,
-                border: `2px solid ${node.ringColor}`,
-              }}
+              style={{ boxShadow: `0 0 6px ${node.ringColor}`, border: `2px solid ${node.ringColor}` }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -767,17 +822,13 @@ export default function SkillsMap() {
                       next.delete(id);
                       return next;
                     });
-                    d3.selectAll('circle').attr('stroke', c =>
-                      expandedNodesRef.current.has(c.id) ? c.ringColor : '#000'
-                    );
+                    d3.selectAll('circle').attr('stroke', c => expandedNodesRef.current.has(c.id) ? c.ringColor : '#000');
                     Object.entries(nodeListRefs.current).forEach(([nid, el]) => {
                       const n = data.skillNodes.find(n => n.id === nid);
                       if (!n || !el) return;
                       el.style.background = expandedNodesRef.current.has(nid) ? `${n.ringColor}33` : '#222';
-                      el.style.borderLeft = expandedNodesRef.current.has(nid)
-                        ? `5px solid ${n.ringColor}` : '1px solid #444';
+                      el.style.borderLeft = expandedNodesRef.current.has(nid) ? `5px solid ${n.ringColor}` : '1px solid #444';
                     });
-                    // bump to refresh the badge count if needed
                     forceRerender(x => x + 1);
                   }}
                   onKeyDown={(e) => {
