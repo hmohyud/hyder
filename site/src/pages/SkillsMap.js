@@ -684,7 +684,7 @@ export default function SkillsMap() {
                         src={`${process.env.PUBLIC_URL}/click.lottie`}
                       ></dotlottie-player>
                     </div>
-                    <div className="coach-label">Click a node to select</div>
+                    <div className="coach-label">Click a node</div>
                   </div>
 
                   <div className="coach-panel">
@@ -698,7 +698,7 @@ export default function SkillsMap() {
                         src={`${process.env.PUBLIC_URL}/drag.lottie`}
                       ></dotlottie-player>
                     </div>
-                    <div className="coach-label">Drag a node to move</div>
+                    <div className="coach-label">Drag a node</div>
                   </div>
                 </div>
               </div>
