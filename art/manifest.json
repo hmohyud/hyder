@@ -1,0 +1,121 @@
+{
+  "groups": [
+    {
+      "name": "Hands",
+      "items": [
+        {
+          "src": "/hyder/art/artworks/Hands/INVHand1.jpeg",
+          "title": "INVHand1"
+        },
+        {
+          "src": "/hyder/art/artworks/Hands/INVHand5V2.jpeg",
+          "title": "INVHand5V2"
+        },
+        {
+          "src": "/hyder/art/artworks/Hands/INVHand2.jpeg",
+          "title": "INVHand2"
+        },
+        {
+          "src": "/hyder/art/artworks/Hands/INVHand3V1.jpeg",
+          "title": "INVHand3V1"
+        },
+        {
+          "src": "/hyder/art/artworks/Hands/INVHand4V1.jpeg",
+          "title": "INVHand4V1"
+        }
+      ]
+    },
+    {
+      "name": "Painting",
+      "items": [
+        {
+          "src": "/hyder/art/artworks/Painting/HorseV1.jpeg",
+          "title": "HorseV1"
+        },
+        {
+          "src": "/hyder/art/artworks/Painting/Hyder'sV1.JPG",
+          "title": "HyderEyesV1"
+        }
+      ]
+    },
+    {
+      "name": "ScratchBoard",
+      "items": [
+        {
+          "src": "/hyder/art/artworks/ScratchBoard/CrowScratchV2.jpg",
+          "title": "CrowScratchV2"
+        },
+        {
+          "src": "/hyder/art/artworks/ScratchBoard/WolfScratchV2.jpg",
+          "title": "WolfScratchV2"
+        }
+      ]
+    },
+    {
+      "name": "Misc",
+      "items": [
+        {
+          "src": "/hyder/art/artworks/Misc/Tar%26PebblesV1.JPG",
+          "title": "Tar&PebblesV1"
+        }
+      ]
+    },
+    {
+      "name": "Speed Figure Drawings",
+      "items": [
+        {
+          "src": "/hyder/art/artworks/Speed%20Figure%20Drawings/DSC_4153.JPG",
+          "title": "DSC 4153"
+        },
+        {
+          "src": "/hyder/art/artworks/Speed%20Figure%20Drawings/DSC_4154.JPG",
+          "title": "DSC 4154"
+        },
+        {
+          "src": "/hyder/art/artworks/Speed%20Figure%20Drawings/DSC_4158.JPG",
+          "title": "DSC 4158"
+        },
+        {
+          "src": "/hyder/art/artworks/Speed%20Figure%20Drawings/DSC_4159.JPG",
+          "title": "DSC 4159"
+        },
+        {
+          "src": "/hyder/art/artworks/Speed%20Figure%20Drawings/DSC_4160.JPG",
+          "title": "DSC 4160"
+        },
+        {
+          "src": "/hyder/art/artworks/Speed%20Figure%20Drawings/DSC_4163.JPG",
+          "title": "DSC 4163"
+        },
+        {
+          "src": "/hyder/art/artworks/Speed%20Figure%20Drawings/FabricWrinklesTrio.jpg",
+          "title": "FabricWrinklesTrio"
+        },
+        {
+          "src": "/hyder/art/artworks/Speed%20Figure%20Drawings/FivePiece.JPG",
+          "title": "FivePiece"
+        },
+        {
+          "src": "/hyder/art/artworks/Speed%20Figure%20Drawings/FourPieceV1.JPG",
+          "title": "FourPieceV1"
+        },
+        {
+          "src": "/hyder/art/artworks/Speed%20Figure%20Drawings/Heat.jpg",
+          "title": "Heat"
+        },
+        {
+          "src": "/hyder/art/artworks/Speed%20Figure%20Drawings/SixPiece.JPG",
+          "title": "SixPiece"
+        },
+        {
+          "src": "/hyder/art/artworks/Speed%20Figure%20Drawings/TrioV1.jpg",
+          "title": "TrioV1"
+        },
+        {
+          "src": "/hyder/art/artworks/Speed%20Figure%20Drawings/TwoPieceV3.JPG",
+          "title": "TwoPieceV3"
+        }
+      ]
+    }
+  ]
+}
