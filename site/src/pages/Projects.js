@@ -7,6 +7,8 @@ const SPEC_IMAGES = Array.from({ length: 5 }, (_, i) => `/hyder/projects/SPEC_${
 const COOK_IMAGES = Array.from({ length: 4 }, (_, i) => `/hyder/projects/COOK_${i + 1}.jpg`);
 const COMIC_IMAGES = Array.from({ length: 6 }, (_, i) => `/hyder/projects/COMIC_${i + 1}.jpg`);
 const TEACH_IMAGES = Array.from({ length: 2 }, (_, i) => `/hyder/projects/TEACH_${i + 1}.jpg`);
+const ART_IMAGES = ["/hyder/art/artworks/Painting/Hyder'sV1.JPG", "/hyder/art/artworks/ScratchBoard/WolfScratchV2.jpg", "/hyder/art/artworks/Hands/INVHand3V1.jpeg"];
+const ART_MANIFEST = `${process.env.PUBLIC_URL}/art/manifest.json`;
 
 // ---------- Project data ----------
 const projects = [
@@ -112,20 +114,20 @@ const projects = [
     links: [
 
       // { label: 'pdf', href: 'https://flowcode.com/p/2c3S4xwGF' }
-      { label: 'pdf', href: 'https://hmohyud.github.io/hyder/projects/Echoes_of_the_Colorful_Shadows_5x7.pdf' }
+      { label: 'PDF', href: 'https://hmohyud.github.io/hyder/projects/Echoes_of_the_Colorful_Shadows_5x7.pdf' }
     ],
     // Point QR at your canonical route so it never goes stale
     qrData: '/hyder/projects/QR_COMIC.png'
   },
-  {
-    title: 'Client Sites & Revamps',
-    color: '#fe5757ff',
-    image: '/images/sites-placeholder.jpg',
-    description: [
-      `Edited and refreshed sites for several people: accessibility passes, responsive layouts, perf budgets, and SEO fixes.`,
-      `Typical stack: React/Vite/Next or lightweight static builds (Eleventy). Integrated forms, CMS where needed, and CI deploys.`,
-    ]
-  },
+  // {
+  //   title: 'Client Sites & Revamps',
+  //   color: '#fe5757ff',
+  //   image: '/images/sites-placeholder.jpg',
+  //   description: [
+  //     `Edited and refreshed sites for several people: accessibility passes, responsive layouts, perf budgets, and SEO fixes.`,
+  //     `Typical stack: React/Vite/Next or lightweight static builds (Eleventy). Integrated forms, CMS where needed, and CI deploys.`,
+  //   ]
+  // },
   {
     title: 'Motām — Poetry Collection',
     color: '#ffd166',
@@ -168,6 +170,18 @@ const projects = [
       { label: 'Support', href: 'https://hmohyud.github.io/pocketsouschef-support/' }
     ]
   },
+  {
+    title: 'High School Art Portfolio',
+    color: '#ff9ae0',
+    manifest: ART_MANIFEST,
+    images: ART_IMAGES,
+    description: [
+      'Highlights, studies, and experiments from high school.',
+      'College pieces are in progress—I haven’t bundled them into a portfolio yet.'
+    ],
+    links: [{ label: 'Open full gallery', href: '/hyder/art/' }]
+  }
+
 
 ];
 
@@ -215,6 +229,7 @@ function usePreloaded(srcs) {
 
   return meta; // [{ ok, w, h }]
 }
+
 
 
 // --------- RotatingImage (no overflow; uses <img> + object-fit: contain) ---------
@@ -337,6 +352,36 @@ export default function Projects() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [qrOpen, lightbox]);
+  // Map of projectIndex -> array of image URLs loaded from manifest.json
+  const [manifestImages, setManifestImages] = useState({});
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadOne(url) {
+      try {
+        const res = await fetch(url, { cache: 'no-store' });
+        const list = await res.json();
+        // accept both [{src, ...}] and ["url", ...]
+        return Array.isArray(list)
+          ? list.map(item => (typeof item === 'string' ? item : item?.src)).filter(Boolean)
+          : [];
+      } catch {
+        return [];
+      }
+    }
+
+    // kick off fetches for any project with a manifest
+    projects.forEach(async (p, i) => {
+      if (!p.manifest) return;
+      const imgs = await loadOne(p.manifest);
+      if (!cancelled) {
+        setManifestImages(prev => ({ ...prev, [i]: imgs }));
+      }
+    });
+
+    return () => { cancelled = true; };
+  }, []);
 
   const navButtonStyle = (color, side) => ({
     position: 'absolute',
@@ -377,7 +422,12 @@ export default function Projects() {
       </h1>
 
       {projects.map((proj, i) => {
-        const images = proj.images || (proj.image ? [proj.image] : []);
+        // const images = proj.images || (proj.image ? [proj.image] : []);
+        const images =
+          proj.images
+          || (proj.image ? [proj.image] : null)
+          || (proj.manifest ? (manifestImages[i] || []) : []);
+
         return (
           <div key={i} style={{
             display: 'flex',

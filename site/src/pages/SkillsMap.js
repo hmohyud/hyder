@@ -673,6 +673,7 @@ export default function SkillsMap() {
                 boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
                 backdropFilter: 'blur(2px)',
                 pointerEvents: 'none',
+                textAlign: 'center',
               }}
             >
               Please reset browser page zoom (100%) to see the grid.
