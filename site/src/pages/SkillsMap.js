@@ -33,6 +33,8 @@ export default function SkillsMap() {
   const [_, forceRerender] = useState(0);
   const [linkMode, setLinkMode] = useState('category');
   const canvasRef = useRef(null);
+  const clickLottieRef = useRef(null);
+  const dragLottieRef = useRef(null);
 
   // offscreen buffers to tint only the lines
   const gridCanvasRef = useRef(null);
@@ -555,6 +557,53 @@ export default function SkillsMap() {
       window.removeEventListener('keydown', onKey);
     };
   }, [coachVisible, coachHiding]);
+  // Start Lottie only after the custom element has upgraded AND fired "ready"
+  useEffect(() => {
+    if (!coachVisible) return;
+    let cancelled = false;
+
+    const boot = async (el) => {
+      if (!el) return;
+      // Ensure the custom element is defined (upgrade complete)
+      if (!window.customElements?.get('dotlottie-player')) {
+        try { await window.customElements.whenDefined('dotlottie-player'); } catch { }
+      }
+      if (cancelled) return;
+
+      // Make sure the attributes are valid (React -> custom element)
+      el.setAttribute('loop', 'true');     // IMPORTANT: string "true", not bare attr
+      el.setAttribute('autoplay', 'true'); // IMPORTANT: string "true"
+
+      // If the element is re-used across navigations, force a reload so "ready" will fire
+      const src = el.getAttribute('src');
+      if (src && typeof el.load === 'function') {
+        try { await el.load(src); } catch { }
+      }
+
+      // Wait until the player is actually ready, then play from the start
+      const onReady = () => {
+        if (cancelled) return;
+        // start from frame 0 and play — now it's safe
+        try { el.seek?.(0); } catch { }
+        try { el.play?.(); } catch { }
+      };
+      el.addEventListener('ready', onReady, { once: true });
+    };
+
+    boot(clickLottieRef.current);
+    boot(dragLottieRef.current);
+
+    const onVisible = () => {
+      if (!document.hidden) {
+        boot(clickLottieRef.current);
+        boot(dragLottieRef.current);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+
+    return () => { cancelled = true; document.removeEventListener('visibilitychange', onVisible); };
+  }, [coachVisible]);
+
 
   return (
     <div ref={containerRef} className="skills-container">
@@ -676,8 +725,10 @@ export default function SkillsMap() {
                   <div className="coach-panel">
                     <div className="coach-target">
                       <dotlottie-player
-                        autoplay
-                        loop
+                        ref={clickLottieRef}
+
+                        autoplay="true"
+                        loop='true'
                         mode="normal"
                         speed="1"
                         style={{ width: '180px', height: '180px' }}
@@ -690,8 +741,9 @@ export default function SkillsMap() {
                   <div className="coach-panel">
                     <div className="coach-target">
                       <dotlottie-player
-                        autoplay
-                        loop
+                        ref={dragLottieRef}
+                        autoplay="true"
+                        loop='true'
                         mode="normal"
                         speed="1"
                         style={{ width: '180px', height: '180px' }}
