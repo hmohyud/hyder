@@ -1,313 +1,473 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-  <title>Art Portfolio — Masonry</title>
-  <meta name="color-scheme" content="dark"/>
-  <style>
-    :root{
-      --fg:#e9edf7; --muted:#b9c2d7; --line:#1b2433; --accent:#9fb4ff;
-      --gap:8px;                  /* tighter spacing */
-      --col-width:280px;          /* target column width (desktop) */
-      --col-width-sm:210px;       /* target column width (mobile) */
-      --wrap-max:1320px;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0; font:14px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--fg);
-      background:
-        radial-gradient(1200px 900px at 80% -10%, #1a2440 0%, transparent 60%),
-        radial-gradient(1000px 780px at -10% 110%, #2a1331 0%, transparent 60%),
-        linear-gradient(180deg,#070a0f,#0b0f14 45%,#0a0f14 100%);
-      background-attachment:fixed,fixed,fixed; background-repeat:no-repeat; background-size:cover,cover,cover;
-      overflow-x:hidden;
-    }
-    .wrap{max-width:var(--wrap-max); margin:0 auto; padding:24px 18px 56px}
-    header{
-      position:sticky; top:0; z-index:5; margin:-24px -18px 18px; padding:12px 18px;
-      display:flex; align-items:center; justify-content:space-between; gap:12px;
-      backdrop-filter:saturate(1.05) blur(6px);
-      background:linear-gradient(180deg, rgba(10,14,20,.85), rgba(10,14,20,.35));
-      border-bottom:1px solid var(--line);
-    }
-    h1{margin:0; font-size:1.45rem; letter-spacing:.35px}
-    .back{
-      display:inline-flex; align-items:center; gap:8px; padding:8px 12px; text-decoration:none; font-weight:600;
-      color:var(--accent); background:rgba(15,20,28,.55); border:1px solid rgba(42,47,58,.9);
-      border-radius:999px; box-shadow:0 2px 10px rgba(0,0,0,.25),0 0 0 1px rgba(143,211,255,.12) inset; backdrop-filter:blur(6px);
-    }
-    .back::before{content:""; width:8px; height:8px; margin-right:2px; border-left:2px solid currentColor; border-bottom:2px solid currentColor; transform:rotate(45deg)}
-    .muted{color:var(--muted)}
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Art Portfolio — Masonry</title>
+    <meta name="color-scheme" content="dark" />
+    <style>
+        :root {
+            --fg: #e9edf7;
+            --muted: #b9c2d7;
+            --line: #1b2433;
+            /* Use High School Art Portfolio color */
+            --accent: #ff9ae0;
+            --accent-rgb: 255, 154, 224;
 
-    /* Filter chips */
-    .legend{display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 16px}
-    .chip{
-      border:1px solid var(--line); padding:6px 10px; cursor:pointer; user-select:none;
-      border-radius:999px; color:var(--fg); background:rgba(15,20,28,.55);
-      display:inline-flex; align-items:center; gap:8px; font-weight:600;
-    }
-    .sw{width:12px; height:12px}
-    .chip[aria-pressed="true"]{border-color:var(--accent); color:var(--accent)}
+            --gap: 8px;
+            --col-width: 280px;
+            --col-width-sm: 210px;
+            --wrap-max: 1320px;
+        }
 
-    /* Masonry container */
-    .msn{
-      column-gap:var(--gap);
-      /* column-width gives a *target*; browser chooses number of columns that fit */
-      column-width:var(--col-width);
-    }
-    @media (max-width: 720px){
-      .msn{ column-width:var(--col-width-sm); }
-    }
+        * {
+            box-sizing: border-box
+        }
 
-    /* Tiles */
-    .card{
-      position:relative; margin:0 0 var(--gap) 0; break-inside:avoid;
-      border:1px solid var(--line); background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0));
-      box-shadow:0 8px 24px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.02) inset;
-      overflow:hidden; /* so badge sits on top edge cleanly */
-      border-radius:0; /* sharp corners */
-      cursor:zoom-in;
-      opacity:0; transform:translateY(6px); transition:opacity .25s ease, transform .25s ease;
-    }
-    .card.ready{opacity:1; transform:none}
-    .card:hover{border-color:rgba(159,180,255,.45); box-shadow:0 16px 40px rgba(0,0,0,.55), 0 0 0 1px rgba(159,180,255,.18) inset}
+        html,
+        body {
+            height: 100%
+        }
 
-    .ph{
-      display:block; width:100%; height:auto; /* critical: no cropping */
-      filter:saturate(1.02) contrast(1.03);
-    }
+        body {
+            margin: 0;
+            font: 14px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace;
+            color: var(--fg);
+            background:
+                radial-gradient(1200px 900px at 80% -10%, #1a2440 0%, transparent 60%),
+                radial-gradient(1000px 780px at -10% 110%, #2a1331 0%, transparent 60%),
+                linear-gradient(180deg, #070a0f, #0b0f14 45%, #0a0f14 100%);
+            background-attachment: fixed, fixed, fixed;
+            background-repeat: no-repeat;
+            background-size: cover, cover, cover;
+            overflow-x: hidden;
+        }
 
-    .badge{
-      position:absolute; top:6px; left:6px; padding:3px 6px; font-size:11px; font-weight:700;
-      background:rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.08);
-      border-radius:0; color:#e6eefb; letter-spacing:.2px; text-transform:capitalize;
-      pointer-events:none;
-    }
+        .wrap {
+            max-width: var(--wrap-max);
+            margin: 0 auto;
+            padding: 24px 18px 56px
+        }
 
-    /* Lightbox, reused from your version */
-    .lb{position:fixed; inset:0; z-index:9999; display:none; background:rgba(0,0,0,.88)}
-    .lb.open{display:grid; grid-template-rows:auto 1fr auto; padding:14px}
-    .row{display:flex; justify-content:space-between; align-items:center; gap:12px}
-    .btn{border:1px solid var(--line); background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); color:var(--muted); padding:8px 12px; cursor:pointer}
-    .stage{position:relative; display:grid; place-items:center; overflow:hidden}
-    .hero{max-width:min(92vw,1700px); max-height:min(84vh,92vh); border:1px solid var(--line); background:#0d0d0d; box-shadow:0 20px 60px rgba(0,0,0,.6)}
-    .nav{position:absolute; top:50%; transform:translateY(-50%); width:44px; height:44px; display:grid; place-items:center; border-radius:999px;
-         border:1px solid rgba(159,180,255,.45); background:rgba(0,0,0,.45); color:#9db6ff; font-size:22px; cursor:pointer}
-    .nav.left{left:16px} .nav.right{right:16px}
-    .counter{text-align:center; color:var(--muted)}
-  </style>
-  <link rel="icon" href="/hyder/logoV6.png"/>
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            margin: -24px -18px 18px;
+            padding: 12px 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            backdrop-filter: saturate(1.05) blur(6px);
+            background: linear-gradient(180deg, rgba(10, 14, 20, .85), rgba(10, 14, 20, .35));
+            border-bottom: 1px solid var(--line);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.45rem;
+            letter-spacing: .35px;
+            color: var(--accent)
+        }
+
+        /* Back button styled like your project links */
+        .back {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            text-decoration: none;
+            font-weight: 600;
+            letter-spacing: .2px;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            background: transparent;
+            transition: background-color .2s ease, border-color .2s ease, color .2s ease;
+        }
+
+        .back:hover {
+            background-color: rgba(var(--accent-rgb), .13);
+        }
+
+        .back:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .25);
+        }
+
+        .back::before {
+            content: "";
+            width: 8px;
+            height: 8px;
+            margin-right: 2px;
+            border-left: 2px solid currentColor;
+            border-bottom: 2px solid currentColor;
+            transform: rotate(45deg);
+        }
+
+        .muted {
+            color: var(--muted)
+        }
+
+        /* Filter chips */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 10px 0 16px
+        }
+
+        .chip {
+            border: 1px solid var(--line);
+            padding: 6px 10px;
+            cursor: pointer;
+            user-select: none;
+            border-radius: 999px;
+            color: var(--fg);
+            background: rgba(15, 20, 28, .55);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+        }
+
+        .sw {
+            width: 12px;
+            height: 12px
+        }
+
+        .chip[aria-pressed="true"] {
+            border-color: var(--accent);
+            color: var(--accent)
+        }
+
+        /* Masonry container */
+        .msn {
+            column-gap: var(--gap);
+            column-width: var(--col-width);
+        }
+
+        @media (max-width: 720px) {
+            .msn {
+                column-width: var(--col-width-sm);
+            }
+        }
+
+        /* Tiles */
+        .card {
+            position: relative;
+            margin: 0 0 var(--gap) 0;
+            break-inside: avoid;
+            border: 1px solid var(--line);
+            background: linear-gradient(180deg, rgba(255, 255, 255, .02), rgba(255, 255, 255, 0));
+            box-shadow: 0 8px 24px rgba(0, 0, 0, .35), 0 0 0 1px rgba(255, 255, 255, .02) inset;
+            overflow: hidden;
+            border-radius: 0;
+            cursor: zoom-in;
+            opacity: 0;
+            transform: translateY(6px);
+            transition: opacity .25s ease, transform .25s ease;
+        }
+
+        .card.ready {
+            opacity: 1;
+            transform: none
+        }
+
+        .card:hover {
+            border-color: rgba(159, 180, 255, .45);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, .55), 0 0 0 1px rgba(159, 180, 255, .18) inset
+        }
+
+        .ph {
+            display: block;
+            width: 100%;
+            height: auto;
+            filter: saturate(1.02) contrast(1.03);
+        }
+
+        .badge {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            padding: 3px 6px;
+            font-size: 11px;
+            font-weight: 700;
+            background: rgba(0, 0, 0, .55);
+            border: 1px solid rgba(255, 255, 255, .08);
+            border-radius: 0;
+            color: #e6eefb;
+            letter-spacing: .2px;
+            text-transform: capitalize;
+            pointer-events: none;
+        }
+
+        /* Lightbox */
+        .lb {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            display: none;
+            background: rgba(0, 0, 0, .88)
+        }
+
+        .lb.open {
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            padding: 14px
+        }
+
+        .row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px
+        }
+
+        .btn {
+            border: 1px solid var(--line);
+            background: linear-gradient(180deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, .02));
+            color: var(--muted);
+            padding: 8px 12px;
+            cursor: pointer
+        }
+
+        .stage {
+            position: relative;
+            display: grid;
+            place-items: center;
+            overflow: hidden
+        }
+
+        .hero {
+            max-width: min(92vw, 1700px);
+            max-height: min(84vh, 92vh);
+            border: 1px solid var(--line);
+            background: #0d0d0d;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, .6)
+        }
+
+        .nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 44px;
+            height: 44px;
+            display: grid;
+            place-items: center;
+            border-radius: 999px;
+            border: 1px solid rgba(159, 180, 255, .45);
+            background: rgba(0, 0, 0, .45);
+            color: #9db6ff;
+            font-size: 22px;
+            cursor: pointer
+        }
+
+        .nav.left {
+            left: 16px
+        }
+
+        .nav.right {
+            right: 16px
+        }
+
+        .counter {
+            text-align: center;
+            color: var(--muted)
+        }
+    </style>
+    <link rel="icon" href="/hyder/logoV6.png" />
 </head>
+
 <body>
-  <div class="wrap">
-    <header>
-      <h1>Art Portfolio</h1>
-      <a class="back" href="/hyder#/projects">Back</a>
-    </header>
+    <div class="wrap">
+        <header>
+            <h1>Art Portfolio</h1>
+            <a class="back" href="/hyder#/projects">Back</a>
+        </header>
 
-    <p class="muted">Selection of pieces, studies, and experiments. Click any image to view full size.</p>
+        <p class="muted">Selection of pieces, studies, and experiments. Click any image to view full size.</p>
 
-    <div id="legend" class="legend" aria-label="Groups filter"></div>
-    <div id="status" class="loading muted">Loading…</div>
+        <div id="legend" class="legend" aria-label="Groups filter"></div>
+        <div id="status" class="loading muted">Loading…</div>
 
-    <!-- Unified Masonry Grid -->
-    <div id="msn" class="msn"></div>
-  </div>
-
-  <!-- Lightbox -->
-  <div id="lb" class="lb" role="dialog" aria-modal="true" aria-label="Artwork viewer">
-    <div class="row">
-      <div class="muted" id="title"></div>
-      <button class="btn" id="closeBtn" type="button">Close (Esc)</button>
+        <!-- Unified Masonry Grid -->
+        <div id="msn" class="msn"></div>
     </div>
-    <div class="stage" id="stage">
-      <button class="nav left" id="prevBtn" aria-label="Previous">‹</button>
-      <img id="hero" class="hero" alt=""/>
-      <button class="nav right" id="nextBtn" aria-label="Next">›</button>
+
+    <!-- Lightbox -->
+    <div id="lb" class="lb" role="dialog" aria-modal="true" aria-label="Artwork viewer">
+        <div class="row">
+            <div class="muted" id="title"></div>
+            <button class="btn" id="closeBtn" type="button">Close (Esc)</button>
+        </div>
+        <div class="stage" id="stage">
+            <button class="nav left" id="prevBtn" aria-label="Previous">‹</button>
+            <img id="hero" class="hero" alt="" />
+            <button class="nav right" id="nextBtn" aria-label="Next">›</button>
+        </div>
+        <div class="counter" id="counter"></div>
     </div>
-    <div class="counter" id="counter"></div>
-  </div>
 
-  <script>
-  (function(){
-    const msn = document.getElementById('msn');
-    const legend = document.getElementById('legend');
-    const status = document.getElementById('status');
+    <script>
+        (function () {
+            const msn = document.getElementById('msn');
+            const legend = document.getElementById('legend');
+            const status = document.getElementById('status');
 
-    /* Lightbox */
-    const lb = document.getElementById('lb');
-    const hero = document.getElementById('hero');
-    const titleEl = document.getElementById('title');
-    const counter = document.getElementById('counter');
-    const closeBtn = document.getElementById('closeBtn');
-    const prevBtn = document.getElementById('prevBtn');
-    const nextBtn = document.getElementById('nextBtn');
-    const stage = document.getElementById('stage');
+            /* Lightbox */
+            const lb = document.getElementById('lb');
+            const hero = document.getElementById('hero');
+            const titleEl = document.getElementById('title');
+            const counter = document.getElementById('counter');
+            const closeBtn = document.getElementById('closeBtn');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const stage = document.getElementById('stage');
 
-    function colorFor(str){
-      let h=0; for(let i=0;i<str.length;i++) h=(h*31+str.charCodeAt(i))>>>0;
-      return `hsl(${h%360} 65% 70%)`;
-    }
-    function resolveSrc(s){
-      if(!s) return s;
-      if(/^https?:\/\//i.test(s)) return s;
-      if(s.startsWith('/hyder/')) return s;
-      if(s.startsWith('/')) return '/hyder'+s;
-      return '/hyder/'+s.replace(/^\.?\//,'');
-    }
+            function colorFor(str) {
+                let h = 0; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+                return `hsl(${h % 360} 65% 70%)`;
+            }
+            function resolveSrc(s) {
+                if (!s) return s;
+                if (/^https?:\/\//i.test(s)) return s;
+                if (s.startsWith('/hyder/')) return s;
+                if (s.startsWith('/')) return '/hyder' + s;
+                return '/hyder/' + s.replace(/^\.?\//, '');
+            }
 
-    let flat=[];     // all items (interleaved groups)
-    let view=[];     // filtered items
-    let idx=0;
+            let flat = []; let view = []; let idx = 0;
 
-    function openLightbox(i){ idx=i; renderLb(); lb.classList.add('open'); document.body.style.overflow='hidden'; }
-    function closeLightbox(){ lb.classList.remove('open'); document.body.style.overflow=''; }
-    function renderLb(){
-      const it=view[idx]; if(!it) return;
-      hero.src=it.src; hero.alt=it.title||'artwork';
-      titleEl.textContent=(it.group?`[${it.group}] `:'')+(it.title||'Artwork');
-      counter.textContent=(idx+1)+' / '+view.length;
-      // preload neighbors
-      [view[(idx+1)%view.length]?.src, view[(idx-1+view.length)%view.length]?.src]
-        .forEach(s=>{ if(!s) return; const im=new Image(); im.decoding='async'; im.src=s; });
-    }
-    closeBtn.onclick=closeLightbox;
-    prevBtn.onclick=e=>{e.stopPropagation(); idx=(idx-1+view.length)%view.length; renderLb();};
-    nextBtn.onclick=e=>{e.stopPropagation(); idx=(idx+1)%view.length; renderLb();};
-    lb.addEventListener('click', e=>{ if(e.target===lb) closeLightbox(); });
-    stage.addEventListener('click', e=>{ if(e.target===stage) closeLightbox(); });
-    window.addEventListener('keydown', e=>{
-      if(!lb.classList.contains('open')) return;
-      if(e.key==='Escape') closeLightbox();
-      if(e.key==='ArrowLeft'){ idx=(idx-1+view.length)%view.length; renderLb(); }
-      if(e.key==='ArrowRight'){ idx=(idx+1)%view.length; renderLb(); }
-    });
+            function openLightbox(i) { idx = i; renderLb(); lb.classList.add('open'); document.body.style.overflow = 'hidden'; }
+            function closeLightbox() { lb.classList.remove('open'); document.body.style.overflow = ''; }
+            function renderLb() {
+                const it = view[idx]; if (!it) return;
+                hero.src = it.src; hero.alt = it.title || 'artwork';
+                titleEl.textContent = (it.group ? `[${it.group}] ` : '') + (it.title || 'Artwork');
+                counter.textContent = (idx + 1) + ' / ' + view.length;
+                [view[(idx + 1) % view.length]?.src, view[(idx - 1 + view.length) % view.length]?.src]
+                    .forEach(s => { if (!s) return; const im = new Image(); im.decoding = 'async'; im.src = s; });
+            }
+            closeBtn.onclick = closeLightbox;
+            prevBtn.onclick = e => { e.stopPropagation(); idx = (idx - 1 + view.length) % view.length; renderLb(); };
+            nextBtn.onclick = e => { e.stopPropagation(); idx = (idx + 1) % view.length; renderLb(); };
+            lb.addEventListener('click', e => { if (e.target === lb) closeLightbox(); });
+            stage.addEventListener('click', e => { if (e.target === stage) closeLightbox(); });
+            window.addEventListener('keydown', e => {
+                if (!lb.classList.contains('open')) return;
+                if (e.key === 'Escape') closeLightbox();
+                if (e.key === 'ArrowLeft') { idx = (idx - 1 + view.length) % view.length; renderLb(); }
+                if (e.key === 'ArrowRight') { idx = (idx + 1) % view.length; renderLb(); }
+            });
 
-    function rrInterleave(map){
-      const keys=[...map.keys()];
-      const qs=keys.map(k=>map.get(k).slice());
-      const out=[]; let added=true;
-      while(added){
-        added=false;
-        for(const q of qs){ if(q.length){ out.push(q.shift()); added=true; } }
-      }
-      return out;
-    }
+            function rrInterleave(map) {
+                const keys = [...map.keys()];
+                const qs = keys.map(k => map.get(k).slice());
+                const out = []; let added = true;
+                while (added) {
+                    added = false;
+                    for (const q of qs) { if (q.length) { out.push(q.shift()); added = true; } }
+                }
+                return out;
+            }
 
-    function renderGrid(){
-      msn.innerHTML='';
-      // Create a fragment (perf)
-      const frag=document.createDocumentFragment();
-      view.forEach((it, i)=>{
-        const fig=document.createElement('figure'); fig.className='card'; fig.tabIndex=0;
-        fig.dataset.index=String(i);
+            function renderGrid() {
+                msn.innerHTML = '';
+                const frag = document.createDocumentFragment();
+                view.forEach((it, i) => {
+                    const fig = document.createElement('figure'); fig.className = 'card'; fig.tabIndex = 0; fig.dataset.index = String(i);
+                    const img = document.createElement('img'); img.className = 'ph'; img.src = it.src; img.alt = it.title || 'artwork';
+                    img.loading = 'lazy'; img.decoding = 'async';
+                    const badge = document.createElement('div'); badge.className = 'badge';
+                    badge.textContent = it.group || 'misc';
+                    badge.style.color = colorFor(it.group || 'misc');
+                    const onDone = () => { fig.classList.add('ready'); };
+                    if (img.complete && img.naturalWidth > 0) onDone(); else { img.addEventListener('load', onDone, { once: true }); img.addEventListener('error', onDone, { once: true }); }
+                    fig.appendChild(img); fig.appendChild(badge);
+                    fig.addEventListener('click', () => openLightbox(i));
+                    fig.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLightbox(i); } });
+                    frag.appendChild(fig);
+                });
+                msn.appendChild(frag);
+            }
 
-        const img=document.createElement('img'); img.className='ph'; img.src=it.src; img.alt=it.title||'artwork';
-        img.loading='lazy'; img.decoding='async';
+            async function loadManifest() {
+                try {
+                    const r = await fetch('./manifest.json', { cache: 'no-store' });
+                    const d = await r.json();
+                    return Array.isArray(d?.groups) ? d.groups : [];
+                } catch (e) { console.error('manifest load failed', e); return []; }
+            }
 
-        const badge=document.createElement('div'); badge.className='badge';
-        badge.textContent = it.group || 'misc';
-        badge.style.color = colorFor(it.group||'misc');
+            async function init() {
+                const groups = await loadManifest();
+                if (!groups.length) { status.textContent = 'No artworks yet.'; return; }
 
-        // fade-in when loaded
-        const onDone=()=>{ fig.classList.add('ready'); };
-        if(img.complete && img.naturalWidth>0) onDone(); else { img.addEventListener('load', onDone, {once:true}); img.addEventListener('error', onDone, {once:true}); }
+                const raw = [];
+                groups.forEach(g => {
+                    const name = g.name || '';
+                    (g.items || []).forEach(it => {
+                        const src = resolveSrc(it.src);
+                        const title = it.title || (it.src ? decodeURIComponent((it.src.split('/').pop() || '').replace(/\.[^.]+$/, '')) : '');
+                        raw.push({ group: name, src, title });
+                    });
+                });
 
-        fig.appendChild(img);
-        fig.appendChild(badge);
+                const meta = await Promise.all(raw.map(x => new Promise(res => {
+                    const im = new Image(); im.decoding = 'async'; im.src = x.src;
+                    const done = () => { const w = im.naturalWidth || 1200, h = im.naturalHeight || 800; res({ ...x, w, h }); };
+                    if (im.complete && im.naturalWidth > 0) done(); else { im.onload = done; im.onerror = done; }
+                })));
 
-        // open lightbox
-        fig.addEventListener('click', ()=>openLightbox(i));
-        fig.addEventListener('keydown', (e)=>{ if(e.key==='Enter' || e.key===' ') { e.preventDefault(); openLightbox(i); } });
+                const map = new Map();
+                meta.forEach(m => { const k = m.group || 'misc'; if (!map.has(k)) map.set(k, []); map.get(k).push(m); });
+                map.forEach(arr => arr.sort((a, b) => (a.title || '').localeCompare(b.title || '')));
 
-        frag.appendChild(fig);
-      });
-      msn.appendChild(frag);
-    }
+                flat = rrInterleave(map);
+                view = flat.slice();
 
-    async function loadManifest(){
-      try{
-        const r=await fetch('./manifest.json',{cache:'no-store'});
-        const d=await r.json();
-        return Array.isArray(d?.groups)?d.groups:[];
-      }catch(e){ console.error('manifest load failed', e); return []; }
-    }
+                status.style.display = 'none';
+                legend.innerHTML = '';
+                const chips = [];
 
-    async function init(){
-      const groups = await loadManifest();
-      if(!groups.length){ status.textContent='No artworks yet.'; return; }
+                const all = document.createElement('button'); all.className = 'chip'; all.textContent = 'All'; all.setAttribute('aria-pressed', 'true');
+                const allSw = document.createElement('span'); allSw.className = 'sw';
+                allSw.style.background = 'linear-gradient(90deg,' + [...map.keys()].slice(0, 6).map(k => colorFor(k)).join(',') + ')';
+                all.prepend(allSw); legend.appendChild(all);
 
-      // Build flat list with measured dimensions (to preserve natural aspect in masonry)
-      const raw=[];
-      groups.forEach(g=>{
-        const name=g.name||'';
-        (g.items||[]).forEach(it=>{
-          const src=resolveSrc(it.src);
-          const title=it.title || (it.src ? decodeURIComponent((it.src.split('/').pop()||'').replace(/\.[^.]+$/,'')) : '');
-          raw.push({group:name, src, title});
-        });
-      });
+                map.forEach((_, name) => {
+                    const chip = document.createElement('button'); chip.className = 'chip'; chip.textContent = name; chip.setAttribute('aria-pressed', 'false');
+                    const sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = colorFor(name); chip.prepend(sw);
+                    legend.appendChild(chip); chips.push(chip);
+                });
 
-      const meta = await Promise.all(raw.map(x=>new Promise(res=>{
-        const im=new Image(); im.decoding='async'; im.src=x.src;
-        const done=()=>{ const w=im.naturalWidth||1200, h=im.naturalHeight||800; res({...x, w, h}); };
-        if(im.complete && im.naturalWidth>0) done(); else { im.onload=done; im.onerror=done; }
-      })));
+                function setFilter(name) {
+                    const isAll = !name;
+                    all.setAttribute('aria-pressed', isAll ? 'true' : 'false');
+                    chips.forEach(c => c.setAttribute('aria-pressed', c.textContent === name && !isAll ? 'true' : 'false'));
+                    view = isAll ? flat.slice() : flat.filter(x => x.group === name);
+                    renderGrid();
+                }
+                all.onclick = () => setFilter(null);
+                chips.forEach(c => c.onclick = () => setFilter(c.textContent));
 
-      // Group → arrays
-      const map = new Map();
-      meta.forEach(m=>{ const k=m.group||'misc'; if(!map.has(k)) map.set(k,[]); map.get(k).push(m); });
-      // optional: sort each group by title for stable order
-      map.forEach(arr=>arr.sort((a,b)=>(a.title||'').localeCompare(b.title||'')));
+                renderGrid();
 
-      // Round-robin interleave so groups mingle (feels natural)
-      flat = rrInterleave(map);
-      view = flat.slice();
+                const rootStyle = document.documentElement.style;
+                function onResize() {
+                    const small = window.matchMedia('(max-width: 720px)').matches;
+                    rootStyle.setProperty('--col-width', small ? getComputedStyle(document.documentElement).getPropertyValue('--col-width-sm') : '280px');
+                }
+                onResize();
+                window.addEventListener('resize', onResize, { passive: true });
+            }
 
-      // Build legend chips
-      status.style.display='none';
-      legend.innerHTML='';
-      const chips=[];
-
-      // All chip
-      const all=document.createElement('button'); all.className='chip'; all.textContent='All'; all.setAttribute('aria-pressed','true');
-      const allSw=document.createElement('span'); allSw.className='sw';
-      allSw.style.background='linear-gradient(90deg,'+ [...map.keys()].slice(0,6).map(k=>colorFor(k)).join(',') +')';
-      all.prepend(allSw); legend.appendChild(all);
-
-      map.forEach((_,name)=>{
-        const chip=document.createElement('button'); chip.className='chip'; chip.textContent=name; chip.setAttribute('aria-pressed','false');
-        const sw=document.createElement('span'); sw.className='sw'; sw.style.background=colorFor(name); chip.prepend(sw);
-        legend.appendChild(chip); chips.push(chip);
-      });
-
-      function setFilter(name){
-        const isAll = !name;
-        all.setAttribute('aria-pressed', isAll?'true':'false');
-        chips.forEach(c=>c.setAttribute('aria-pressed', c.textContent===name && !isAll ? 'true':'false'));
-        view = isAll ? flat.slice() : flat.filter(x=>x.group===name);
-        renderGrid();
-      }
-      all.onclick=()=>setFilter(null);
-      chips.forEach(c=> c.onclick=()=>setFilter(c.textContent));
-
-      // Initial render
-      renderGrid();
-
-      // Re-render on resize only to update column-width CSS var (no JS needed for flow)
-      const rootStyle=document.documentElement.style;
-      function onResize(){
-        const small = window.matchMedia('(max-width: 720px)').matches;
-        rootStyle.setProperty('--col-width', small ? getComputedStyle(document.documentElement).getPropertyValue('--col-width-sm') : '280px');
-      }
-      onResize();
-      window.addEventListener('resize', onResize, { passive:true });
-    }
-
-    init();
-  })();
-  </script>
+            init();
+        })();
+    </script>
 </body>
+
 </html>
