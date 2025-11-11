@@ -93,6 +93,27 @@ export default function SkillsMap() {
     };
   }, []);
 
+
+  function isIPadDevice() {
+    const ua = navigator.userAgent || "";
+    const plat = navigator.platform || "";
+    const uaPlat = navigator.userAgentData?.platform || "";
+    const touch = navigator.maxTouchPoints || 0;
+
+    if (/\biPad\b/i.test(ua)) return true; // classic iPad UA
+    if ((plat === "MacIntel" || /\bMac\b/i.test(plat) || uaPlat === "macOS") && touch > 1) return true; // iPadOS desktop mode
+    if (/\b(iPad|iPadOS)\b/i.test(plat) || /\b(iPad|iPadOS)\b/i.test(uaPlat)) return true;
+
+    return false;
+  }
+  const [isIPad, setIsIPad] = useState(false);
+  useEffect(() => {
+    try { setIsIPad(isIPadDevice()); } catch { setIsIPad(false); }
+  }, []);
+
+  const isIPadRef = useRef(false);
+  useEffect(() => { isIPadRef.current = isIPad; }, [isIPad]);
+
   // ---- Area-based interpolation helpers ----
   const [rMin, rMax] = [radiusScale.range()[0], radiusScale.range()[1]];
   const area = r => Math.PI * r * r;
@@ -425,7 +446,7 @@ export default function SkillsMap() {
         tctx.clearRect(0, 0, w, h);
 
         // ---- draw grid only if page zoom is at 100% ----
-        if (!isZoomedRef.current) {
+        if (!isZoomedRef.current && !isIPadRef.current) {
           // Build warp field from *current* node positions (original values)
           const warpNodes = nodes.map(d => {
             const r = radiusScale(d.proficiency || 1);
@@ -655,7 +676,7 @@ export default function SkillsMap() {
       <div className="node-graph">
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
           {/* Floating hint if page zoom != 100% */}
-          {isZoomed && (
+          {(isZoomed && !isIPad) && (
             <div
               aria-live="polite"
               className="zoom-hint"
@@ -679,6 +700,31 @@ export default function SkillsMap() {
               Please reset browser page zoom (100%) to see the grid.
             </div>
           )}
+          {isIPad && (
+            <div
+              role="status"
+              aria-live="polite"
+              style={{
+                position: 'absolute',
+                bottom: 12,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: 'rgba(0,0,0,0.72)',
+                color: '#fff',
+                padding: '8px 12px',
+                borderRadius: 10,
+                fontSize: 12,
+                zIndex: 2000,       // <-- was 6
+                boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
+                backdropFilter: 'blur(2px)',
+                textAlign: 'center',
+                maxWidth: 420
+              }}
+            >
+              For full functionality (animated grid), please view this page on a computer.
+            </div>
+          )}
+
 
           <canvas ref={canvasRef} className="ripple-canvas" />
           <svg ref={svgRef} style={{ width: '100%', height: '100%', overflow: 'visible', outline: 'solid 1px white' }} />
