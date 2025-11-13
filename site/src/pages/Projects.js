@@ -231,7 +231,6 @@ function usePreloaded(srcs) {
 }
 
 
-
 // --------- RotatingImage (no overflow; uses <img> + object-fit: contain) ---------
 function RotatingImage({
   images = [],
@@ -249,9 +248,12 @@ function RotatingImage({
     () => images.map((_, i) => (ok[i] ? i : -1)).filter(i => i >= 0),
     [images, ok]
   );
+
   const [idx, setIdx] = useState(0);
+  const [hovered, setHovered] = useState(false);
   const timerRef = useRef(null);
 
+  // Keep idx in range if visible images change
   useEffect(() => {
     if (idx >= visibleIdxs.length) setIdx(0);
   }, [visibleIdxs.length, idx]);
@@ -259,11 +261,16 @@ function RotatingImage({
   const next = () => setIdx(i => (i + 1) % Math.max(visibleIdxs.length, 1));
 
   useEffect(() => {
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
     if (visibleIdxs.length > 1) {
       timerRef.current = setInterval(next, intervalMs);
     }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, [intervalMs, visibleIdxs.length]);
 
   const usable = visibleIdxs.length > 0;
@@ -273,28 +280,36 @@ function RotatingImage({
     <div
       role="img"
       aria-label={`${altBase} — slideshow`}
-      onMouseEnter={() => { if (timerRef.current) clearInterval(timerRef.current); }}
+      onMouseEnter={() => {
+        setHovered(true);
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+      }}
       onMouseLeave={() => {
+        setHovered(false);
         if (!timerRef.current && visibleIdxs.length > 1) {
           timerRef.current = setInterval(next, intervalMs);
         }
       }}
-      onClick={() => { if (usable) onClick?.(idx); }}
+      onClick={() => {
+        if (usable) onClick?.(idx);
+      }}
       style={{
         position: 'relative',
         width,
         height,
         flex: `0 0 ${width}px`,
-        cursor: usable ? 'pointer' : 'default',
+        cursor: usable ? 'zoom-in' : 'default',
         overflow: 'hidden',
         backgroundColor: '#1a1a1a',
         borderRadius: 8,
         border: `1px solid ${borderColor}`,
         boxShadow: '0 0 10px rgba(255,255,255,0.04)',
-        cursor: 'zoom-in'
-
       }}
     >
+      {/* Images */}
       {images.map((src, i) => {
         if (!ok[i]) return null;
         return (
@@ -311,20 +326,77 @@ function RotatingImage({
               maxHeight: '100%',
               width: 'auto',
               height: 'auto',
-              objectFit: 'contain',   // ⟵ ensures no overflow on either axis
+              objectFit: 'contain',
               transition: 'opacity 600ms ease',
               opacity: activeReal === i ? 1 : 0,
               display: 'block',
             }}
-            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
           />
         );
       })}
-      {!usable && <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: '#1a1a1a' }} />}
+
+      {!usable && (
+        <div
+          aria-hidden="true"
+          style={{ position: 'absolute', inset: 0, background: '#1a1a1a' }}
+        />
+      )}
+
+      {/* Dot indicators with blocking strip */}
+      {visibleIdxs.length > 1 && (
+        <div
+          aria-hidden="true"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()} // clicking the strip never opens lightbox
+          style={{
+            position: 'absolute',
+            bottom: 8,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            display: 'flex',
+            gap: 6,
+            padding: '6px 10px', // a bit bigger hit area
+            borderRadius: 999,
+            background: 'rgba(0,0,0,0.3)',
+            backdropFilter: 'blur(4px)',
+            opacity: hovered ? 0.9 : 0.4,
+            transition: 'opacity 180ms ease',
+            cursor: 'default', // not zoom-in over the strip
+          }}
+        >
+          {visibleIdxs.map((realIdx, dotIndex) => {
+            const isActive = dotIndex === idx;
+            return (
+              <button
+                key={realIdx}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation(); // extra safety
+                  setIdx(dotIndex);
+                }}
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 999,
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  background: isActive
+                    ? borderColor
+                    : 'rgba(255,255,255,0.55)',
+                  opacity: isActive ? 1 : 0.7,
+                }}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
-
 
 
 export default function Projects() {
