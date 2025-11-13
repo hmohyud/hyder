@@ -35,7 +35,7 @@ const projects = [
   {
     title: 'AI Research & Model Tools',
     color: '#ffaa00',
-    image: '/images/ai-tools-placeholder.png',
+    image: '/hyder/projects/AI_STANDIN.png',
     description: [
       `Created tooling for structured experimentation with diffusion models: formula generators, pixel-level perturbations, and statistical logging systems.`,
       `These tools were used to explore model interpretability, generative tuning, and output consistency.`
@@ -47,7 +47,7 @@ const projects = [
   {
     title: 'ComfyUI Character Pipeline — Consistent Kids’ Book Art',
     color: '#b48bff',
-    image: '/images/comfyui-kidsbook.jpg',
+    image: '/hyder/projects/COMFY_STANDIN.png',
     description: [
       'A reproducible ComfyUI workflow to keep a main character consistent across a whole picture book: poses, outfits, angles, scenes.',
       'Techniques: identity conditioning (IP-Adapter / LoRA) blending, ControlNet pose, prompt/seed scheduling, palette locks, and layout templates.',
@@ -68,7 +68,7 @@ const projects = [
   {
     title: 'IT Support & Deployment Automation',
     color: '#bbbbbb',
-    image: '/images/it-placeholder.png',
+    image: '/hyder/projects/IT_STANDIN.png',
     description: [
       `Provided in-person IT support and automated OS/application setup for 100+ machines at the University of Chicago.`,
       `This early experience taught me about system maintenance, scripting, and hands-on problem-solving.`
@@ -142,7 +142,7 @@ const projects = [
   {
     title: 'AutoLens — Visual Vehicle ID (Expo)',
     color: '#6bff9d',
-    image: '/images/autolens-preview.jpg',
+    image: '/hyder/projects/AUTO_STANDIN.png',
     description: [
       'Mobile app that identifies cars from a photo (or live camera) and breaks down model trims, years, and key specs.',
       'Built with Expo + React Native; on-device pre/post-processing, server-side model inference, and a clean results UI.',
@@ -291,6 +291,8 @@ function RotatingImage({
         borderRadius: 8,
         border: `1px solid ${borderColor}`,
         boxShadow: '0 0 10px rgba(255,255,255,0.04)',
+        cursor: 'zoom-in'
+
       }}
     >
       {images.map((src, i) => {
