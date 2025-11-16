@@ -40,60 +40,14 @@ export default function SkillsMap() {
   const gridCanvasRef = useRef(null);
   const tintCanvasRef = useRef(null);
 
+  // viewport (CSS pixels) that BOTH SVG + Canvas use
+  const [viewport, setViewport] = useState({ width: 0, height: 0 });
+  const graphRef = useRef(null);
+
   // Node circle radius by proficiency (unchanged)
   const radiusScale = d3.scalePow().exponent(2.2).domain([1, 10]).range([8, 40]);
 
-  // --- Page zoom logger (prints on start + on change; ignores pinch zoom) ---
-  const lastZoomRef = useRef(1);
-  const isZoomedRef = useRef(false);
-  const [isZoomed, setIsZoomed] = useState(false);
-
-  useEffect(() => {
-    const EPS = 0.02;
-    const vv = window.visualViewport || null;
-    const getPageZoomApprox = () => {
-      const chromium = (window.outerWidth && window.innerWidth) ? window.outerWidth / window.innerWidth : null;
-      const safariish = vv ? (window.screen.availWidth / vv.width) : null;
-      const ff = window.devicePixelRatio || 1;
-      if (chromium && isFinite(chromium)) return chromium;
-      if (safariish && isFinite(safariish)) return safariish;
-      return ff;
-    };
-    const printZoom = (z) => {
-      isZoomedRef.current = Math.abs(z - 1) > EPS;
-      setIsZoomed(isZoomedRef.current);
-    };
-    const z0 = getPageZoomApprox();
-    if (isFinite(z0)) { lastZoomRef.current = z0; printZoom(z0); }
-    const check = () => {
-      const pinchScale = vv ? vv.scale : 1;
-      if (Math.abs(pinchScale - 1) > EPS) return;
-      const z = getPageZoomApprox();
-      if (!isFinite(z)) return;
-      if (Math.abs(z - lastZoomRef.current) > EPS) {
-        lastZoomRef.current = z;
-        printZoom(z);
-      }
-    };
-    let scheduled = false;
-    const schedule = () => {
-      if (scheduled) return;
-      scheduled = true;
-      requestAnimationFrame(() => { scheduled = false; check(); });
-    };
-    window.addEventListener('resize', schedule, { passive: true });
-    window.addEventListener('orientationchange', schedule, { passive: true });
-    vv?.addEventListener('resize', schedule, { passive: true });
-    vv?.addEventListener('scroll', schedule, { passive: true });
-    return () => {
-      window.removeEventListener('resize', schedule);
-      window.removeEventListener('orientationchange', schedule);
-      vv?.removeEventListener('resize', schedule);
-      vv?.removeEventListener('scroll', schedule);
-    };
-  }, []);
-
-
+  // --- iPad detection (for perf hint) ---
   function isIPadDevice() {
     const ua = navigator.userAgent || "";
     const plat = navigator.platform || "";
@@ -107,11 +61,10 @@ export default function SkillsMap() {
     return false;
   }
   const [isIPad, setIsIPad] = useState(false);
+  const isIPadRef = useRef(false);
   useEffect(() => {
     try { setIsIPad(isIPadDevice()); } catch { setIsIPad(false); }
   }, []);
-
-  const isIPadRef = useRef(false);
   useEffect(() => { isIPadRef.current = isIPad; }, [isIPad]);
 
   // ---- Area-based interpolation helpers ----
@@ -135,7 +88,6 @@ export default function SkillsMap() {
 
   // --- HINT STATE + PHONE MODE ---
   const [isPhone, setIsPhone] = useState(false);
-  // distinct cookie for the card hint (unchanged behavior, different name)
   const COOKIE_NAME = 'skills.hintAck_v2';
   const hasHintAck = () => document.cookie.split('; ').some(c => c.startsWith(`${COOKIE_NAME}=1`));
   const setHintAckCookie = () => { document.cookie = `${COOKIE_NAME}=1; max-age=86400; path=/; SameSite=Lax`; };
@@ -167,6 +119,7 @@ export default function SkillsMap() {
     return hsl;
   }
 
+  // --- Load skills data ---
   useEffect(() => {
     fetch(`${process.env.PUBLIC_URL}/skillsData.json`)
       .then(res => res.json())
@@ -177,55 +130,80 @@ export default function SkillsMap() {
       .catch(err => console.error('Failed to load skillsData.json:', err));
   }, []);
 
+  // --- Single source of truth for viewport width/height (CSS px) using ResizeObserver ---
   useEffect(() => {
-    const handleResize = () => {
-      if (!svgRef.current || !simulationRef.current) return;
-      const width = svgRef.current.clientWidth;
-      const height = svgRef.current.clientHeight;
-      simulationRef.current
-        .force('center', d3.forceCenter(width / 2, height / 2))
-        .alpha(0.5)
-        .restart();
-    };
-    window.addEventListener('resize', handleResize);
-    handleResize();
-    return () => window.removeEventListener('resize', handleResize);
+    const el = graphRef.current;
+    if (!el) return;
+
+    const ro = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          setViewport(prev =>
+            prev.width === width && prev.height === height ? prev : { width, height }
+          );
+        }
+      }
+    });
+
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
+  // --- Main D3 + Canvas setup ---
   useEffect(() => {
     let dragStartScreenPos = null;
     let isActuallyDragging = false;
 
-    if (!data.skillNodes.length) return;
+    const { width: w, height: h } = viewport;
+    if (!data.skillNodes.length || !w || !h) return;
 
-    const svg = d3.select(svgRef.current);
-    svg.selectAll('*').remove();
-
-    // main visible canvas
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      canvas.width = svgRef.current.clientWidth;
-      canvas.height = svgRef.current.clientHeight;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Clean up any existing simulation
+    if (simulationRef.current) {
+      simulationRef.current.stop();
+      simulationRef.current = null;
     }
 
-    // setup offscreen canvases for grid and tint mask
+    const svgEl = svgRef.current;
+    if (!svgEl) return;
+
+    const svg = d3.select(svgEl);
+    svg.selectAll('*').remove();
+
+    // main visible canvas — **CSS px only**, no DPR scaling
+    const canvasEl = canvasRef.current;
+    if (canvasEl) {
+      const ctx = canvasEl.getContext('2d');
+      canvasEl.width = w;
+      canvasEl.height = h;
+      canvasEl.style.width = w + 'px';
+      canvasEl.style.height = h + 'px';
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+    }
+
+    // setup offscreen canvases for grid and tint mask (also CSS px only)
     if (!gridCanvasRef.current) gridCanvasRef.current = document.createElement('canvas');
     if (!tintCanvasRef.current) tintCanvasRef.current = document.createElement('canvas');
 
-    const fullWidth = svgRef.current.clientWidth;
-    const fullHeight = svgRef.current.clientHeight;
+    const gridCanvas = gridCanvasRef.current;
+    const tintCanvas = tintCanvasRef.current;
+
+    gridCanvas.width = w;
+    gridCanvas.height = h;
+    tintCanvas.width = w;
+    tintCanvas.height = h;
 
     const nodes = data.skillNodes.map((d) => ({
       ...d,
-      x: d.x || fullWidth / 2 + Math.random() * 50 - 25,
-      y: d.y || fullHeight / 2 + Math.random() * 50 - 25,
+      x: d.x || w / 2 + Math.random() * 50 - 25,
+      y: d.y || h / 2 + Math.random() * 50 - 25,
       fx: null,
       fy: null,
       ringColor: stringToColor(d.id),
     }));
 
+    // links by mode
     const links = [];
     if (linkMode === 'proficiency') {
       const groupsByProficiency = {};
@@ -250,7 +228,7 @@ export default function SkillsMap() {
         }
       });
     } else if (linkMode === 'ungrouped') {
-      // no links on purpose
+      // intentionally no links
     }
 
     const linkForce = d3.forceLink(links).id(d => d.id);
@@ -260,17 +238,19 @@ export default function SkillsMap() {
       linkForce.distance(130).strength(0.1);
     }
 
-    simulationRef.current = d3.forceSimulation(nodes)
+    const sim = d3.forceSimulation(nodes)
       .alphaMin(0.001)
       .alphaDecay(0.01)
       .velocityDecay(0.2)
       .force('link', linkForce)
       .force('charge', d3.forceManyBody().strength(-20))
-      .force('center', d3.forceCenter(fullWidth / 2, fullHeight / 2))
+      .force('center', d3.forceCenter(w / 2, h / 2))
       .force('collide', d3.forceCollide().radius(d => radiusScale(d.proficiency || 1) + 6).strength(0.5));
 
-    for (let i = 0; i < 40; i++) simulationRef.current.tick();
-    simulationRef.current.alpha(0.2).restart();
+    simulationRef.current = sim;
+
+    for (let i = 0; i < 40; i++) sim.tick();
+    sim.alpha(0.2).restart();
 
     const g = svg.append('g');
 
@@ -326,7 +306,7 @@ export default function SkillsMap() {
         .on('start', (event, d) => {
           dragStartScreenPos = [event.sourceEvent.clientX, event.sourceEvent.clientY];
           isActuallyDragging = false;
-          if (!event.active) simulationRef.current.alphaTarget(0.03).restart();
+          if (!event.active) sim.alphaTarget(0.03).restart();
           d.fx = d.x; d.fy = d.y;
         })
         .on('drag', (event, d) => {
@@ -335,13 +315,12 @@ export default function SkillsMap() {
           const dy = event.sourceEvent.clientY - sy;
           if (Math.sqrt(dx * dx + dy * dy) > 4) isActuallyDragging = true;
 
-          const svgEl = svgRef.current; if (!svgEl) return;
-          const width = svgEl.clientWidth, height = svgEl.clientHeight, pad = 40;
-          d.fx = Math.max(pad, Math.min(width - pad, event.x));
-          d.fy = Math.max(pad, Math.min(height - pad, event.y));
+          const pad = 40;
+          d.fx = Math.max(pad, Math.min(w - pad, event.x));
+          d.fy = Math.max(pad, Math.min(h - pad, event.y));
         })
         .on('end', (event, d) => {
-          if (!event.active) simulationRef.current.alphaTarget(0);
+          if (!event.active) sim.alphaTarget(0);
           d.fx = null; d.fy = null;
         })
       );
@@ -373,22 +352,18 @@ export default function SkillsMap() {
       .style('pointer-events', 'none')
       .style('user-select', 'none');
 
-    // --------- rAF render loop (stable, in-lockstep with simulation) ---------
+    // --------- rAF render loop (CSS-pixel space only) ---------
     let rafId = null;
 
     const renderFrame = () => {
       const start = performance.now();
 
-      const sim = simulationRef.current;
-      const alpha = sim ? sim.alpha() : 0;
-
-      const currentWidth = svgRef.current?.clientWidth ?? 800;
-      const currentHeight = svgRef.current?.clientHeight ?? 600;
+      const alpha = sim.alpha();
 
       const paddingLocal = 40;
       node.attr('transform', d => {
-        d.x = Math.max(paddingLocal, Math.min(currentWidth - paddingLocal, d.x));
-        d.y = Math.max(paddingLocal, Math.min(currentHeight - paddingLocal, d.y));
+        d.x = Math.max(paddingLocal, Math.min(w - paddingLocal, d.x));
+        d.y = Math.max(paddingLocal, Math.min(h - paddingLocal, d.y));
         return `translate(${d.x}, ${d.y})`;
       });
 
@@ -398,56 +373,39 @@ export default function SkillsMap() {
         .attr('x2', d => d.target.x)
         .attr('y2', d => d.target.y);
 
-      const canvasEl = canvasRef.current;
-      if (canvasEl && svgRef.current) {
-        const main = canvasEl.getContext('2d');
-        const dpr = window.devicePixelRatio || 1;
-
-        const cssW = svgRef.current.clientWidth;
-        const cssH = svgRef.current.clientHeight;
-
-        // size main canvas for DPR
-        if (canvasEl.width !== Math.floor(cssW * dpr) || canvasEl.height !== Math.floor(cssH * dpr)) {
-          canvasEl.width = Math.floor(cssW * dpr);
-          canvasEl.height = Math.floor(cssH * dpr);
-          canvasEl.style.width = cssW + 'px';
-          canvasEl.style.height = cssH + 'px';
+      const canvasEl2 = canvasRef.current;
+      if (canvasEl2) {
+        // ensure canvas/offscreens still match viewport
+        if (canvasEl2.width !== w || canvasEl2.height !== h) {
+          canvasEl2.width = w;
+          canvasEl2.height = h;
+          canvasEl2.style.width = w + 'px';
+          canvasEl2.style.height = h + 'px';
         }
-        main.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-        // size offscreen buffers for DPR
-        const gridCanvas = gridCanvasRef.current;
-        const tintCanvas = tintCanvasRef.current;
-
-        if (gridCanvas.width !== Math.floor(cssW * dpr) || gridCanvas.height !== Math.floor(cssH * dpr)) {
-          gridCanvas.width = Math.floor(cssW * dpr);
-          gridCanvas.height = Math.floor(cssH * dpr);
-          gridCanvas.style.width = cssW + 'px';
-          gridCanvas.style.height = cssH + 'px';
+        if (gridCanvas.width !== w || gridCanvas.height !== h) {
+          gridCanvas.width = w;
+          gridCanvas.height = h;
         }
-        if (tintCanvas.width !== Math.floor(cssW * dpr) || tintCanvas.height !== Math.floor(cssH * dpr)) {
-          tintCanvas.width = Math.floor(cssW * dpr);
-          tintCanvas.height = Math.floor(cssH * dpr);
-          tintCanvas.style.width = cssW + 'px';
-          tintCanvas.style.height = cssH + 'px';
+        if (tintCanvas.width !== w || tintCanvas.height !== h) {
+          tintCanvas.width = w;
+          tintCanvas.height = h;
         }
 
+        const main = canvasEl2.getContext('2d');
         const gctx = gridCanvas.getContext('2d');
         const tctx = tintCanvas.getContext('2d');
-        gctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        tctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-        const w = cssW;
-        const h = cssH;
+        main.setTransform(1, 0, 0, 1, 0, 0);
+        gctx.setTransform(1, 0, 0, 1, 0, 0);
+        tctx.setTransform(1, 0, 0, 1, 0, 0);
 
         // clear all
         main.clearRect(0, 0, w, h);
         gctx.clearRect(0, 0, w, h);
         tctx.clearRect(0, 0, w, h);
 
-        // ---- draw grid only if page zoom is at 100% ----
-        if (!isZoomedRef.current && !isIPadRef.current) {
-          // Build warp field from *current* node positions (original values)
+        // ---- draw grid (CSS coords only) ----
+        if (!isIPadRef.current) {
           const warpNodes = nodes.map(d => {
             const r = radiusScale(d.proficiency || 1);
             return { x: d.x, y: d.y, r2: (50 + r * 2) ** 2, strength: 8 + r * 0.8 };
@@ -469,28 +427,27 @@ export default function SkillsMap() {
             return [x + dx, y + dy];
           };
 
-          // Draw grid (use moveTo to avoid stray segments)
           const gridSpacing = 13;
           gctx.lineWidth = 1;
           gctx.strokeStyle = '#0a0a0a';
 
           // rows
-          for (let y = 0; y <= h; y += gridSpacing) {
+          for (let yy = 0; yy <= h; yy += gridSpacing) {
             gctx.beginPath();
             let first = true;
-            for (let x = 0; x <= w; x += gridSpacing) {
-              const [wx, wy] = warp(x, y);
+            for (let xx = 0; xx <= w; xx += gridSpacing) {
+              const [wx, wy] = warp(xx, yy);
               if (first) { gctx.moveTo(wx, wy); first = false; }
               else { gctx.lineTo(wx, wy); }
             }
             gctx.stroke();
           }
           // cols
-          for (let x = 0; x <= w; x += gridSpacing) {
+          for (let xx = 0; xx <= w; xx += gridSpacing) {
             gctx.beginPath();
             let first = true;
-            for (let y = 0; y <= h; y += gridSpacing) {
-              const [wx, wy] = warp(x, y);
+            for (let yy = 0; yy <= h; yy += gridSpacing) {
+              const [wx, wy] = warp(xx, yy);
               if (first) { gctx.moveTo(wx, wy); first = false; }
               else { gctx.lineTo(wx, wy); }
             }
@@ -500,30 +457,29 @@ export default function SkillsMap() {
           // paint grid
           main.drawImage(gridCanvas, 0, 0);
 
-          // Tint lines near selected nodes — only when layout is cool enough
+          // Tint lines near selected nodes — only when layout is settled a bit
           const selected = expandedNodesRef.current;
-          const canTint = selected.size > 0 && alpha < 0.12; // gate by alpha to avoid “stuck” glow
+          const canTint = selected.size > 0 && alpha < 0.12;
           if (canTint) {
             selected.forEach(id => {
               const n = nodes.find(nn => nn.id === id);
               if (!n) return;
 
-              const tArea = tAreaFromProf(n.proficiency);
-              const r = lerp(LIGHT_R_MIN, LIGHT_R_MAX, tArea);
-              const aInner = lerp(ALPHA_INNER_MIN, ALPHA_INNER_MAX, tArea);
-              const aMid = lerp(ALPHA_MID_MIN, ALPHA_MID_MAX, tArea);
+              const tA = tAreaFromProf(n.proficiency);
+              const rr = lerp(LIGHT_R_MIN, LIGHT_R_MAX, tA);
+              const aInner = lerp(ALPHA_INNER_MIN, ALPHA_INNER_MAX, tA);
+              const aMid = lerp(ALPHA_MID_MIN, ALPHA_MID_MAX, tA);
 
               tctx.clearRect(0, 0, w, h);
-              const grad = tctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, r);
+              const grad = tctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, rr);
               grad.addColorStop(0.00, withAlpha(n.ringColor, aInner));
               grad.addColorStop(0.45, withAlpha(n.ringColor, aMid));
               grad.addColorStop(1.00, withAlpha(n.ringColor, 0.00));
               tctx.fillStyle = grad;
               tctx.beginPath();
-              tctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+              tctx.arc(n.x, n.y, rr, 0, Math.PI * 2);
               tctx.fill();
 
-              // clip to grid lines
               tctx.globalCompositeOperation = 'destination-in';
               tctx.drawImage(gridCanvas, 0, 0);
               tctx.globalCompositeOperation = 'source-over';
@@ -540,15 +496,14 @@ export default function SkillsMap() {
       rafId = requestAnimationFrame(renderFrame);
     };
 
-    // Start the loop
     rafId = requestAnimationFrame(renderFrame);
 
-    // Cleanup on effect re-run/unmount
+    // Cleanup
     return () => {
       if (rafId) cancelAnimationFrame(rafId);
+      sim.stop();
     };
-
-  }, [data, linkMode]);
+  }, [data, linkMode, viewport.width, viewport.height, isIPad]);
 
   // ---------- COACHMARK (two Lotties side-by-side with smooth fade-out) ----------
   const [coachVisible, setCoachVisible] = useState(true);
@@ -556,7 +511,6 @@ export default function SkillsMap() {
   const requestHideCoach = () => {
     if (coachHiding) return;
     setCoachHiding(true);
-    // match CSS transition duration
     setTimeout(() => setCoachVisible(false), 400);
   };
 
@@ -578,33 +532,29 @@ export default function SkillsMap() {
       window.removeEventListener('keydown', onKey);
     };
   }, [coachVisible, coachHiding]);
-  // Start Lottie only after the custom element has upgraded AND fired "ready"
+
+  // Start Lottie only after custom element is ready
   useEffect(() => {
     if (!coachVisible) return;
     let cancelled = false;
 
     const boot = async (el) => {
       if (!el) return;
-      // Ensure the custom element is defined (upgrade complete)
       if (!window.customElements?.get('dotlottie-player')) {
         try { await window.customElements.whenDefined('dotlottie-player'); } catch { }
       }
       if (cancelled) return;
 
-      // Make sure the attributes are valid (React -> custom element)
-      el.setAttribute('loop', 'true');     // IMPORTANT: string "true", not bare attr
-      el.setAttribute('autoplay', 'true'); // IMPORTANT: string "true"
+      el.setAttribute('loop', 'true');
+      el.setAttribute('autoplay', 'true');
 
-      // If the element is re-used across navigations, force a reload so "ready" will fire
       const src = el.getAttribute('src');
       if (src && typeof el.load === 'function') {
         try { await el.load(src); } catch { }
       }
 
-      // Wait until the player is actually ready, then play from the start
       const onReady = () => {
         if (cancelled) return;
-        // start from frame 0 and play — now it's safe
         try { el.seek?.(0); } catch { }
         try { el.play?.(); } catch { }
       };
@@ -624,7 +574,6 @@ export default function SkillsMap() {
 
     return () => { cancelled = true; document.removeEventListener('visibilitychange', onVisible); };
   }, [coachVisible]);
-
 
   return (
     <div ref={containerRef} className="skills-container">
@@ -674,32 +623,11 @@ export default function SkillsMap() {
       </div>
 
       <div className="node-graph">
-        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-          {/* Floating hint if page zoom != 100% */}
-          {(isZoomed && !isIPad) && (
-            <div
-              aria-live="polite"
-              className="zoom-hint"
-              style={{
-                position: 'absolute',
-                bottom: 12,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                background: 'rgba(0,0,0,0.72)',
-                color: '#fff',
-                padding: '8px 12px',
-                borderRadius: 10,
-                fontSize: 12,
-                zIndex: 5,
-                boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
-                backdropFilter: 'blur(2px)',
-                pointerEvents: 'none',
-                textAlign: 'center',
-              }}
-            >
-              Please reset browser page zoom (100%) to see the grid.
-            </div>
-          )}
+        <div
+          ref={graphRef}
+          style={{ position: 'relative', width: '100%', height: '100%' }}
+        >
+          {/* iPad perf hint (optional) */}
           {isIPad && (
             <div
               role="status"
@@ -714,7 +642,7 @@ export default function SkillsMap() {
                 padding: '8px 12px',
                 borderRadius: 10,
                 fontSize: 12,
-                zIndex: 2000,       // <-- was 6
+                zIndex: 2000,
                 boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
                 backdropFilter: 'blur(2px)',
                 textAlign: 'center',
@@ -725,9 +653,11 @@ export default function SkillsMap() {
             </div>
           )}
 
-
           <canvas ref={canvasRef} className="ripple-canvas" />
-          <svg ref={svgRef} style={{ width: '100%', height: '100%', overflow: 'visible', outline: 'solid 1px white' }} />
+          <svg
+            ref={svgRef}
+            style={{ width: '100%', height: '100%', overflow: 'visible', outline: 'solid 1px white' }}
+          />
 
           {/* --- COACHMARK OVERLAY: two panels side-by-side (fades out smoothly) --- */}
           {coachVisible && (
@@ -773,9 +703,8 @@ export default function SkillsMap() {
                     <div className="coach-target">
                       <dotlottie-player
                         ref={clickLottieRef}
-
                         autoplay="true"
-                        loop='true'
+                        loop="true"
                         mode="normal"
                         speed="1"
                         style={{ width: '180px', height: '180px' }}
@@ -790,7 +719,7 @@ export default function SkillsMap() {
                       <dotlottie-player
                         ref={dragLottieRef}
                         autoplay="true"
-                        loop='true'
+                        loop="true"
                         mode="normal"
                         speed="1"
                         style={{ width: '180px', height: '180px' }}
