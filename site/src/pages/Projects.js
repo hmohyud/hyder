@@ -138,7 +138,16 @@ const projects = [
     ],
     links: [{ label: 'Visit Site', href: 'https://hmohyud.github.io/motam/' }]
   },
-
+{
+  title: 'Humrahe Khair — Together for Good',
+  color: '#439184ff',
+  image: '/hyder/projects/CHARITY_1.jpg',
+  description: [
+    `Landing page for the 2025 initiative of Zahra Hasanaat, a charity run by my extended family promoting interfaith cooperation and community uplift.`,
+    `The site highlights three pillars: free meals, Punji seed grants for small businesses, and vocational skills training—connecting relief to self-sufficiency.`,
+  ],
+  links: [{ label: 'Visit Site', href: 'https://humrahekhair.zahrahasanaat.org/' }]
+},
   {
     title: 'AutoLens — Visual Vehicle ID (Expo)',
     color: '#6bff9d',
