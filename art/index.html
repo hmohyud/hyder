@@ -1,739 +1,473 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-  <head>
+
+<head>
     <meta charset="utf-8" />
-    <meta
-      name="viewport"
-      content="width=device-width,initial-scale=1,viewport-fit=cover"
-    />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
     <title>Art Portfolio — Masonry</title>
     <meta name="color-scheme" content="dark" />
     <style>
-      :root {
-        --fg: #e9edf7;
-        --muted: #b9c2d7;
-        --line: #1b2433;
-        /* Use High School Art Portfolio color */
-        --accent: #ff9ae0;
-        --accent-rgb: 255, 154, 224;
+        :root {
+            --fg: #e9edf7;
+            --muted: #b9c2d7;
+            --line: #1b2433;
+            /* Use High School Art Portfolio color */
+            --accent: #ff9ae0;
+            --accent-rgb: 255, 154, 224;
 
-        --gap: 8px;
-        --col-width: 280px;
-        --col-width-sm: 210px;
-        --wrap-max: 1320px;
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      html,
-      body {
-        height: 100%;
-      }
-
-      body {
-        margin: 0;
-        font: 14px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace;
-        color: var(--fg);
-        background: radial-gradient(
-            1200px 900px at 80% -10%,
-            #1a2440 0%,
-            transparent 60%
-          ),
-          radial-gradient(
-            1000px 780px at -10% 110%,
-            #2a1331 0%,
-            transparent 60%
-          ),
-          linear-gradient(180deg, #070a0f, #0b0f14 45%, #0a0f14 100%);
-        background-attachment: fixed, fixed, fixed;
-        background-repeat: no-repeat;
-        background-size: cover, cover, cover;
-        overflow-x: hidden;
-      }
-
-      .wrap {
-        max-width: var(--wrap-max);
-        margin: 0 auto;
-        padding: 24px 18px 56px;
-      }
-
-      header {
-        position: sticky;
-        top: 0;
-        z-index: 5;
-        margin: -24px -18px 18px;
-        padding: 12px 18px;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        backdrop-filter: saturate(1.05) blur(6px);
-        background: linear-gradient(
-          180deg,
-          rgba(10, 14, 20, 0.85),
-          rgba(10, 14, 20, 0.35)
-        );
-        border-bottom: 1px solid var(--line);
-      }
-
-      h1 {
-        margin: 0;
-        font-size: 1.45rem;
-        letter-spacing: 0.35px;
-        color: var(--accent);
-      }
-
-      /* Back button styled like your project links */
-      .back {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 6px 10px;
-        border-radius: 999px;
-        text-decoration: none;
-        font-weight: 600;
-        letter-spacing: 0.2px;
-        border: 1px solid var(--accent);
-        color: var(--accent);
-        background: transparent;
-        transition: background-color 0.2s ease, border-color 0.2s ease,
-          color 0.2s ease;
-      }
-
-      .back:hover {
-        background-color: rgba(var(--accent-rgb), 0.13);
-      }
-
-      .back:focus-visible {
-        outline: none;
-        box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.25);
-      }
-
-      .back::before {
-        content: "";
-        width: 8px;
-        height: 8px;
-        margin-right: 2px;
-        border-left: 2px solid currentColor;
-        border-bottom: 2px solid currentColor;
-        transform: rotate(45deg);
-      }
-
-      .muted {
-        color: var(--muted);
-      }
-
-      /* Filter chips */
-      .legend {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin: 10px 0 16px;
-      }
-
-      .chip {
-        border: 1px solid var(--line);
-        padding: 6px 10px;
-        cursor: pointer;
-        user-select: none;
-        border-radius: 999px;
-        color: var(--fg);
-        background: rgba(15, 20, 28, 0.55);
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        font-weight: 600;
-      }
-
-      .sw {
-        width: 12px;
-        height: 12px;
-      }
-
-      .chip[aria-pressed="true"] {
-        border-color: var(--accent);
-        color: var(--accent);
-      }
-
-      /* Masonry container */
-      .msn {
-        column-gap: var(--gap);
-        column-width: var(--col-width);
-      }
-
-      @media (max-width: 720px) {
-        .msn {
-          column-width: var(--col-width-sm);
+            --gap: 8px;
+            --col-width: 280px;
+            --col-width-sm: 210px;
+            --wrap-max: 1320px;
         }
-      }
 
-      /* Tiles */
-      .card {
-        position: relative;
-        margin: 0 0 var(--gap) 0;
-        break-inside: avoid;
-        border: 1px solid var(--line);
-        background: linear-gradient(
-          180deg,
-          rgba(255, 255, 255, 0.02),
-          rgba(255, 255, 255, 0)
-        );
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35),
-          0 0 0 1px rgba(255, 255, 255, 0.02) inset;
-        overflow: hidden;
-        border-radius: 0;
-        cursor: zoom-in;
-        opacity: 0;
-        transform: translateY(6px);
-        transition: opacity 0.25s ease, transform 0.25s ease;
-      }
+        * {
+            box-sizing: border-box
+        }
 
-      .card.ready {
-        opacity: 1;
-        transform: none;
-      }
+        html,
+        body {
+            height: 100%
+        }
 
-      .card:hover {
-        border-color: rgba(159, 180, 255, 0.45);
-        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55),
-          0 0 0 1px rgba(159, 180, 255, 0.18) inset;
-      }
+        body {
+            margin: 0;
+            font: 14px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace;
+            color: var(--fg);
+            background:
+                radial-gradient(1200px 900px at 80% -10%, #1a2440 0%, transparent 60%),
+                radial-gradient(1000px 780px at -10% 110%, #2a1331 0%, transparent 60%),
+                linear-gradient(180deg, #070a0f, #0b0f14 45%, #0a0f14 100%);
+            background-attachment: fixed, fixed, fixed;
+            background-repeat: no-repeat;
+            background-size: cover, cover, cover;
+            overflow-x: hidden;
+        }
 
-      .ph {
-        display: block;
-        width: 100%;
-        height: auto;
-        filter: saturate(1.02) contrast(1.03);
-      }
+        .wrap {
+            max-width: var(--wrap-max);
+            margin: 0 auto;
+            padding: 24px 18px 56px
+        }
 
-      .badge {
-        position: absolute;
-        top: 6px;
-        left: 6px;
-        padding: 3px 6px;
-        font-size: 11px;
-        font-weight: 700;
-        background: rgba(0, 0, 0, 0.55);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 0;
-        color: #e6eefb;
-        letter-spacing: 0.2px;
-        text-transform: capitalize;
-        pointer-events: none;
-      }
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            margin: -24px -18px 18px;
+            padding: 12px 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            backdrop-filter: saturate(1.05) blur(6px);
+            background: linear-gradient(180deg, rgba(10, 14, 20, .85), rgba(10, 14, 20, .35));
+            border-bottom: 1px solid var(--line);
+        }
 
-      /* Lightbox */
-      .lb {
-        position: fixed;
-        inset: 0;
-        z-index: 9999;
-        display: none;
-        background: rgba(0, 0, 0, 0.88);
-      }
+        h1 {
+            margin: 0;
+            font-size: 1.45rem;
+            letter-spacing: .35px;
+            color: var(--accent)
+        }
 
-      .lb.open {
-        display: grid;
-        grid-template-rows: auto 1fr auto;
-        padding: 14px;
-      }
+        /* Back button styled like your project links */
+        .back {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            text-decoration: none;
+            font-weight: 600;
+            letter-spacing: .2px;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            background: transparent;
+            transition: background-color .2s ease, border-color .2s ease, color .2s ease;
+        }
 
-      .row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 12px;
-      }
+        .back:hover {
+            background-color: rgba(var(--accent-rgb), .13);
+        }
 
-      .btn {
-        border: 1px solid var(--line);
-        background: linear-gradient(
-          180deg,
-          rgba(255, 255, 255, 0.04),
-          rgba(255, 255, 255, 0.02)
-        );
-        color: var(--muted);
-        padding: 8px 12px;
-        cursor: pointer;
-      }
+        .back:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .25);
+        }
 
-      .stage {
-        position: relative;
-        display: grid;
-        place-items: center;
-        overflow: hidden;
-      }
+        .back::before {
+            content: "";
+            width: 8px;
+            height: 8px;
+            margin-right: 2px;
+            border-left: 2px solid currentColor;
+            border-bottom: 2px solid currentColor;
+            transform: rotate(45deg);
+        }
 
-      .hero {
-        max-width: min(92vw, 1700px);
-        max-height: min(84vh, 92vh);
-        border: 1px solid var(--line);
-        background: #0d0d0d;
-        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
-      }
+        .muted {
+            color: var(--muted)
+        }
 
-      .nav {
-        position: absolute;
-        top: 50%;
-        transform: translateY(-50%);
-        width: 44px;
-        height: 44px;
-        display: grid;
-        place-items: center;
-        border-radius: 999px;
-        border: 1px solid rgba(159, 180, 255, 0.45);
-        background: rgba(0, 0, 0, 0.45);
-        color: #9db6ff;
-        font-size: 22px;
-        cursor: pointer;
-      }
+        /* Filter chips */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 10px 0 16px
+        }
 
-      .nav.left {
-        left: 16px;
-      }
+        .chip {
+            border: 1px solid var(--line);
+            padding: 6px 10px;
+            cursor: pointer;
+            user-select: none;
+            border-radius: 999px;
+            color: var(--fg);
+            background: rgba(15, 20, 28, .55);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+        }
 
-      .nav.right {
-        right: 16px;
-      }
+        .sw {
+            width: 12px;
+            height: 12px
+        }
 
-      .counter {
-        text-align: center;
-        color: var(--muted);
-      }
-      .progress-wrap {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    background: rgba(15, 20, 28, .8);
-    transition: opacity .3s ease;
-}
+        .chip[aria-pressed="true"] {
+            border-color: var(--accent);
+            color: var(--accent)
+        }
 
-.card.ready .progress-wrap {
-    opacity: 0;
-    pointer-events: none;
-}
+        /* Masonry container */
+        .msn {
+            column-gap: var(--gap);
+            column-width: var(--col-width);
+        }
 
-.progress-ring {
-    position: relative;
-    width: 48px;
-    height: 48px;
-}
+        @media (max-width: 720px) {
+            .msn {
+                column-width: var(--col-width-sm);
+            }
+        }
 
-.progress-ring svg {
-    width: 100%;
-    height: 100%;
-    transform: rotate(-90deg);
-}
+        /* Tiles */
+        .card {
+            position: relative;
+            margin: 0 0 var(--gap) 0;
+            break-inside: avoid;
+            border: 1px solid var(--line);
+            background: linear-gradient(180deg, rgba(255, 255, 255, .02), rgba(255, 255, 255, 0));
+            box-shadow: 0 8px 24px rgba(0, 0, 0, .35), 0 0 0 1px rgba(255, 255, 255, .02) inset;
+            overflow: hidden;
+            border-radius: 0;
+            cursor: zoom-in;
+            opacity: 0;
+            transform: translateY(6px);
+            transition: opacity .25s ease, transform .25s ease;
+        }
 
-.progress-ring .bg {
-    fill: none;
-    stroke: rgba(255,255,255,.1);
-    stroke-width: 3;
-}
+        .card.ready {
+            opacity: 1;
+            transform: none
+        }
 
-.progress-ring .fg {
-    fill: none;
-    stroke: var(--accent);
-    stroke-width: 3;
-    stroke-linecap: round;
-    stroke-dasharray: 100.53; /* 2 * PI * 16 */
-    stroke-dashoffset: 100.53;
-    transition: stroke-dashoffset .1s ease;
-}
+        .card:hover {
+            border-color: rgba(159, 180, 255, .45);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, .55), 0 0 0 1px rgba(159, 180, 255, .18) inset
+        }
 
-.pct {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--fg);
-}
+        .ph {
+            display: block;
+            width: 100%;
+            height: auto;
+            filter: saturate(1.02) contrast(1.03);
+        }
+
+        .badge {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            padding: 3px 6px;
+            font-size: 11px;
+            font-weight: 700;
+            background: rgba(0, 0, 0, .55);
+            border: 1px solid rgba(255, 255, 255, .08);
+            border-radius: 0;
+            color: #e6eefb;
+            letter-spacing: .2px;
+            text-transform: capitalize;
+            pointer-events: none;
+        }
+
+        /* Lightbox */
+        .lb {
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            display: none;
+            background: rgba(0, 0, 0, .88)
+        }
+
+        .lb.open {
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            padding: 14px
+        }
+
+        .row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px
+        }
+
+        .btn {
+            border: 1px solid var(--line);
+            background: linear-gradient(180deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, .02));
+            color: var(--muted);
+            padding: 8px 12px;
+            cursor: pointer
+        }
+
+        .stage {
+            position: relative;
+            display: grid;
+            place-items: center;
+            overflow: hidden
+        }
+
+        .hero {
+            max-width: min(92vw, 1700px);
+            max-height: min(84vh, 92vh);
+            border: 1px solid var(--line);
+            background: #0d0d0d;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, .6)
+        }
+
+        .nav {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 44px;
+            height: 44px;
+            display: grid;
+            place-items: center;
+            border-radius: 999px;
+            border: 1px solid rgba(159, 180, 255, .45);
+            background: rgba(0, 0, 0, .45);
+            color: #9db6ff;
+            font-size: 22px;
+            cursor: pointer
+        }
+
+        .nav.left {
+            left: 16px
+        }
+
+        .nav.right {
+            right: 16px
+        }
+
+        .counter {
+            text-align: center;
+            color: var(--muted)
+        }
     </style>
     <link rel="icon" href="/hyder/logoV6.png" />
-  </head>
+</head>
 
-  <body>
+<body>
     <div class="wrap">
-      <header>
-        <h1>Art Portfolio</h1>
-        <a class="back" href="/hyder#/projects">Back</a>
-      </header>
+        <header>
+            <h1>Art Portfolio</h1>
+            <a class="back" href="/hyder#/projects">Back</a>
+        </header>
 
-      <p class="muted">
-        Selection of pieces, studies, and experiments. Click any image to view
-        full size.
-      </p>
+        <p class="muted">Selection of pieces, studies, and experiments. Click any image to view full size.</p>
 
-      <div id="legend" class="legend" aria-label="Groups filter"></div>
-      <div id="status" class="loading muted">Loading…</div>
+        <div id="legend" class="legend" aria-label="Groups filter"></div>
+        <div id="status" class="loading muted">Loading…</div>
 
-      <!-- Unified Masonry Grid -->
-      <div id="msn" class="msn"></div>
+        <!-- Unified Masonry Grid -->
+        <div id="msn" class="msn"></div>
     </div>
 
     <!-- Lightbox -->
-    <div
-      id="lb"
-      class="lb"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Artwork viewer"
-    >
-      <div class="row">
-        <div class="muted" id="title"></div>
-        <button class="btn" id="closeBtn" type="button">Close (Esc)</button>
-      </div>
-      <div class="stage" id="stage">
-        <button class="nav left" id="prevBtn" aria-label="Previous">‹</button>
-        <img id="hero" class="hero" alt="" />
-        <button class="nav right" id="nextBtn" aria-label="Next">›</button>
-      </div>
-      <div class="counter" id="counter"></div>
+    <div id="lb" class="lb" role="dialog" aria-modal="true" aria-label="Artwork viewer">
+        <div class="row">
+            <div class="muted" id="title"></div>
+            <button class="btn" id="closeBtn" type="button">Close (Esc)</button>
+        </div>
+        <div class="stage" id="stage">
+            <button class="nav left" id="prevBtn" aria-label="Previous">‹</button>
+            <img id="hero" class="hero" alt="" />
+            <button class="nav right" id="nextBtn" aria-label="Next">›</button>
+        </div>
+        <div class="counter" id="counter"></div>
     </div>
 
     <script>
-      (function () {
-        const msn = document.getElementById("msn");
-        const legend = document.getElementById("legend");
-        const status = document.getElementById("status");
+        (function () {
+            const msn = document.getElementById('msn');
+            const legend = document.getElementById('legend');
+            const status = document.getElementById('status');
 
-        /* Lightbox */
-        const lb = document.getElementById("lb");
-        const hero = document.getElementById("hero");
-        const titleEl = document.getElementById("title");
-        const counter = document.getElementById("counter");
-        const closeBtn = document.getElementById("closeBtn");
-        const prevBtn = document.getElementById("prevBtn");
-        const nextBtn = document.getElementById("nextBtn");
-        const stage = document.getElementById("stage");
+            /* Lightbox */
+            const lb = document.getElementById('lb');
+            const hero = document.getElementById('hero');
+            const titleEl = document.getElementById('title');
+            const counter = document.getElementById('counter');
+            const closeBtn = document.getElementById('closeBtn');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const stage = document.getElementById('stage');
 
-        function colorFor(str) {
-          let h = 0;
-          for (let i = 0; i < str.length; i++)
-            h = (h * 31 + str.charCodeAt(i)) >>> 0;
-          return `hsl(${h % 360} 65% 70%)`;
-        }
-        function resolveSrc(s) {
-          if (!s) return s;
-          if (/^https?:\/\//i.test(s)) return s;
-          if (s.startsWith("/hyder/")) return s;
-          if (s.startsWith("/")) return "/hyder" + s;
-          return "/hyder/" + s.replace(/^\.?\//, "");
-        }
-
-        let flat = [];
-        let view = [];
-        let idx = 0;
-
-        function openLightbox(i) {
-          idx = i;
-          renderLb();
-          lb.classList.add("open");
-          document.body.style.overflow = "hidden";
-        }
-        function closeLightbox() {
-          lb.classList.remove("open");
-          document.body.style.overflow = "";
-        }
-        function renderLb() {
-          const it = view[idx];
-          if (!it) return;
-          hero.src = it.src;
-          hero.alt = it.title || "artwork";
-          titleEl.textContent =
-            (it.group ? `[${it.group}] ` : "") + (it.title || "Artwork");
-          counter.textContent = idx + 1 + " / " + view.length;
-          [
-            view[(idx + 1) % view.length]?.src,
-            view[(idx - 1 + view.length) % view.length]?.src,
-          ].forEach((s) => {
-            if (!s) return;
-            const im = new Image();
-            im.decoding = "async";
-            im.src = s;
-          });
-        }
-        closeBtn.onclick = closeLightbox;
-        prevBtn.onclick = (e) => {
-          e.stopPropagation();
-          idx = (idx - 1 + view.length) % view.length;
-          renderLb();
-        };
-        nextBtn.onclick = (e) => {
-          e.stopPropagation();
-          idx = (idx + 1) % view.length;
-          renderLb();
-        };
-        lb.addEventListener("click", (e) => {
-          if (e.target === lb) closeLightbox();
-        });
-        stage.addEventListener("click", (e) => {
-          if (e.target === stage) closeLightbox();
-        });
-        window.addEventListener("keydown", (e) => {
-          if (!lb.classList.contains("open")) return;
-          if (e.key === "Escape") closeLightbox();
-          if (e.key === "ArrowLeft") {
-            idx = (idx - 1 + view.length) % view.length;
-            renderLb();
-          }
-          if (e.key === "ArrowRight") {
-            idx = (idx + 1) % view.length;
-            renderLb();
-          }
-        });
-
-        function rrInterleave(map) {
-          const keys = [...map.keys()];
-          const qs = keys.map((k) => map.get(k).slice());
-          const out = [];
-          let added = true;
-          while (added) {
-            added = false;
-            for (const q of qs) {
-              if (q.length) {
-                out.push(q.shift());
-                added = true;
-              }
+            function colorFor(str) {
+                let h = 0; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+                return `hsl(${h % 360} 65% 70%)`;
             }
-          }
-          return out;
-        }
+            function resolveSrc(s) {
+                if (!s) return s;
+                if (/^https?:\/\//i.test(s)) return s;
+                if (s.startsWith('/hyder/')) return s;
+                if (s.startsWith('/')) return '/hyder' + s;
+                return '/hyder/' + s.replace(/^\.?\//, '');
+            }
 
-        function renderGrid() {
-          msn.innerHTML = "";
-          const frag = document.createDocumentFragment();
+            let flat = []; let view = []; let idx = 0;
 
-          view.forEach((it, i) => {
-            const fig = document.createElement("figure");
-            fig.className = "card";
-            fig.tabIndex = 0;
-            fig.dataset.index = String(i);
-
-            // Progress overlay
-            const progress = document.createElement("div");
-            progress.className = "progress-wrap";
-            progress.innerHTML = `
-            <div class="progress-ring">
-                <svg viewBox="0 0 36 36">
-                    <circle class="bg" cx="18" cy="18" r="16"/>
-                    <circle class="fg" cx="18" cy="18" r="16"/>
-                </svg>
-                <span class="pct">0%</span>
-            </div>
-        `;
-
-            const img = document.createElement("img");
-            img.className = "ph";
-            img.alt = it.title || "artwork";
-
-            const badge = document.createElement("div");
-            badge.className = "badge";
-            badge.textContent = it.group || "misc";
-            badge.style.color = colorFor(it.group || "misc");
-
-            fig.appendChild(progress);
-            fig.appendChild(img);
-            fig.appendChild(badge);
-
-            // Fetch with progress
-            fetchWithProgress(it.src, (pct) => {
-              const fg = progress.querySelector(".fg");
-              const pctEl = progress.querySelector(".pct");
-              const circumference = 2 * Math.PI * 16;
-              fg.style.strokeDashoffset = circumference * (1 - pct / 100);
-              pctEl.textContent = Math.round(pct) + "%";
-            })
-              .then((blobUrl) => {
-                img.src = blobUrl;
-                fig.classList.add("ready");
-              })
-              .catch(() => {
-                img.src = it.src; // fallback
-                fig.classList.add("ready");
-              });
-
-            fig.addEventListener("click", () => openLightbox(i));
-            fig.addEventListener("keydown", (e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                openLightbox(i);
-              }
+            function openLightbox(i) { idx = i; renderLb(); lb.classList.add('open'); document.body.style.overflow = 'hidden'; }
+            function closeLightbox() { lb.classList.remove('open'); document.body.style.overflow = ''; }
+            function renderLb() {
+                const it = view[idx]; if (!it) return;
+                hero.src = it.src; hero.alt = it.title || 'artwork';
+                titleEl.textContent = (it.group ? `[${it.group}] ` : '') + (it.title || 'Artwork');
+                counter.textContent = (idx + 1) + ' / ' + view.length;
+                [view[(idx + 1) % view.length]?.src, view[(idx - 1 + view.length) % view.length]?.src]
+                    .forEach(s => { if (!s) return; const im = new Image(); im.decoding = 'async'; im.src = s; });
+            }
+            closeBtn.onclick = closeLightbox;
+            prevBtn.onclick = e => { e.stopPropagation(); idx = (idx - 1 + view.length) % view.length; renderLb(); };
+            nextBtn.onclick = e => { e.stopPropagation(); idx = (idx + 1) % view.length; renderLb(); };
+            lb.addEventListener('click', e => { if (e.target === lb) closeLightbox(); });
+            stage.addEventListener('click', e => { if (e.target === stage) closeLightbox(); });
+            window.addEventListener('keydown', e => {
+                if (!lb.classList.contains('open')) return;
+                if (e.key === 'Escape') closeLightbox();
+                if (e.key === 'ArrowLeft') { idx = (idx - 1 + view.length) % view.length; renderLb(); }
+                if (e.key === 'ArrowRight') { idx = (idx + 1) % view.length; renderLb(); }
             });
-            frag.appendChild(fig);
-          });
 
-          msn.appendChild(frag);
-        }
+            function rrInterleave(map) {
+                const keys = [...map.keys()];
+                const qs = keys.map(k => map.get(k).slice());
+                const out = []; let added = true;
+                while (added) {
+                    added = false;
+                    for (const q of qs) { if (q.length) { out.push(q.shift()); added = true; } }
+                }
+                return out;
+            }
 
-        async function fetchWithProgress(url, onProgress) {
-          const response = await fetch(url);
-          const contentLength = response.headers.get("content-length");
+            function renderGrid() {
+                msn.innerHTML = '';
+                const frag = document.createDocumentFragment();
+                view.forEach((it, i) => {
+                    const fig = document.createElement('figure'); fig.className = 'card'; fig.tabIndex = 0; fig.dataset.index = String(i);
+                    const img = document.createElement('img'); img.className = 'ph'; img.src = it.src; img.alt = it.title || 'artwork';
+                    img.loading = 'lazy'; img.decoding = 'async';
+                    const badge = document.createElement('div'); badge.className = 'badge';
+                    badge.textContent = it.group || 'misc';
+                    badge.style.color = colorFor(it.group || 'misc');
+                    const onDone = () => { fig.classList.add('ready'); };
+                    if (img.complete && img.naturalWidth > 0) onDone(); else { img.addEventListener('load', onDone, { once: true }); img.addEventListener('error', onDone, { once: true }); }
+                    fig.appendChild(img); fig.appendChild(badge);
+                    fig.addEventListener('click', () => openLightbox(i));
+                    fig.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLightbox(i); } });
+                    frag.appendChild(fig);
+                });
+                msn.appendChild(frag);
+            }
 
-          if (!contentLength) {
-            // No content-length header, can't track progress
-            const blob = await response.blob();
-            onProgress(100);
-            return URL.createObjectURL(blob);
-          }
+            async function loadManifest() {
+                try {
+                    const r = await fetch('./manifest.json', { cache: 'no-store' });
+                    const d = await r.json();
+                    return Array.isArray(d?.groups) ? d.groups : [];
+                } catch (e) { console.error('manifest load failed', e); return []; }
+            }
 
-          const total = parseInt(contentLength, 10);
-          let loaded = 0;
-          const reader = response.body.getReader();
-          const chunks = [];
+            async function init() {
+                const groups = await loadManifest();
+                if (!groups.length) { status.textContent = 'No artworks yet.'; return; }
 
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            chunks.push(value);
-            loaded += value.length;
-            onProgress((loaded / total) * 100);
-          }
+                const raw = [];
+                groups.forEach(g => {
+                    const name = g.name || '';
+                    (g.items || []).forEach(it => {
+                        const src = resolveSrc(it.src);
+                        const title = it.title || (it.src ? decodeURIComponent((it.src.split('/').pop() || '').replace(/\.[^.]+$/, '')) : '');
+                        raw.push({ group: name, src, title });
+                    });
+                });
 
-          const blob = new Blob(chunks);
-          return URL.createObjectURL(blob);
-        }
+                const meta = await Promise.all(raw.map(x => new Promise(res => {
+                    const im = new Image(); im.decoding = 'async'; im.src = x.src;
+                    const done = () => { const w = im.naturalWidth || 1200, h = im.naturalHeight || 800; res({ ...x, w, h }); };
+                    if (im.complete && im.naturalWidth > 0) done(); else { im.onload = done; im.onerror = done; }
+                })));
 
-        async function loadManifest() {
-          try {
-            const r = await fetch("./manifest.json", { cache: "no-store" });
-            const d = await r.json();
-            return Array.isArray(d?.groups) ? d.groups : [];
-          } catch (e) {
-            console.error("manifest load failed", e);
-            return [];
-          }
-        }
+                const map = new Map();
+                meta.forEach(m => { const k = m.group || 'misc'; if (!map.has(k)) map.set(k, []); map.get(k).push(m); });
+                map.forEach(arr => arr.sort((a, b) => (a.title || '').localeCompare(b.title || '')));
 
-        async function init() {
-          const groups = await loadManifest();
-          if (!groups.length) {
-            status.textContent = "No artworks yet.";
-            return;
-          }
+                flat = rrInterleave(map);
+                view = flat.slice();
 
-          const raw = [];
-          groups.forEach((g) => {
-            const name = g.name || "";
-            (g.items || []).forEach((it) => {
-              const src = resolveSrc(it.src);
-              const title =
-                it.title ||
-                (it.src
-                  ? decodeURIComponent(
-                      (it.src.split("/").pop() || "").replace(/\.[^.]+$/, "")
-                    )
-                  : "");
-              raw.push({ group: name, src, title });
-            });
-          });
+                status.style.display = 'none';
+                legend.innerHTML = '';
+                const chips = [];
 
-          const meta = await Promise.all(
-            raw.map(
-              (x) =>
-                new Promise((res) => {
-                  const im = new Image();
-                  im.decoding = "async";
-                  im.src = x.src;
-                  const done = () => {
-                    const w = im.naturalWidth || 1200,
-                      h = im.naturalHeight || 800;
-                    res({ ...x, w, h });
-                  };
-                  if (im.complete && im.naturalWidth > 0) done();
-                  else {
-                    im.onload = done;
-                    im.onerror = done;
-                  }
-                })
-            )
-          );
+                const all = document.createElement('button'); all.className = 'chip'; all.textContent = 'All'; all.setAttribute('aria-pressed', 'true');
+                const allSw = document.createElement('span'); allSw.className = 'sw';
+                allSw.style.background = 'linear-gradient(90deg,' + [...map.keys()].slice(0, 6).map(k => colorFor(k)).join(',') + ')';
+                all.prepend(allSw); legend.appendChild(all);
 
-          const map = new Map();
-          meta.forEach((m) => {
-            const k = m.group || "misc";
-            if (!map.has(k)) map.set(k, []);
-            map.get(k).push(m);
-          });
-          map.forEach((arr) =>
-            arr.sort((a, b) => (a.title || "").localeCompare(b.title || ""))
-          );
+                map.forEach((_, name) => {
+                    const chip = document.createElement('button'); chip.className = 'chip'; chip.textContent = name; chip.setAttribute('aria-pressed', 'false');
+                    const sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = colorFor(name); chip.prepend(sw);
+                    legend.appendChild(chip); chips.push(chip);
+                });
 
-          flat = rrInterleave(map);
-          view = flat.slice();
+                function setFilter(name) {
+                    const isAll = !name;
+                    all.setAttribute('aria-pressed', isAll ? 'true' : 'false');
+                    chips.forEach(c => c.setAttribute('aria-pressed', c.textContent === name && !isAll ? 'true' : 'false'));
+                    view = isAll ? flat.slice() : flat.filter(x => x.group === name);
+                    renderGrid();
+                }
+                all.onclick = () => setFilter(null);
+                chips.forEach(c => c.onclick = () => setFilter(c.textContent));
 
-          status.style.display = "none";
-          legend.innerHTML = "";
-          const chips = [];
+                renderGrid();
 
-          const all = document.createElement("button");
-          all.className = "chip";
-          all.textContent = "All";
-          all.setAttribute("aria-pressed", "true");
-          const allSw = document.createElement("span");
-          allSw.className = "sw";
-          allSw.style.background =
-            "linear-gradient(90deg," +
-            [...map.keys()]
-              .slice(0, 6)
-              .map((k) => colorFor(k))
-              .join(",") +
-            ")";
-          all.prepend(allSw);
-          legend.appendChild(all);
+                const rootStyle = document.documentElement.style;
+                function onResize() {
+                    const small = window.matchMedia('(max-width: 720px)').matches;
+                    rootStyle.setProperty('--col-width', small ? getComputedStyle(document.documentElement).getPropertyValue('--col-width-sm') : '280px');
+                }
+                onResize();
+                window.addEventListener('resize', onResize, { passive: true });
+            }
 
-          map.forEach((_, name) => {
-            const chip = document.createElement("button");
-            chip.className = "chip";
-            chip.textContent = name;
-            chip.setAttribute("aria-pressed", "false");
-            const sw = document.createElement("span");
-            sw.className = "sw";
-            sw.style.background = colorFor(name);
-            chip.prepend(sw);
-            legend.appendChild(chip);
-            chips.push(chip);
-          });
-
-          function setFilter(name) {
-            const isAll = !name;
-            all.setAttribute("aria-pressed", isAll ? "true" : "false");
-            chips.forEach((c) =>
-              c.setAttribute(
-                "aria-pressed",
-                c.textContent === name && !isAll ? "true" : "false"
-              )
-            );
-            view = isAll ? flat.slice() : flat.filter((x) => x.group === name);
-            renderGrid();
-          }
-          all.onclick = () => setFilter(null);
-          chips.forEach((c) => (c.onclick = () => setFilter(c.textContent)));
-
-          renderGrid();
-
-          const rootStyle = document.documentElement.style;
-          function onResize() {
-            const small = window.matchMedia("(max-width: 720px)").matches;
-            rootStyle.setProperty(
-              "--col-width",
-              small
-                ? getComputedStyle(document.documentElement).getPropertyValue(
-                    "--col-width-sm"
-                  )
-                : "280px"
-            );
-          }
-          onResize();
-          window.addEventListener("resize", onResize, { passive: true });
-        }
-
-        init();
-      })();
+            init();
+        })();
     </script>
-  </body>
+</body>
+
 </html>
