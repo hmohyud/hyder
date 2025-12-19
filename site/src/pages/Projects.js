@@ -32,6 +32,10 @@ const ART_IMAGES = [
 ];
 const ART_MANIFEST = `${process.env.PUBLIC_URL}/art/manifest.json`;
 
+const TYPO_IMAGES = Array.from(
+  { length: 3 },
+  (_, i) => `/hyder/projects/TYPO_${i + 1}.jpg`
+);
 // ---------- Project data ----------
 const projects = [
   {
@@ -222,6 +226,20 @@ const projects = [
       "College pieces are in progress—I haven’t bundled them into a portfolio yet.",
     ],
     links: [{ label: "Open full gallery", href: "/hyder/art/" }],
+  },
+  {
+    title: "Typometry — Absurdly Detailed Typing Stats",
+    color: "#e2b714",
+    images: TYPO_IMAGES,
+    description: [
+      'Typing analysis that goes beyond WPM—keyboard heatmaps, bigram timing, behavioral profiling, and a "typing archetype" system.',
+      "React + Vite, all client-side. Dark theme inspired by MonkeyType.",
+    ],
+
+    links: [
+      { label: "Visit Site", href: "https://hmohyud.github.io/typometry/" },
+      // { label: "GitHub", href: "https://github.com/hmohyud/typometry" },
+    ],
   },
 ];
 
