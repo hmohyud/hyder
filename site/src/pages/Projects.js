@@ -232,7 +232,7 @@ const projects = [
     color: "#e2b714",
     images: TYPO_IMAGES,
     description: [
-      'Typing analysis that goes beyond WPM—keyboard heatmaps, bigram timing, behavioral profiling, and a "typing archetype" system.',
+      'Made purely for fun. Typing analysis that goes beyond WPM—keyboard heatmaps, bigram timing, behavioral profiling, and a "typing archetype" system.',
       "React + Vite, all client-side. Dark theme inspired by MonkeyType.",
     ],
 
