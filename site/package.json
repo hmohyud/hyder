@@ -13,9 +13,11 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-flow-renderer": "^10.3.17",
-    "react-pdf": "^10.2.0",
+    "react-pdf": "^10.3.0",
     "react-router-dom": "^7.6.0",
     "react-scripts": "5.0.1",
+    "three": "^0.182.0",
+    "threejs-components": "^0.0.19",
     "web-vitals": "^2.1.4"
   },
   "scripts": {

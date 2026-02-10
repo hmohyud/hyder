@@ -20,6 +20,19 @@
 
 * { box-sizing: border-box; }
 
+/* Shader background layer */
+.shader-bg{
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.shader-bg canvas{
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
 .landing{
   color: var(--fg);
   background:
@@ -43,40 +56,46 @@ input, textarea, [contenteditable="true"] { cursor: text !important; }
   z-index: 3;
 }
 
-/* === FX Layers === */
-.cursor{
+/* Tubes cursor canvas — in front of cards, subdued */
+.tubes-cursor-canvas{
   position: fixed;
-  width: 24px; height: 24px;
-  border: 2px solid rgba(255,255,255,.85);
-  border-radius: 50%;
+  inset: 0;
+  z-index: 10;
   pointer-events: none;
-  z-index: 9999;
-  will-change: transform;
-  transform: translate3d(-9999px, -9999px, 0) scale(1);
-  /* mix-blend-mode: difference;  // leave off for cross-GPU consistency */
+  overflow: hidden;
+  opacity: 0.55;
+  mix-blend-mode: screen;
+  transition: opacity 0.4s ease, filter 0.4s ease;
 }
-.cursor-dot{
-  position: fixed;
-  width: 8px; height: 8px;
-  background: var(--portal-p1);
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 9998;
-  box-shadow: 0 0 14px var(--portal-p1);
-  will-change: transform;
-  transition: background .2s ease, box-shadow .2s ease; /* no transform transition */
-  transform: translate3d(-9999px, -9999px, 0) scale(1);
+
+/* Card hover: boost visibility + swirl */
+.tubes-cursor-canvas.tubes-active{
+  opacity: 0.85;
+  filter: brightness(1.3);
+  animation: tubeSwirl 3s ease-in-out infinite;
 }
-.mouse-glow{
-  position: fixed;
-  width: 160px; height: 160px; /* fixed, cheaper */
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 107, 157, 0.10) 0%, transparent 70%);
-  filter: blur(18px);
-  pointer-events: none;
-  z-index: 2;
-  will-change: transform;
-  transform: translate3d(-9999px, -9999px, 0);
+
+@keyframes tubeSwirl{
+  0%   { filter: brightness(1.3) hue-rotate(0deg); }
+  50%  { filter: brightness(1.5) hue-rotate(25deg); }
+  100% { filter: brightness(1.3) hue-rotate(0deg); }
+}
+
+/* When a card is hovered, dim everything else */
+.card-focus .hero{
+  opacity: 0.25;
+  transition: opacity 0.35s ease;
+}
+.hero{
+  transition: opacity 0.35s ease;
+}
+.card-focus .card:not(.card-hover-active){
+  opacity: 0.3;
+  filter: brightness(0.5);
+}
+.card.card-hover-active{
+  opacity: 1;
+  filter: brightness(1);
 }
 
 /* decorative rings */
@@ -172,7 +191,7 @@ input, textarea, [contenteditable="true"] { cursor: text !important; }
   background: linear-gradient(180deg, var(--surface), var(--surface-2));
   border: 1px solid var(--ring);
   box-shadow: 0 12px 28px rgba(0,0,0,.34), inset 0 0 0 1px rgba(255,255,255,0.02);
-  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease, background .22s ease, translate .22s ease, rotate .22s ease;
+  transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease, background .22s ease, translate .22s ease, rotate .22s ease, opacity 0.35s ease, filter 0.35s ease;
   min-height: 220px;
   overflow: hidden;
 }
@@ -288,13 +307,7 @@ input, textarea, [contenteditable="true"] { cursor: text !important; }
   75%{ transform: translate(18px, 26px) }
 }
 
-/* Your cursor/glow layers should already have this,
-   but just in case: */
-.cursor,
-.cursor-dot,
-.mouse-glow,
 .magic-circle,
-.floating-elements,
 .particles {
   pointer-events: none;
 }

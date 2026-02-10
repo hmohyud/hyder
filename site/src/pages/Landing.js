@@ -1,5 +1,7 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import ShaderBackground from "../components/ShaderBackground";
+import TubesCursorOverlay from "../components/TubesCursorOverlay";
 import "./Landing.css";
 
 /* Inline icons (no emojis) */
@@ -36,11 +38,8 @@ const IconDoc = () => (
 );
 
 export default function Landing() {
-  const cursorRef = useRef(null);
-  const dotRef = useRef(null);
-  const glowRef = useRef(null);
   const particlesRef = useRef(null);
-  const floatRef = useRef(null);
+  const [hoveredCard, setHoveredCard] = useState(null);
 
   useEffect(() => {
     // --- Build ambience with fixed counts for consistent look ---
@@ -64,123 +63,22 @@ export default function Landing() {
       particlesRef.current.appendChild(frag);
     };
 
-    const buildFloaters = (count) => {
-      if (!floatRef.current) return;
-      const frag = document.createDocumentFragment();
-      const hues = [340, 260, 200, 140];
-      for (let i = 0; i < count; i++) {
-        const el = document.createElement("span");
-        el.className = "floating-element";
-        const size = 60 + Math.random() * 80;
-        el.style.width = `${size}px`;
-        el.style.height = `${size}px`;
-        el.style.left = Math.random() * 100 + "%";
-        el.style.top = Math.random() * 100 + "%";
-        el.style.setProperty("--h", String(hues[(Math.random() * hues.length) | 0]));
-        el.style.animationDelay = `${Math.random() * 8}s`;
-        el.style.animationDuration = `${22 + Math.random() * 14}s`;
-        frag.appendChild(el);
-      }
-      floatRef.current.innerHTML = "";
-      floatRef.current.appendChild(frag);
-    };
-
     buildParticles(60);
-    buildFloaters(8);
-
-    // --- Always-on custom cursor (pointer events) ---
-    const cursor = cursorRef.current;
-    const dot = dotRef.current;
-    const glow = glowRef.current;
-    if (!cursor || !dot || !glow) return;
-
-    let rafId = 0;
-    let targetX = -9999, targetY = -9999;
-    let lerpX = -9999, lerpY = -9999;
-    let isDown = false;
-    let active = false;
-    const ease = 0.2;
-
-    const update = () => {
-      // Lerp ring; dot snaps (visually tighter)
-      lerpX += (targetX - lerpX) * ease;
-      lerpY += (targetY - lerpY) * ease;
-
-      const ringScale = isDown ? 0.85 : 1;
-      const dotScale = isDown ? 1.6 : 1;
-
-      cursor.style.transform = `translate3d(${lerpX - 12}px, ${lerpY - 12}px, 0) scale(${ringScale})`;
-      dot.style.transform = `translate3d(${targetX - 4}px, ${targetY - 4}px, 0) scale(${dotScale})`;
-      glow.style.transform = `translate3d(${targetX - 80}px, ${targetY - 80}px, 0)`;
-
-      // Stop RAF when settled to save CPU
-      if (Math.abs(lerpX - targetX) < 0.1 && Math.abs(lerpY - targetY) < 0.1) {
-        active = false;
-        rafId = 0;
-        return;
-      }
-      rafId = requestAnimationFrame(update);
-    };
-
-    const kick = () => {
-      if (!active) {
-        active = true;
-        rafId = requestAnimationFrame(update);
-      }
-    };
-
-    const onMove = (e) => {
-      targetX = e.clientX;
-      targetY = e.clientY;
-      kick();
-    };
-    const onDown = () => { isDown = true; kick(); };
-    const onUp = () => { isDown = false; kick(); };
-
-    const onLeave = () => {
-      targetX = targetY = lerpX = lerpY = -9999;
-      cursor.style.transform = `translate3d(-9999px,-9999px,0)`;
-      dot.style.transform = `translate3d(-9999px,-9999px,0)`;
-      glow.style.transform = `translate3d(-9999px,-9999px,0)`;
-      if (rafId) cancelAnimationFrame(rafId);
-      rafId = 0;
-      active = false;
-    };
-
-    const onVisibility = () => {
-      if (document.hidden) onLeave();
-    };
-
-    window.addEventListener("pointermove", onMove, { passive: true });
-    window.addEventListener("pointerdown", onDown, { passive: true });
-    window.addEventListener("pointerup", onUp, { passive: true });
-    window.addEventListener("pointercancel", onLeave, { passive: true });
-    window.addEventListener("mouseleave", onLeave, { passive: true });
-    document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
-      if (rafId) cancelAnimationFrame(rafId);
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerdown", onDown);
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onLeave);
-      window.removeEventListener("mouseleave", onLeave);
-      document.removeEventListener("visibilitychange", onVisibility);
       particlesRef.current && (particlesRef.current.innerHTML = "");
-      floatRef.current && (floatRef.current.innerHTML = "");
     };
   }, []);
 
   return (
-    <div className="landing">
-      {/* FX layers */}
-      <div className="cursor" ref={cursorRef} aria-hidden="true" />
-      <div className="cursor-dot" ref={dotRef} aria-hidden="true" />
-      <div className="mouse-glow" ref={glowRef} aria-hidden="true" />
+    <div className={`landing${hoveredCard ? " card-focus" : ""}`}>
+      {/* Shader background */}
+      <ShaderBackground />
+      {/* Tubes cursor */}
+      <TubesCursorOverlay hoveredCard={hoveredCard} />
       <div className="magic-circle" aria-hidden="true" />
       <div className="magic-circle alt" aria-hidden="true" />
       <div className="magic-circle slow" aria-hidden="true" />
-      <div className="floating-elements" ref={floatRef} aria-hidden="true" />
       <div className="particles" ref={particlesRef} aria-hidden="true" />
 
       <div className="wrap">
@@ -204,7 +102,7 @@ export default function Landing() {
 
         <section className="grid" aria-label="Site sections">
           {/* Skills */}
-          <Link to="/skills" className="card card-1 portal" aria-label="Go to Skills">
+          <Link to="/skills" className={`card card-1 portal${hoveredCard === 1 ? " card-hover-active" : ""}`} aria-label="Go to Skills" onMouseEnter={() => setHoveredCard(1)} onMouseLeave={() => setHoveredCard(null)}>
             <span className="portal-glow portal-1" aria-hidden="true" />
             <div className="card-head">
               <span className="icon">
@@ -223,7 +121,7 @@ export default function Landing() {
           </Link>
 
           {/* Projects */}
-          <Link to="/projects" className="card card-2 portal" aria-label="Go to Projects">
+          <Link to="/projects" className={`card card-2 portal${hoveredCard === 2 ? " card-hover-active" : ""}`} aria-label="Go to Projects" onMouseEnter={() => setHoveredCard(2)} onMouseLeave={() => setHoveredCard(null)}>
             <span className="portal-glow portal-2" aria-hidden="true" />
             <div className="card-head">
               <span className="icon">
@@ -242,7 +140,7 @@ export default function Landing() {
           </Link>
 
           {/* About */}
-          <Link to="/about" className="card card-3 portal" aria-label="Go to About">
+          <Link to="/about" className={`card card-3 portal${hoveredCard === 3 ? " card-hover-active" : ""}`} aria-label="Go to About" onMouseEnter={() => setHoveredCard(3)} onMouseLeave={() => setHoveredCard(null)}>
             <span className="portal-glow portal-3" aria-hidden="true" />
             <div className="card-head">
               <span className="icon">
@@ -261,7 +159,7 @@ export default function Landing() {
           </Link>
 
           {/* Resume */}
-          <Link to="/resume" className="card card-4 portal" aria-label="Go to Résumé">
+          <Link to="/resume" className={`card card-4 portal${hoveredCard === 4 ? " card-hover-active" : ""}`} aria-label="Go to Résumé" onMouseEnter={() => setHoveredCard(4)} onMouseLeave={() => setHoveredCard(null)}>
             <span className="portal-glow portal-4" aria-hidden="true" />
             <div className="card-head">
               <span className="icon">
