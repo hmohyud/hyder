@@ -13,9 +13,10 @@ const DEFAULT_LIGHTS = ["#ff6b9d", "#a36bff", "#6bcfff", "#6bff9d"];
 export default function TubesCursorOverlay({ hoveredCard }) {
   const canvasRef = useRef(null);
   const appRef = useRef(null);
+  const isTouch = !window.matchMedia("(hover: hover)").matches;
 
   useEffect(() => {
-    if (!window.matchMedia("(hover: hover)").matches) return;
+    if (isTouch) return;
 
     let cancelled = false;
 
@@ -60,6 +61,8 @@ export default function TubesCursorOverlay({ hoveredCard }) {
       app.tubes.setLightsColors(DEFAULT_LIGHTS);
     }
   }, [hoveredCard]);
+
+  if (isTouch) return null;
 
   const isHovering = !!hoveredCard;
 

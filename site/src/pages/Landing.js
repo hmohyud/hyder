@@ -39,7 +39,27 @@ const IconDoc = () => (
 
 export default function Landing() {
   const particlesRef = useRef(null);
+  const wrapRef = useRef(null);
   const [hoveredCard, setHoveredCard] = useState(null);
+
+  /* Scale .wrap uniformly so it always fits within 100vh */
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+
+    const fit = () => {
+      // Reset scale so we can measure natural height
+      wrap.style.transform = "none";
+      const natural = wrap.scrollHeight;
+      const viewport = window.innerHeight;
+      const s = Math.min(1, viewport / natural);
+      wrap.style.transform = s < 1 ? `scale(${s})` : "none";
+    };
+
+    fit();
+    window.addEventListener("resize", fit);
+    return () => window.removeEventListener("resize", fit);
+  }, []);
 
   useEffect(() => {
     // --- Build ambience with fixed counts for consistent look ---
@@ -81,7 +101,7 @@ export default function Landing() {
       <div className="magic-circle slow" aria-hidden="true" />
       <div className="particles" ref={particlesRef} aria-hidden="true" />
 
-      <div className="wrap">
+      <div className="wrap" ref={wrapRef}>
         <header className="hero">
           <h1 className="title">Hyder Mohyuddin</h1>
           <p className="subtitle">AI &amp; Software • Systems • Interfaces</p>
