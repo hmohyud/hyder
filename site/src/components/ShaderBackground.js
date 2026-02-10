@@ -77,7 +77,8 @@ void main() {
   float vignette = 1.0 - dot(vigUv, vigUv) * 1.5;
   color *= clamp(vignette, 0.0, 1.0);
 
-  float a = clamp((color.r + color.g + color.b) * 6.0, 0.0, 1.0);
+  float lum = (color.r + color.g + color.b) / 3.0;
+  float a = smoothstep(0.01, 0.06, lum);
   gl_FragColor = vec4(color, a);
 }
 `;
