@@ -1,15 +1,17 @@
 {
   "files": {
-    "main.css": "/hyder/static/css/main.2fb0443c.css",
-    "main.js": "/hyder/static/js/main.1c30cbfd.js",
+    "main.css": "/hyder/static/css/main.1c489e25.css",
+    "main.js": "/hyder/static/js/main.a2727041.js",
+    "static/js/330.ca14d3c2.chunk.js": "/hyder/static/js/330.ca14d3c2.chunk.js",
     "static/js/453.adc34edb.chunk.js": "/hyder/static/js/453.adc34edb.chunk.js",
     "index.html": "/hyder/index.html",
-    "main.2fb0443c.css.map": "/hyder/static/css/main.2fb0443c.css.map",
-    "main.1c30cbfd.js.map": "/hyder/static/js/main.1c30cbfd.js.map",
+    "main.1c489e25.css.map": "/hyder/static/css/main.1c489e25.css.map",
+    "main.a2727041.js.map": "/hyder/static/js/main.a2727041.js.map",
+    "330.ca14d3c2.chunk.js.map": "/hyder/static/js/330.ca14d3c2.chunk.js.map",
     "453.adc34edb.chunk.js.map": "/hyder/static/js/453.adc34edb.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.2fb0443c.css",
-    "static/js/main.1c30cbfd.js"
+    "static/css/main.1c489e25.css",
+    "static/js/main.a2727041.js"
   ]
 }
