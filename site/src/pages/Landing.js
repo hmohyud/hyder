@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import ShaderBackground from "../components/ShaderBackground";
+import BgVariantB from "../components/BgVariantB";
 import TubesCursorOverlay from "../components/TubesCursorOverlay";
 import "./Landing.css";
 
@@ -92,8 +92,8 @@ export default function Landing() {
 
   return (
     <div className={`landing${hoveredCard ? " card-focus" : ""}`}>
-      {/* Shader background */}
-      <ShaderBackground />
+      {/* Background */}
+      <BgVariantB />
       {/* Tubes cursor */}
       <TubesCursorOverlay hoveredCard={hoveredCard} />
       <div className="magic-circle" aria-hidden="true" />

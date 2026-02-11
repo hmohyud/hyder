@@ -13,6 +13,7 @@ import SkillsMap from "./pages/SkillsMap";
 import Projects from "./pages/Projects";
 import About from "./pages/About";
 import Resume from "./pages/Resume";
+import BgDemo from "./pages/BgDemo";
 
 /**
  * Map each page to its accent pair (matches your card-1..4 colors)
@@ -126,6 +127,7 @@ function AppContent() {
         <main className="App-main">
           <Routes>
             <Route path="/" element={<Landing />} />
+            <Route path="/bg-demo" element={<BgDemo />} />
             {Object.entries(pages).map(([key, { path, component }]) => (
               <Route key={key} path={path} element={component} />
             ))}
