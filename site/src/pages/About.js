@@ -63,8 +63,10 @@ const SECTIONS = [
 ];
 
 /* ───── physics constants ───── */
-const SHATTER_SPEED = 20;
+const SHATTER_SPEED = 32;
 const WALL_SHATTER_SPEED = 25;
+const WORD_SHATTER_SPEED = 38;
+const WORD_WALL_SHATTER_SPEED = 32;
 const WALL_THICKNESS = 60;
 const PARA_OPTS = {
   restitution: 0.5,
@@ -116,6 +118,59 @@ function measureParagraph(mDiv, text, maxW) {
   const h = rect.height;
   mDiv.innerHTML = "";
   return { w, h };
+}
+
+function measureHeading(mDiv, text, isTitle) {
+  mDiv.style.width = "auto";
+  const el = document.createElement(isTitle ? "div" : "h2");
+  el.style.cssText = isTitle
+    ? "font-size:2.5rem;padding:0 0 0.5rem 0;margin:0;display:inline-block;white-space:nowrap"
+    : "font-size:1.6rem;padding:0.3rem 0.6rem;margin:0;display:inline-block;white-space:nowrap";
+  el.textContent = text;
+  mDiv.appendChild(el);
+  const rect = el.getBoundingClientRect();
+  const w = rect.width;
+  const h = rect.height;
+  mDiv.removeChild(el);
+  return { w, h };
+}
+
+function measureHeadingWords(mDiv, text, blockW, isTitle) {
+  mDiv.style.width = blockW + "px";
+  mDiv.innerHTML = "";
+  const el = document.createElement(isTitle ? "div" : "h2");
+  el.style.cssText = isTitle
+    ? "font-size:2.5rem;padding:0 0 0.5rem 0;margin:0;white-space:nowrap"
+    : "font-size:1.6rem;padding:0.3rem 0.6rem;margin:0;white-space:nowrap";
+  const words = text.split(/\s+/).filter(Boolean);
+  words.forEach((w, i) => {
+    if (i > 0) el.appendChild(document.createTextNode(" "));
+    const span = document.createElement("span");
+    span.textContent = w;
+    span.style.display = "inline";
+    el.appendChild(span);
+  });
+  mDiv.appendChild(el);
+  const spans = el.querySelectorAll("span");
+  const pr = mDiv.getBoundingClientRect();
+  const results = [];
+  spans.forEach((s, i) => {
+    const rects = s.getClientRects();
+    const first = rects[0] || s.getBoundingClientRect();
+    let maxW = first.width;
+    for (let j = 1; j < rects.length; j++) {
+      if (rects[j].width > maxW) maxW = rects[j].width;
+    }
+    results.push({
+      text: words[i],
+      x: first.left - pr.left,
+      y: first.top - pr.top,
+      w: Math.max(maxW + 10, 22),
+      h: first.height + 4,
+    });
+  });
+  mDiv.innerHTML = "";
+  return results;
 }
 
 function measureWords(mDiv, text, blockW) {
@@ -187,14 +242,53 @@ function measureLetters(mDiv, text) {
 }
 
 function buildBlocks(engine, mDiv, cw) {
-  let curY = 100;
+  let curY = 20;
   const blocks = [];
-  const hPositions = {};
   const contentW = Math.min(900, cw) - 64;
+  const contentLeft = (cw - Math.min(900, cw)) / 2 + 32;
+
+  // "About Me" title block
+  const { w: titleW, h: titleH } = measureHeading(mDiv, "About Me", true);
+  const titleBody = Bodies.rectangle(contentLeft + titleW / 2, curY + titleH / 2, titleW, titleH, {
+    ...PARA_OPTS,
+    isStatic: true,
+  });
+  const titleBlock = {
+    id: "title",
+    text: "About Me",
+    body: titleBody,
+    w: titleW,
+    h: titleH,
+    color: "#ffffff",
+    type: "h",
+    isTitle: true,
+  };
+  titleBody._blockRef = titleBlock;
+  Composite.add(engine.world, titleBody);
+  blocks.push(titleBlock);
+  curY += titleH + 24;
 
   SECTIONS.forEach((sec) => {
-    hPositions[sec.id] = { y: curY };
-    curY += 50;
+    // Section heading as physics body
+    const { w: hw, h: hh } = measureHeading(mDiv, sec.heading, false);
+    const headBody = Bodies.rectangle(contentLeft + hw / 2, curY + hh / 2, hw, hh, {
+      ...PARA_OPTS,
+      isStatic: true,
+    });
+    const headBlock = {
+      id: sec.id + "-heading",
+      text: sec.heading,
+      body: headBody,
+      w: hw,
+      h: hh,
+      color: sec.color,
+      type: "h",
+      isTitle: false,
+    };
+    headBody._blockRef = headBlock;
+    Composite.add(engine.world, headBody);
+    blocks.push(headBlock);
+    curY += hh + 12;
 
     sec.paragraphs.forEach((pText, pi) => {
       const { w: pw, h: ph } = measureParagraph(mDiv, pText, contentW);
@@ -226,7 +320,7 @@ function buildBlocks(engine, mDiv, cw) {
     curY += 24;
   });
 
-  return { blocks, hPositions, totalHeight: curY + 40 };
+  return { blocks, totalHeight: curY + 40 };
 }
 
 /* ───── wake a static body to dynamic with proper mass ───── */
@@ -248,8 +342,9 @@ export default function About() {
   const lettersRef = useRef([]);
   const dragRef = useRef(null);
   const measRef = useRef(null);
-  const headingsRef = useRef({});
   const elMapRef = useRef({});
+  const resetBtnRef = useRef(null);
+  const chaosRef = useRef(0);
   const shatteringRef = useRef(new Set());
 
   const [, forceRender] = useState(0);
@@ -260,7 +355,7 @@ export default function About() {
     (block, extraVx = 0, extraVy = 0) => {
       const engine = engineRef.current;
       const mDiv = measRef.current;
-      if (!block || block.type !== "p" || !engine || !mDiv) return;
+      if (!block || (block.type !== "p" && block.type !== "h") || !engine || !mDiv) return;
       if (shatteringRef.current.has(block.id)) return;
       shatteringRef.current.add(block.id);
 
@@ -290,7 +385,9 @@ export default function About() {
       const shatterEl = elMapRef.current[block.id];
       if (shatterEl) shatterEl.style.display = "none";
 
-      const wordMeasures = measureWords(mDiv, block.text, bw);
+      const wordMeasures = block.type === "h"
+        ? measureHeadingWords(mDiv, block.text, bw, block.isTitle)
+        : measureWords(mDiv, block.text, bw);
 
       wordMeasures.forEach((wm, i) => {
         const cos = Math.cos(angle);
@@ -322,6 +419,8 @@ export default function About() {
           color,
           type: "w",
           flash: true,
+          fromHeading: block.type === "h",
+          isTitle: block.isTitle || false,
         };
         wordBody._blockRef = wordBlock;
         wordsRef.current.push(wordBlock);
@@ -399,6 +498,8 @@ export default function About() {
           color,
           type: "l",
           flash: true,
+          fromHeading: word.fromHeading || false,
+          isTitle: word.isTitle || false,
         };
         letterBody._blockRef = letterBlock;
         lettersRef.current.push(letterBlock);
@@ -426,9 +527,8 @@ export default function About() {
     engineRef.current = engine;
 
     // build blocks first to know total content height
-    const { blocks, hPositions, totalHeight } = buildBlocks(engine, mDiv, cw);
+    const { blocks, totalHeight } = buildBlocks(engine, mDiv, cw);
     blocksRef.current = blocks;
-    headingsRef.current = hPositions;
 
     // set container height to fit all content, walls at content edges
     const ch = Math.max(totalHeight, container.clientHeight);
@@ -451,13 +551,13 @@ export default function About() {
         );
 
         const blockType = other._blockRef.type;
-        if (blockType === "p" && rv > WALL_SHATTER_SPEED) {
+        if ((blockType === "p" || blockType === "h") && rv > WALL_SHATTER_SPEED) {
           requestAnimationFrame(() => {
             if (other._blockRef && blocksRef.current.includes(other._blockRef)) {
               shatterBlock(other._blockRef);
             }
           });
-        } else if (blockType === "w" && rv > WALL_SHATTER_SPEED) {
+        } else if (blockType === "w" && rv > WORD_WALL_SHATTER_SPEED) {
           requestAnimationFrame(() => {
             if (other._blockRef && wordsRef.current.includes(other._blockRef)) {
               shatterWord(other._blockRef);
@@ -479,7 +579,7 @@ export default function About() {
       for (const b of all) {
         const el = eMap[b.id];
         if (!el || !b.body) continue;
-        if (b.body.isStatic && b.type === "p") {
+        if (b.body.isStatic && (b.type === "p" || b.type === "h")) {
           const { x, y } = b.body.position;
           el.style.transform = `translate(${x - b.w / 2}px, ${y - b.h / 2}px)`;
           continue;
@@ -487,6 +587,43 @@ export default function About() {
         const { x, y } = b.body.position;
         const angle = b.body.angle;
         el.style.transform = `translate(${x - b.w / 2}px, ${y - b.h / 2}px) rotate(${angle}rad)`;
+      }
+
+      // Animate reset button based on chaos level
+      const btn = resetBtnRef.current;
+      if (btn) {
+        const fragCount = wordsRef.current.length + lettersRef.current.length;
+        // Chaos: 0 until 200 fragments, ramps to 1 at 600
+        const targetChaos = Math.min(Math.max((fragCount - 200) / 400, 0), 1);
+        chaosRef.current += (targetChaos - chaosRef.current) * 0.015;
+        const c = chaosRef.current;
+
+        // Snap to target when very close to avoid sub-pixel jitter
+        if (Math.abs(targetChaos - chaosRef.current) < 0.001) chaosRef.current = targetChaos;
+
+        // Scale: 1 → 1.55
+        const scale = 1 + c * 0.55;
+        // Color: lerp from #aaccdd to #ff3333
+        const r = Math.round(170 + c * (255 - 170));
+        const g = Math.round(204 - c * (204 - 51));
+        const b2 = Math.round(221 - c * (221 - 51));
+        // Border: lerp from rgba(127,211,255,0.25) to rgba(255,80,80,0.7)
+        const br = Math.round(127 + c * (255 - 127));
+        const bg = Math.round(211 - c * (211 - 80));
+        const bb = Math.round(255 - c * (255 - 80));
+        const ba = (0.25 + c * 0.45).toFixed(2);
+        // Flash: only kicks in above 600 fragments, slow pulse
+        const now = performance.now();
+        const flashT = Math.min(Math.max((fragCount - 600) / 300, 0), 1);
+        const flash = (Math.sin(now * 0.002) * 0.5 + 0.5) * flashT;
+        const flashR = Math.round(r + (255 - r) * flash);
+        const flashG = Math.round(g * (1 - flash * 0.7));
+        const flashB = Math.round(b2 * (1 - flash * 0.7));
+
+        btn.style.transform = `scale(${(Math.round(scale * 20) / 20).toFixed(2)})`;
+        btn.style.color = `rgb(${flashR},${flashG},${flashB})`;
+        btn.style.borderColor = `rgba(${br},${bg},${bb},${ba})`;
+        btn.style.boxShadow = flash > 0.01 ? `0 0 ${(flash * 20).toFixed(0)}px rgba(255,60,60,${(flash * 0.4).toFixed(2)})` : 'none';
       }
     };
 
@@ -593,9 +730,10 @@ export default function About() {
     dragRef.current = null;
 
     const speed = Math.sqrt(body.velocity.x ** 2 + body.velocity.y ** 2);
-    if (speed > SHATTER_SPEED) {
-      if (block.type === "p") shatterBlock(block);
-      else if (block.type === "w") shatterWord(block);
+    if (block.type === "p" || block.type === "h") {
+      if (speed > SHATTER_SPEED) shatterBlock(block);
+    } else if (block.type === "w") {
+      if (speed > WORD_SHATTER_SPEED) shatterWord(block);
     }
   };
 
@@ -624,7 +762,7 @@ export default function About() {
     const burstX = (-dx / dist) * 5;
     const burstY = (-dy / dist) * 5;
 
-    if (block.type === "p") shatterBlock(block, burstX, burstY);
+    if (block.type === "p" || block.type === "h") shatterBlock(block, burstX, burstY);
     else if (block.type === "w") shatterWord(block, burstX, burstY);
   };
 
@@ -638,6 +776,7 @@ export default function About() {
     // clear state
     elMapRef.current = {};
     shatteringRef.current.clear();
+    chaosRef.current = 0;
 
     // remove all letter bodies
     for (const l of lettersRef.current) {
@@ -657,11 +796,10 @@ export default function About() {
     }
 
     const cw = container.clientWidth;
-    const { blocks, hPositions, totalHeight } = buildBlocks(engine, mDiv, cw);
+    const { blocks, totalHeight } = buildBlocks(engine, mDiv, cw);
     container.style.height = Math.max(totalHeight, window.innerHeight) + "px";
 
     blocksRef.current = blocks;
-    headingsRef.current = hPositions;
     bump();
   };
 
@@ -669,7 +807,6 @@ export default function About() {
   const allBlocks = blocksRef.current;
   const allWords = wordsRef.current;
   const allLetters = lettersRef.current;
-  const headings = headingsRef.current;
 
   return (
     <div
@@ -683,37 +820,23 @@ export default function About() {
       {/* hidden measuring div */}
       <div ref={measRef} className="about-measure" />
 
-      {/* title */}
-      <div className="about-title" style={{ top: 20 }}>
-        About Me
-      </div>
-
-      {/* section headings */}
-      {SECTIONS.map((sec) => {
-        const hp = headings[sec.id];
-        if (!hp) return null;
-        return (
-          <h2
-            key={sec.id}
-            className="about-heading"
-            style={{ top: hp.y, color: sec.color }}
-          >
-            {sec.heading}
-          </h2>
-        );
-      })}
-
-      {/* paragraph blocks */}
+      {/* paragraph and heading blocks */}
       {allBlocks.map((block) => (
         <div
           key={block.id}
           ref={(el) => {
             if (el) elMapRef.current[block.id] = el;
           }}
-          className="physics-block"
+          className={
+            block.type === "h"
+              ? `physics-heading${block.isTitle ? " physics-heading-title" : ""}`
+              : "physics-block"
+          }
           style={{
             width: block.w,
-            borderColor: `${block.color}22`,
+            ...(block.type === "h"
+              ? { color: block.color }
+              : { borderColor: `${block.color}22` }),
           }}
         >
           {block.text}
@@ -727,8 +850,11 @@ export default function About() {
           ref={(el) => {
             if (el) elMapRef.current[word.id] = el;
           }}
-          className={`physics-word${word.flash ? " shatter-enter" : ""}`}
-          style={{ borderColor: `${word.color}33` }}
+          className={`physics-word${word.fromHeading ? (word.isTitle ? " heading-word heading-word-title" : " heading-word") : ""}${word.flash ? " shatter-enter" : ""}`}
+          style={{
+            borderColor: `${word.color}33`,
+            ...(word.fromHeading ? { color: word.color } : {}),
+          }}
         >
           {word.text}
         </div>
@@ -741,15 +867,18 @@ export default function About() {
           ref={(el) => {
             if (el) elMapRef.current[letter.id] = el;
           }}
-          className={`physics-letter${letter.flash ? " shatter-enter" : ""}`}
-          style={{ borderColor: `${letter.color}44` }}
+          className={`physics-letter${letter.fromHeading ? (letter.isTitle ? " heading-letter heading-letter-title" : " heading-letter") : ""}${letter.flash ? " shatter-enter" : ""}`}
+          style={{
+            borderColor: `${letter.color}44`,
+            ...(letter.fromHeading ? { color: letter.color } : {}),
+          }}
         >
           {letter.text}
         </div>
       ))}
 
       {/* reset button */}
-      <button className="about-reset-btn" onClick={handleReset}>
+      <button ref={resetBtnRef} className="about-reset-btn" onClick={handleReset}>
         reset
       </button>
     </div>
