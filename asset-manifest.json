@@ -1,17 +1,17 @@
 {
   "files": {
-    "main.css": "/hyder/static/css/main.1c489e25.css",
-    "main.js": "/hyder/static/js/main.a2727041.js",
+    "main.css": "/hyder/static/css/main.a0ff58d8.css",
+    "main.js": "/hyder/static/js/main.0804a2fe.js",
     "static/js/330.ca14d3c2.chunk.js": "/hyder/static/js/330.ca14d3c2.chunk.js",
     "static/js/453.adc34edb.chunk.js": "/hyder/static/js/453.adc34edb.chunk.js",
     "index.html": "/hyder/index.html",
-    "main.1c489e25.css.map": "/hyder/static/css/main.1c489e25.css.map",
-    "main.a2727041.js.map": "/hyder/static/js/main.a2727041.js.map",
+    "main.a0ff58d8.css.map": "/hyder/static/css/main.a0ff58d8.css.map",
+    "main.0804a2fe.js.map": "/hyder/static/js/main.0804a2fe.js.map",
     "330.ca14d3c2.chunk.js.map": "/hyder/static/js/330.ca14d3c2.chunk.js.map",
     "453.adc34edb.chunk.js.map": "/hyder/static/js/453.adc34edb.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.1c489e25.css",
-    "static/js/main.a2727041.js"
+    "static/css/main.a0ff58d8.css",
+    "static/js/main.0804a2fe.js"
   ]
 }
