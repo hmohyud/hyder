@@ -42,9 +42,202 @@
 
     <link rel="apple-touch-icon" href="%PUBLIC_URL%/logoV6.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+
+    <!-- ===== LOADER (inline — paints before any JS bundle) ===== -->
+    <style>
+      /* Prevent white flash — body only, NOT html (html bg breaks z-index:-1 elements) */
+      body {
+        margin: 0;
+        background: #0b0d12;
+      }
+
+      /* ---- Fullscreen overlay ---- */
+      #loader {
+        position: fixed;
+        inset: 0;
+        z-index: 100000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #0b0d12;
+      }
+      /* On exit: fade only the logo, keep the bg opaque,
+         then JS removes the whole element after the transition */
+      #loader.loader-exit .loader-logo {
+        opacity: 0;
+        transition: opacity 0.4s ease;
+      }
+
+      /* ---- Logo wrapper ---- */
+      .loader-logo {
+        position: relative;
+        width: 120px;
+        height: 68px;
+      }
+
+      /* ---- Letters: start hidden & offset, no animation yet ---- */
+      .loader-letter-h,
+      .loader-letter-m {
+        position: absolute;
+        top: 0;
+        width: 120px;
+        height: 68px;
+        will-change: transform, opacity;
+        opacity: 0;
+      }
+      .loader-letter-h {
+        transform: translateX(-90px);
+      }
+      .loader-letter-m {
+        transform: translateX(90px);
+      }
+      .loader-letter-h path,
+      .loader-letter-m path {
+        fill: #e8ebf4;
+      }
+
+      /* ---- Impact glow: hidden by default ---- */
+      .loader-impact {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        translate: -50% -50%;
+        width: 180px;
+        height: 180px;
+        border-radius: 50%;
+        background: radial-gradient(
+          circle,
+          rgba(160, 190, 255, 0.30) 0%,
+          rgba(160, 190, 255, 0.08) 45%,
+          transparent 70%
+        );
+        pointer-events: none;
+        opacity: 0;
+      }
+
+      /* ========================================================
+         Animations only trigger when .go is added via JS
+         (guarantees first paint shows the hidden state)
+         ======================================================== */
+      .go .loader-letter-h {
+        animation: glideH 0.7s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+      }
+      .go .loader-letter-m {
+        animation: glideM 0.7s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+      }
+      .go .loader-impact {
+        animation: softBloom 0.8s 0.5s ease-out forwards;
+      }
+      .go .loader-letter-h path,
+      .go .loader-letter-m path {
+        animation: letterGlow 0.9s 0.5s ease-out both;
+      }
+
+      @keyframes glideH {
+        0% {
+          transform: translateX(-90px);
+          opacity: 0;
+        }
+        30% {
+          opacity: 0.6;
+        }
+        70% {
+          opacity: 1;
+          transform: translateX(2px);
+        }
+        100% {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      @keyframes glideM {
+        0% {
+          transform: translateX(90px);
+          opacity: 0;
+        }
+        30% {
+          opacity: 0.6;
+        }
+        70% {
+          opacity: 1;
+          transform: translateX(-2px);
+        }
+        100% {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      @keyframes softBloom {
+        0% {
+          transform: scale(0.5);
+          opacity: 0;
+        }
+        30% {
+          opacity: 0.9;
+        }
+        100% {
+          transform: scale(1.8);
+          opacity: 0;
+        }
+      }
+
+      @keyframes letterGlow {
+        0% {
+          filter: drop-shadow(0 0 0px rgba(160, 190, 255, 0));
+        }
+        25% {
+          filter: drop-shadow(0 0 14px rgba(160, 190, 255, 0.6));
+        }
+        100% {
+          filter: drop-shadow(0 0 6px rgba(160, 190, 255, 0.2));
+        }
+      }
+
+      /* ---- Reduced motion ---- */
+      @media (prefers-reduced-motion: reduce) {
+        .go .loader-letter-h,
+        .go .loader-letter-m {
+          animation: none !important;
+          transform: translateX(0);
+          opacity: 1;
+        }
+        .go .loader-impact { animation: none !important; opacity: 0; }
+        .go .loader-letter-h path,
+        .go .loader-letter-m path { animation: none !important; }
+      }
+    </style>
   </head>
-  <body>
+  <body style="background:#0b0d12">
     <noscript>You need to enable JavaScript to run this app.</noscript>
+
+    <!-- Splash loader — visible instantly, dismissed by React -->
+    <div id="loader">
+      <div class="loader-logo">
+        <svg class="loader-letter-h" viewBox="0 0 120 68" xmlns="http://www.w3.org/2000/svg">
+          <path d="M8,0 L20,0 L20,28 L49,28 L49,0 L61,0 L61,68 L49,68 L49,40 L20,40 L20,68 L8,68 Z" />
+        </svg>
+        <svg class="loader-letter-m" viewBox="0 0 120 68" xmlns="http://www.w3.org/2000/svg">
+          <path d="M49,0 L63,0 L75,30 L87,0 L101,0 L101,68 L89,68 L89,22 L77,50 L73,50 L61,22 L61,68 L49,68 Z" />
+        </svg>
+        <div class="loader-impact"></div>
+      </div>
+    </div>
+    <!--
+      Kick off animations AFTER the browser has painted the initial
+      hidden state.  Two rAF calls guarantee at least one
+      real frame was presented before .go is added.
+    -->
+    <script>
+      requestAnimationFrame(function(){
+        requestAnimationFrame(function(){
+          var logo = document.querySelector('.loader-logo');
+          if (logo) logo.classList.add('go');
+        });
+      });
+    </script>
+
     <div id="root"></div>
   </body>
 </html>

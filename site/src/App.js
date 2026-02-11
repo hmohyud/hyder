@@ -81,8 +81,32 @@ function AppContent() {
   const [isReady, setIsReady] = useState(false);
   const location = useLocation();
 
+  /* Dismiss the raw-HTML splash loader after at least 1.5s */
   useEffect(() => {
-    requestAnimationFrame(() => setIsReady(true));
+    const MINIMUM_SHOW = 1500; // ms — loader stays at least this long
+    const loader = document.getElementById("loader");
+    if (!loader) {
+      requestAnimationFrame(() => setIsReady(true));
+      return;
+    }
+
+    const t = setTimeout(() => {
+      loader.classList.add("loader-exit");
+      // Wait for the logo fade-out (0.4s), then remove the opaque
+      // overlay instantly — no bg-animation glows leak through.
+      const onEnd = () => {
+        loader.remove();
+        requestAnimationFrame(() => setIsReady(true));
+      };
+      const logo = loader.querySelector(".loader-logo");
+      if (logo) {
+        logo.addEventListener("transitionend", onEnd, { once: true });
+      }
+      // safety fallback
+      setTimeout(onEnd, 500);
+    }, MINIMUM_SHOW);
+
+    return () => clearTimeout(t);
   }, []);
 
   const isLanding = location.pathname === "/";
