@@ -11,6 +11,9 @@ const DEFAULT_COLORS = ["#ff6b9d", "#a36bff", "#6bcfff", "#6bff9d"];
 const DEFAULT_LIGHTS = ["#ff6b9d", "#a36bff", "#6bcfff", "#6bff9d"];
 
 export default function TubesCursorOverlay({ hoveredCard }) {
+  // Disabled — remove this line to re-enable the cursor effect
+  return null;
+
   const canvasRef = useRef(null);
   const appRef = useRef(null);
   const isTouch = !window.matchMedia("(hover: hover)").matches;
@@ -32,7 +35,7 @@ export default function TubesCursorOverlay({ hoveredCard }) {
           noise: 0.006,
           colors: DEFAULT_COLORS,
           lights: {
-            intensity: 60,
+            intensity: 0,
             colors: DEFAULT_LIGHTS,
           },
         },
