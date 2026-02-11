@@ -266,22 +266,45 @@ export default function SkillsMap() {
     });
     engineRef.current = engine;
 
-    // Create circle bodies for each node at D3-computed positions
+    // Create circle bodies — start clustered at center, explode outward
+    const ctrX = w / 2;
+    const ctrY = h / 2;
     const bodyMap = new Map();
     nodes.forEach(d => {
       const r = radiusScale(d.proficiency || 1);
-      const body = Bodies.circle(d.x, d.y, r, {
+
+      // Use D3 layout position as direction hint for initial burst
+      const dx = d.x - ctrX;
+      const dy = d.y - ctrY;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+
+      // Spawn near center with slight jitter so they aren't perfectly stacked
+      const jx = ctrX + (dx / dist) * (Math.random() * 20);
+      const jy = ctrY + (dy / dist) * (Math.random() * 20);
+
+      // Sync node data to spawn position so SVG starts here too
+      d.x = jx;
+      d.y = jy;
+
+      const body = Bodies.circle(jx, jy, r, {
         restitution: 0.4,
         friction: 0.1,
         frictionAir: 0.04,
         density: 0.001 * (1 + (d.proficiency || 1) / 10),
         collisionFilter: {
           category: 0x0001,
-          mask: 0x0001,  // collide with other nodes only (no walls)
+          mask: 0x0001,  // collide with other nodes only
         },
         label: d.id,
       });
       body._nodeData = d;
+
+      const speed = 18 + Math.random() * 10;
+      Body.setVelocity(body, {
+        x: (dx / dist) * speed,
+        y: (dy / dist) * speed,
+      });
+
       Composite.add(engine.world, body);
       bodyMap.set(d.id, body);
     });
