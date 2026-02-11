@@ -16,7 +16,7 @@ export default function BgVariantB() {
 
     let W, H, dpr;
     let mouse = { x: -9999, y: -9999 };
-    const COUNT = 1600;
+    const DENSITY = 0.0008; // particles per square pixel
     const MOUSE_RADIUS = 180;
 
     const COLORS = [
@@ -37,11 +37,11 @@ export default function BgVariantB() {
         x: Math.random() * (W || 1920),
         y: startRandom ? Math.random() * (H || 1080) : (H || 1080) + Math.random() * 100,
         vx: 0,
-        vy: -(0.15 + Math.random() * 0.6),
+        vy: -(0.08 + Math.random() * 0.3),
         size: 0.4 + Math.random() * 1.4,
         r: c[0], g: c[1], b: c[2],
         alpha: 0.08 + Math.random() * 0.25,
-        drift: (Math.random() - 0.5) * 0.3,
+        drift: (Math.random() - 0.5) * 0.15,
         sineAmp: 10 + Math.random() * 30,
         sineFreq: 0.005 + Math.random() * 0.01,
         sineOff: Math.random() * Math.PI * 2,
@@ -59,7 +59,8 @@ export default function BgVariantB() {
       canvas.style.height = H + "px";
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       particles = [];
-      for (let i = 0; i < COUNT; i++) {
+      const count = Math.round(W * H * DENSITY);
+      for (let i = 0; i < count; i++) {
         const p = initParticle(true);
         p.baseX = p.x;
         particles.push(p);
@@ -93,8 +94,8 @@ export default function BgVariantB() {
         let extraVx = 0;
         if (mdist < MOUSE_RADIUS && mdist > 0) {
           const f = (1 - mdist / MOUSE_RADIUS);
-          extraVy = -f * 1.8; // updraft
-          extraVx = (mdx / mdist) * f * 0.5; // slight scatter
+          extraVy = -f * 1.0; // updraft
+          extraVx = (mdx / mdist) * f * 0.3; // slight scatter
         }
         p.y += extraVy;
         p.baseX += extraVx;
