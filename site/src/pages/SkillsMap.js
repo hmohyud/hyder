@@ -1,8 +1,12 @@
 // src/pages/SkillsMap.js
 import React, { useEffect, useRef, useState } from 'react';
 import * as d3 from 'd3';
+import Matter from 'matter-js';
+import { applyLinkForces, applyRepulsion } from '../utils/linkForces';
 import './SkillsMap.css';
 import '../App.css';
+
+const { Engine, Bodies, Body, Composite, Constraint } = Matter;
 
 // Load the dotlottie-player web component once (works with .lottie files)
 function useDotLottieScript() {
@@ -20,7 +24,11 @@ export default function SkillsMap() {
   useDotLottieScript();
 
   const svgRef = useRef(null);
-  const simulationRef = useRef(null);
+  const engineRef = useRef(null);
+  const bodyMapRef = useRef(new Map());
+  const dragRef = useRef(null);
+  const linksForPhysicsRef = useRef([]);
+  const nodesRef = useRef([]);
   const [data, setData] = useState({ skillNodes: [] });
   const [calcMs, setCalcMs] = useState(0);
   const tooltipInfoRef = useRef(null);
@@ -150,7 +158,8 @@ export default function SkillsMap() {
     return () => ro.disconnect();
   }, []);
 
-  // --- Main D3 + Canvas setup ---
+  // --- Main Matter.js + Canvas setup ---
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     let dragStartScreenPos = null;
     let isActuallyDragging = false;
@@ -158,11 +167,13 @@ export default function SkillsMap() {
     const { width: w, height: h } = viewport;
     if (!data.skillNodes.length || !w || !h) return;
 
-    // Clean up any existing simulation
-    if (simulationRef.current) {
-      simulationRef.current.stop();
-      simulationRef.current = null;
+    // Clean up any existing engine
+    if (engineRef.current) {
+      Engine.clear(engineRef.current);
+      engineRef.current = null;
     }
+    bodyMapRef.current.clear();
+    dragRef.current = null;
 
     const svgEl = svgRef.current;
     if (!svgEl) return;
@@ -198,10 +209,9 @@ export default function SkillsMap() {
       ...d,
       x: d.x || w / 2 + Math.random() * 50 - 25,
       y: d.y || h / 2 + Math.random() * 50 - 25,
-      fx: null,
-      fy: null,
       ringColor: stringToColor(d.id),
     }));
+    nodesRef.current = nodes;
 
     // links by mode
     const links = [];
@@ -231,30 +241,56 @@ export default function SkillsMap() {
       // intentionally no links
     }
 
-    const linkForce = d3.forceLink(links).id(d => d.id);
-    if (linkMode === 'ungrouped') {
-      linkForce.strength(0);
-    } else {
-      linkForce.distance(130).strength(0.1);
-    }
-
-    const sim = d3.forceSimulation(nodes)
-      .alphaMin(0.001)
-      .alphaDecay(0.01)
-      .velocityDecay(0.2)
-      .force('link', linkForce)
+    // --- Headless D3 simulation for initial layout ---
+    const initSim = d3.forceSimulation(nodes)
+      .force('link', d3.forceLink(links).id(d => d.id).distance(130).strength(linkMode === 'ungrouped' ? 0 : 0.1))
       .force('charge', d3.forceManyBody().strength(-20))
       .force('center', d3.forceCenter(w / 2, h / 2))
-      .force('collide', d3.forceCollide().radius(d => radiusScale(d.proficiency || 1) + 6).strength(0.5));
+      .force('collide', d3.forceCollide().radius(d => radiusScale(d.proficiency || 1) + 6).strength(0.5))
+      .stop();
 
-    simulationRef.current = sim;
+    for (let i = 0; i < 60; i++) initSim.tick();
+    initSim.stop();
+    // D3 forceLink resolves source/target from string IDs to node objects
 
-    for (let i = 0; i < 40; i++) sim.tick();
-    sim.alpha(0.2).restart();
+    // Store physics links as string IDs (for bodyMap lookup)
+    linksForPhysicsRef.current = links.map(l => ({
+      source: typeof l.source === 'object' ? l.source.id : l.source,
+      target: typeof l.target === 'object' ? l.target.id : l.target,
+    }));
 
+    // --- Create Matter.js engine (zero gravity, free-floating) ---
+    const engine = Engine.create({
+      gravity: { x: 0, y: 0 },
+      enableSleeping: false,
+    });
+    engineRef.current = engine;
+
+    // Create circle bodies for each node at D3-computed positions
+    const bodyMap = new Map();
+    nodes.forEach(d => {
+      const r = radiusScale(d.proficiency || 1);
+      const body = Bodies.circle(d.x, d.y, r, {
+        restitution: 0.4,
+        friction: 0.1,
+        frictionAir: 0.04,
+        density: 0.001 * (1 + (d.proficiency || 1) / 10),
+        collisionFilter: {
+          category: 0x0001,
+          mask: 0x0001,  // collide with other nodes only (no walls)
+        },
+        label: d.id,
+      });
+      body._nodeData = d;
+      Composite.add(engine.world, body);
+      bodyMap.set(d.id, body);
+    });
+    bodyMapRef.current = bodyMap;
+
+    // --- SVG setup (same structure as before) ---
     const g = svg.append('g');
 
-    const link = g.append('g')
+    const linkSel = g.append('g')
       .attr('stroke', '#555')
       .attr('stroke-opacity', 0.4)
       .selectAll('line')
@@ -267,63 +303,13 @@ export default function SkillsMap() {
       .join('g')
       .style('cursor', 'pointer')
       .each(function (d) { d.gElement = d3.select(this); })
-      .on('click', function (event, d) {
-        if (isActuallyDragging) return;
-        const set = expandedNodesRef.current;
-        set.has(d.id) ? set.delete(d.id) : set.add(d.id);
-        forceRerender(x => x + 1);
-
-        d3.selectAll('circle').attr('stroke', c => set.has(c.id) ? c.ringColor : '#000');
-        d3.selectAll('text').style('display', 'block');
-
-        if (tooltipInfoRef.current) {
-          if (set.has(d.id)) {
-            tooltipInfoRef.current.innerHTML =
-              `<strong style='font-size: 14px;'>${d.id}</strong><br/>${(d.description || 'No details available.')}`;
-            tooltipInfoRef.current.style.display = 'block';
-          } else {
-            tooltipInfoRef.current.style.display = 'none';
-          }
-        }
-        Object.entries(nodeListRefs.current).forEach(([id, el]) => {
-          const n = data.skillNodes.find(n => n.id === id);
-          if (!n || !el) return;
-          el.style.setProperty('--ring', n.ringColor);
-          el.style.setProperty('--ring-tint', `${n.ringColor}33`);
-          el.dataset.selected = set.has(id) ? 'true' : 'false';
-          el.style.removeProperty('background');
-          el.style.removeProperty('border-left');
-        });
-      })
       .on('mouseover', function () {
         d3.select(this).select('circle').transition().duration(200).attr('fill', '#88f');
       })
       .on('mouseout', function () {
         d3.select(this).select('circle').transition().duration(200)
           .attr('fill', d => d.id === expandedIdRef.current ? '#f0f0f0' : '#666');
-      })
-      .call(d3.drag()
-        .on('start', (event, d) => {
-          dragStartScreenPos = [event.sourceEvent.clientX, event.sourceEvent.clientY];
-          isActuallyDragging = false;
-          if (!event.active) sim.alphaTarget(0.03).restart();
-          d.fx = d.x; d.fy = d.y;
-        })
-        .on('drag', (event, d) => {
-          const [sx, sy] = dragStartScreenPos;
-          const dx = event.sourceEvent.clientX - sx;
-          const dy = event.sourceEvent.clientY - sy;
-          if (Math.sqrt(dx * dx + dy * dy) > 4) isActuallyDragging = true;
-
-          const pad = 40;
-          d.fx = Math.max(pad, Math.min(w - pad, event.x));
-          d.fy = Math.max(pad, Math.min(h - pad, event.y));
-        })
-        .on('end', (event, d) => {
-          if (!event.active) sim.alphaTarget(0);
-          d.fx = null; d.fy = null;
-        })
-      );
+      });
 
     node.append('circle')
       .attr('r', d => radiusScale(d.proficiency || 1))
@@ -352,27 +338,197 @@ export default function SkillsMap() {
       .style('pointer-events', 'none')
       .style('user-select', 'none');
 
+    // --- Pointer-based drag with Matter.js Constraint ---
+    const getPos = (e) => {
+      const rect = svgEl.getBoundingClientRect();
+      return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    };
+
+    const handlePointerDown = (e) => {
+      if (e.button !== 0) return; // left click only
+      dragStartScreenPos = [e.clientX, e.clientY];
+      isActuallyDragging = false;
+
+      const pos = getPos(e);
+      // Use distance-based search with generous hit radius (min 18px)
+      // Query.point is too strict for small nodes, especially at walls
+      let hitBody = null;
+      let bestDist = Infinity;
+      bodyMap.forEach(body => {
+        const dx = pos.x - body.position.x;
+        const dy = pos.y - body.position.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const hitRadius = Math.max(body.circleRadius || 8, 18);
+        if (dist < hitRadius && dist < bestDist) {
+          bestDist = dist;
+          hitBody = body;
+        }
+      });
+      if (!hitBody) return;
+      const nodeData = hitBody._nodeData;
+      if (!nodeData) return;
+
+      const constraint = Constraint.create({
+        pointA: { x: pos.x, y: pos.y },
+        bodyB: hitBody,
+        pointB: {
+          x: pos.x - hitBody.position.x,
+          y: pos.y - hitBody.position.y,
+        },
+        stiffness: 0.15,
+        damping: 0.1,
+        length: 0,
+      });
+      Composite.add(engine.world, constraint);
+
+      dragRef.current = { constraint, body: hitBody, nodeData };
+      try { svgEl.setPointerCapture(e.pointerId); } catch (_) {}
+      e.preventDefault(); // prevent text selection while dragging
+    };
+
+    const handlePointerMove = (e) => {
+      if (!dragRef.current) return;
+
+      // Track drag distance for click/drag threshold
+      if (dragStartScreenPos) {
+        const [sx, sy] = dragStartScreenPos;
+        const ddx = e.clientX - sx;
+        const ddy = e.clientY - sy;
+        if (Math.sqrt(ddx * ddx + ddy * ddy) > 4) isActuallyDragging = true;
+      }
+
+      const pos = getPos(e);
+      const pad = 40;
+      dragRef.current.constraint.pointA = {
+        x: Math.max(pad, Math.min(w - pad, pos.x)),
+        y: Math.max(pad, Math.min(h - pad, pos.y)),
+      };
+    };
+
+    const handlePointerUp = (e) => {
+      if (!dragRef.current) return;
+      const { constraint, nodeData } = dragRef.current;
+      Composite.remove(engine.world, constraint);
+      dragRef.current = null;
+      // Body retains velocity — momentum transfer happens naturally
+
+      // If we didn't actually drag (click), trigger node selection
+      if (!isActuallyDragging && nodeData) {
+        const set = expandedNodesRef.current;
+        if (set.has(nodeData.id)) {
+          set.delete(nodeData.id);
+        } else {
+          set.add(nodeData.id);
+          // Auto-open the "learnedFrom" section for newly selected nodes
+          setOpenLearnedFromIds(prev => {
+            const next = new Set(prev);
+            next.add(nodeData.id);
+            return next;
+          });
+        }
+        forceRerender(x => x + 1);
+
+        d3.selectAll('circle').attr('stroke', c => set.has(c.id) ? c.ringColor : '#000');
+        d3.selectAll('text').style('display', 'block');
+
+        if (tooltipInfoRef.current) {
+          if (set.has(nodeData.id)) {
+            tooltipInfoRef.current.innerHTML =
+              `<strong style='font-size: 14px;'>${nodeData.id}</strong><br/>${(nodeData.description || 'No details available.')}`;
+            tooltipInfoRef.current.style.display = 'block';
+          } else {
+            tooltipInfoRef.current.style.display = 'none';
+          }
+        }
+        Object.entries(nodeListRefs.current).forEach(([id, el]) => {
+          const n = data.skillNodes.find(n => n.id === id);
+          if (!n || !el) return;
+          el.style.setProperty('--ring', n.ringColor);
+          el.style.setProperty('--ring-tint', `${n.ringColor}33`);
+          el.dataset.selected = set.has(id) ? 'true' : 'false';
+          el.style.removeProperty('background');
+          el.style.removeProperty('border-left');
+        });
+      }
+
+      try { svgEl.releasePointerCapture(e.pointerId); } catch (_) {}
+    };
+
+    svgEl.addEventListener('pointerdown', handlePointerDown);
+    svgEl.addEventListener('pointermove', handlePointerMove);
+    svgEl.addEventListener('pointerup', handlePointerUp);
+    svgEl.addEventListener('pointercancel', handlePointerUp);
+
     // --------- rAF render loop (CSS-pixel space only) ---------
     let rafId = null;
+    let lastTime = performance.now();
 
     const renderFrame = () => {
       const start = performance.now();
 
-      const alpha = sim.alpha();
+      // --- Step Matter.js physics ---
+      const now = performance.now();
+      const delta = Math.min(now - lastTime, 16.667);
+      lastTime = now;
+      Engine.update(engine, delta);
 
-      const paddingLocal = 40;
-      node.attr('transform', d => {
-        d.x = Math.max(paddingLocal, Math.min(w - paddingLocal, d.x));
-        d.y = Math.max(paddingLocal, Math.min(h - paddingLocal, d.y));
-        return `translate(${d.x}, ${d.y})`;
+      // --- Hard boundary enforcement (replaces walls) ---
+      // Deterministic: clamp position by radius, reflect velocity for bounce.
+      // Can never tunnel regardless of speed.
+      const BOUNCE = 0.5;  // energy kept on bounce (0 = dead stop, 1 = perfect)
+      bodyMap.forEach(body => {
+        const r = body.circleRadius || 8;
+        const px = body.position.x;
+        const py = body.position.y;
+        let vx = body.velocity.x;
+        let vy = body.velocity.y;
+        let cx = px, cy = py;
+        let bounced = false;
+
+        if (px - r < 0)     { cx = r;     vx = Math.abs(vx) * BOUNCE; bounced = true; }
+        if (px + r > w)     { cx = w - r; vx = -Math.abs(vx) * BOUNCE; bounced = true; }
+        if (py - r < 0)     { cy = r;     vy = Math.abs(vy) * BOUNCE; bounced = true; }
+        if (py + r > h)     { cy = h - r; vy = -Math.abs(vy) * BOUNCE; bounced = true; }
+
+        if (bounced) {
+          Body.setPosition(body, { x: cx, y: cy });
+          Body.setVelocity(body, { x: vx, y: vy });
+        }
       });
 
-      link
+      // --- Apply custom forces ---
+      const physLinks = linksForPhysicsRef.current;
+      const allBodies = [];
+      bodyMap.forEach(body => allBodies.push(body));
+
+      // Slack rope link forces (only pull when stretched beyond rest length)
+      if (physLinks.length > 0) {
+        applyLinkForces(physLinks, bodyMap, 0.00004, 120);
+      }
+
+      // Repulsion to prevent overlap (supplement to collision)
+      applyRepulsion(allBodies, 0.0002, 180);
+
+      // --- Sync Matter.js body positions -> node data ---
+      // No clamping — walls handle containment. Clamping caused SVG position
+      // to diverge from physics body position, making wall-adjacent nodes un-draggable.
+      nodes.forEach(d => {
+        const body = bodyMap.get(d.id);
+        if (!body) return;
+        d.x = body.position.x;
+        d.y = body.position.y;
+      });
+
+      // --- SVG sync ---
+      node.attr('transform', d => `translate(${d.x}, ${d.y})`);
+
+      linkSel
         .attr('x1', d => d.source.x)
         .attr('y1', d => d.source.y)
         .attr('x2', d => d.target.x)
         .attr('y2', d => d.target.y);
 
+      // --- Canvas rendering (unchanged) ---
       const canvasEl2 = canvasRef.current;
       if (canvasEl2) {
         // ensure canvas/offscreens still match viewport
@@ -457,10 +613,9 @@ export default function SkillsMap() {
           // paint grid
           main.drawImage(gridCanvas, 0, 0);
 
-          // Tint lines near selected nodes — only when layout is settled a bit
+          // Tint lines near selected nodes
           const selected = expandedNodesRef.current;
-          const canTint = selected.size > 0 && alpha < 0.12;
-          if (canTint) {
+          if (selected.size > 0) {
             selected.forEach(id => {
               const n = nodes.find(nn => nn.id === id);
               if (!n) return;
@@ -501,7 +656,16 @@ export default function SkillsMap() {
     // Cleanup
     return () => {
       if (rafId) cancelAnimationFrame(rafId);
-      sim.stop();
+      svgEl.removeEventListener('pointerdown', handlePointerDown);
+      svgEl.removeEventListener('pointermove', handlePointerMove);
+      svgEl.removeEventListener('pointerup', handlePointerUp);
+      svgEl.removeEventListener('pointercancel', handlePointerUp);
+      if (engineRef.current) {
+        Engine.clear(engineRef.current);
+        engineRef.current = null;
+      }
+      bodyMapRef.current.clear();
+      dragRef.current = null;
     };
   }, [data, linkMode, viewport.width, viewport.height, isIPad]);
 
@@ -591,7 +755,17 @@ export default function SkillsMap() {
                 style={{ '--ring': node.ringColor, '--ring-tint': `${node.ringColor}33` }}
                 onClick={() => {
                   const set = expandedNodesRef.current;
-                  set.has(node.id) ? set.delete(node.id) : set.add(node.id);
+                  if (set.has(node.id)) {
+                    set.delete(node.id);
+                  } else {
+                    set.add(node.id);
+                    // Auto-open the "learnedFrom" section for newly selected nodes
+                    setOpenLearnedFromIds(prev => {
+                      const next = new Set(prev);
+                      next.add(node.id);
+                      return next;
+                    });
+                  }
                   forceRerender(x => x + 1);
 
                   d3.selectAll('circle').attr('stroke', c => set.has(c.id) ? c.ringColor : '#000');
@@ -772,9 +946,9 @@ export default function SkillsMap() {
               <div className="hint-title"></div>
               <div className="hint-text">
                 {isPhone ? (
-                  <>Tap a <strong>skill in the list</strong> to add a card. Tap a <strong>card</strong> to expand it and see how I learned that skill.</>
+                  <>Tap a <strong>skill in the list</strong> to add a card. Cards open expanded — tap to collapse.</>
                 ) : (
-                  <>Click a <span className="hint-node-circle" aria-label="graph node example"><span>node</span></span> to add a card. Click a <strong>card</strong> to expand it and see how I learned that skill.</>
+                  <>Click a <span className="hint-node-circle" aria-label="graph node example"><span>node</span></span> to add a card. Cards open expanded — click to collapse.</>
                 )}
               </div>
               <button

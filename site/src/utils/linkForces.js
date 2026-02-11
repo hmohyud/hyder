@@ -4,23 +4,30 @@ const { Body } = Matter;
 
 /**
  * Apply spring-like attraction between linked nodes (replaces d3.forceLink).
+ * Only pulls when distance exceeds restLength ("slack rope" behaviour).
  * Call once per frame inside a beforeUpdate handler.
  *
  * @param {Array<{source:string, target:string}>} links
- * @param {Map<string, {center: Matter.Body}>} bodyMap
+ * @param {Map<string, Matter.Body|{center: Matter.Body}>} bodyMap
  * @param {number} [strength=0.00005]
  * @param {number} [restLength=130]
  */
 export function applyLinkForces(links, bodyMap, strength = 0.00005, restLength = 130) {
   for (const link of links) {
-    const a = bodyMap.get(link.source)?.center;
-    const b = bodyMap.get(link.target)?.center;
+    const entryA = bodyMap.get(link.source);
+    const entryB = bodyMap.get(link.target);
+    const a = entryA?.center ?? entryA;
+    const b = entryB?.center ?? entryB;
     if (!a || !b) continue;
 
     const dx = b.position.x - a.position.x;
     const dy = b.position.y - a.position.y;
     const dist = Math.sqrt(dx * dx + dy * dy) || 0.001;
     const displacement = dist - restLength;
+
+    // Slack rope: only pull when stretched beyond rest length
+    if (displacement <= 0) continue;
+
     const forceMag = displacement * strength;
     const fx = (dx / dist) * forceMag;
     const fy = (dy / dist) * forceMag;

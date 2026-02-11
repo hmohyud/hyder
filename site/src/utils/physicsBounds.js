@@ -18,7 +18,7 @@ const WALL_OPTS = {
  * @returns {Matter.Body[]} array of 4 wall bodies (for later removal on resize)
  */
 export function createWalls(engine, w, h) {
-  const thickness = 60;
+  const thickness = 400;  // thick enough to prevent tunnelling at high velocity
 
   const top    = Bodies.rectangle(w / 2, -thickness / 2,       w + thickness * 2, thickness, WALL_OPTS);
   const bottom = Bodies.rectangle(w / 2, h + thickness / 2,    w + thickness * 2, thickness, WALL_OPTS);
