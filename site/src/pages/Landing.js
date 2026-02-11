@@ -42,6 +42,13 @@ export default function Landing() {
   const wrapRef = useRef(null);
   const [hoveredCard, setHoveredCard] = useState(null);
 
+  // Card refs for magnet targeting
+  const cardRefs = useRef({});
+  const setCardRef = (id) => (el) => { cardRefs.current[id] = el; };
+
+  // The actual DOM element to magnetize toward (or null)
+  const magnetTarget = hoveredCard ? cardRefs.current[hoveredCard] : null;
+
   /* Scale .wrap uniformly so it always fits within 100vh */
   useEffect(() => {
     const wrap = wrapRef.current;
@@ -86,14 +93,14 @@ export default function Landing() {
     buildParticles(60);
 
     return () => {
-      particlesRef.current && (particlesRef.current.innerHTML = "");
+      particlesRef.current && (particlesRef.current.innerHTML = ""); // eslint-disable-line
     };
   }, []);
 
   return (
     <div className={`landing${hoveredCard ? " card-focus" : ""}`}>
       {/* Background */}
-      <BgVariantB />
+      <BgVariantB magnetTarget={magnetTarget} magnetCardId={hoveredCard} />
       {/* Tubes cursor */}
       <TubesCursorOverlay hoveredCard={hoveredCard} />
       <div className="magic-circle" aria-hidden="true" />
@@ -110,7 +117,7 @@ export default function Landing() {
             I build dependable AI tools and interfaces. Recent work: real-time tensor
             devtools for <strong>Stable Diffusion/ComfyUI</strong> (custom memory routing,
             layer-targeted transforms, node instrumentation) and a production
-            <strong> SPIM research UI</strong> (controls + analysis). I’m also experienced
+            <strong> SPIM research UI</strong> (controls + analysis). I'm also experienced
             with <strong>GPT models</strong> and <strong>modern web development </strong>
             (React/JS, D3, Flask). For the full toolset and stack, see my resume.
           </p> */}
@@ -122,7 +129,7 @@ export default function Landing() {
 
         <section className="grid" aria-label="Site sections">
           {/* Skills */}
-          <Link to="/skills" className={`card card-1 portal${hoveredCard === 1 ? " card-hover-active" : ""}`} aria-label="Go to Skills" onMouseEnter={() => setHoveredCard(1)} onMouseLeave={() => setHoveredCard(null)}>
+          <Link ref={setCardRef(1)} to="/skills" className={`card card-1 portal${hoveredCard === 1 ? " card-hover-active" : ""}`} aria-label="Go to Skills" onMouseEnter={() => setHoveredCard(1)} onMouseLeave={() => setHoveredCard(null)}>
             <span className="portal-glow portal-1" aria-hidden="true" />
             <div className="card-head">
               <span className="icon">
@@ -141,7 +148,7 @@ export default function Landing() {
           </Link>
 
           {/* Projects */}
-          <Link to="/projects" className={`card card-2 portal${hoveredCard === 2 ? " card-hover-active" : ""}`} aria-label="Go to Projects" onMouseEnter={() => setHoveredCard(2)} onMouseLeave={() => setHoveredCard(null)}>
+          <Link ref={setCardRef(2)} to="/projects" className={`card card-2 portal${hoveredCard === 2 ? " card-hover-active" : ""}`} aria-label="Go to Projects" onMouseEnter={() => setHoveredCard(2)} onMouseLeave={() => setHoveredCard(null)}>
             <span className="portal-glow portal-2" aria-hidden="true" />
             <div className="card-head">
               <span className="icon">
@@ -160,7 +167,7 @@ export default function Landing() {
           </Link>
 
           {/* About */}
-          <Link to="/about" className={`card card-3 portal${hoveredCard === 3 ? " card-hover-active" : ""}`} aria-label="Go to About" onMouseEnter={() => setHoveredCard(3)} onMouseLeave={() => setHoveredCard(null)}>
+          <Link ref={setCardRef(3)} to="/about" className={`card card-3 portal${hoveredCard === 3 ? " card-hover-active" : ""}`} aria-label="Go to About" onMouseEnter={() => setHoveredCard(3)} onMouseLeave={() => setHoveredCard(null)}>
             <span className="portal-glow portal-3" aria-hidden="true" />
             <div className="card-head">
               <span className="icon">
@@ -179,7 +186,7 @@ export default function Landing() {
           </Link>
 
           {/* Resume */}
-          <Link to="/resume" className={`card card-4 portal${hoveredCard === 4 ? " card-hover-active" : ""}`} aria-label="Go to Résumé" onMouseEnter={() => setHoveredCard(4)} onMouseLeave={() => setHoveredCard(null)}>
+          <Link ref={setCardRef(4)} to="/resume" className={`card card-4 portal${hoveredCard === 4 ? " card-hover-active" : ""}`} aria-label="Go to Résumé" onMouseEnter={() => setHoveredCard(4)} onMouseLeave={() => setHoveredCard(null)}>
             <span className="portal-glow portal-4" aria-hidden="true" />
             <div className="card-head">
               <span className="icon">
