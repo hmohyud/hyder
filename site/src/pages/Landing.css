@@ -91,6 +91,7 @@
 .card.card-hover-active{
   opacity: 1;
   filter: brightness(1);
+  background: linear-gradient(180deg, rgba(18,22,30,0.97), rgba(14,18,24,0.97));
 }
 
 /* decorative rings */
@@ -196,7 +197,7 @@
   overflow: hidden;
 }
 .card:hover{
-  transform: translateY(-4px) scale(1.02) rotate(.6deg);
+  /* transform: translateY(-4px) scale(1.02) rotate(.6deg); */
   box-shadow: 0 20px 48px rgba(0,0,0,.46);
   border-color: rgba(255,255,255,0.16);
 }
@@ -217,6 +218,24 @@
 .card-2{ --a:#b48bff; --b:#92a2ff; }
 .card-3{ --a:#7fd3ff; --b:#9fe1ff; }
 .card-4{ --a:#78ffa8; --b:#c7ffd8; }
+
+/* Card wrapper */
+.card-wrap{
+  position: relative;
+  
+  
+}
+.card-wrap:hover{
+    /* transform: translateY(-4px) scale(1.02) rotate(.6deg); */
+}
+
+/* Full-page glow overlay — transparent canvas, no blend mode needed */
+.card-glow-overlay{
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
 
 /* Portal glow layer */
 .portal-glow{

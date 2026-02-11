@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import ShaderBackground from "../components/ShaderBackground";
 import TubesCursorOverlay from "../components/TubesCursorOverlay";
+import CardGlowOverlay from "../components/CardGlowOverlay";
 import "./Landing.css";
 
 /* Inline icons (no emojis) */
@@ -41,6 +42,13 @@ export default function Landing() {
   const particlesRef = useRef(null);
   const wrapRef = useRef(null);
   const [hoveredCard, setHoveredCard] = useState(null);
+
+  /* Refs to each card wrapper so CardGlowOverlay can read their rects */
+  const cardRef1 = useRef(null);
+  const cardRef2 = useRef(null);
+  const cardRef3 = useRef(null);
+  const cardRef4 = useRef(null);
+  const cardRefs = [cardRef1, cardRef2, cardRef3, cardRef4];
 
   /* Scale .wrap uniformly so it always fits within 100vh */
   useEffect(() => {
@@ -96,6 +104,8 @@ export default function Landing() {
       <ShaderBackground />
       {/* Tubes cursor */}
       <TubesCursorOverlay hoveredCard={hoveredCard} />
+      {/* Animated rectangular glow overlay */}
+      <CardGlowOverlay hoveredCard={hoveredCard} cardRefs={cardRefs} />
       <div className="magic-circle" aria-hidden="true" />
       <div className="magic-circle alt" aria-hidden="true" />
       <div className="magic-circle slow" aria-hidden="true" />
@@ -110,7 +120,7 @@ export default function Landing() {
             I build dependable AI tools and interfaces. Recent work: real-time tensor
             devtools for <strong>Stable Diffusion/ComfyUI</strong> (custom memory routing,
             layer-targeted transforms, node instrumentation) and a production
-            <strong> SPIM research UI</strong> (controls + analysis). I’m also experienced
+            <strong> SPIM research UI</strong> (controls + analysis). I'm also experienced
             with <strong>GPT models</strong> and <strong>modern web development </strong>
             (React/JS, D3, Flask). For the full toolset and stack, see my resume.
           </p> */}
@@ -122,80 +132,88 @@ export default function Landing() {
 
         <section className="grid" aria-label="Site sections">
           {/* Skills */}
-          <Link to="/skills" className={`card card-1 portal${hoveredCard === 1 ? " card-hover-active" : ""}`} aria-label="Go to Skills" onMouseEnter={() => setHoveredCard(1)} onMouseLeave={() => setHoveredCard(null)}>
-            <span className="portal-glow portal-1" aria-hidden="true" />
-            <div className="card-head">
-              <span className="icon">
-                <IconGraph />
-              </span>
-              <h2>Skills</h2>
-            </div>
-            <p className="card-copy">A visual and interactive map of my skills</p>
-            <div className="peek">
-              <img
-                src={process.env.PUBLIC_URL + "/previews/skills.jpg"}
-                alt="Preview of Skills page"
-                loading="lazy"
-              />
-            </div>
-          </Link>
+          <div className="card-wrap" onMouseEnter={() => setHoveredCard(1)} onMouseLeave={() => setHoveredCard(null)}>
+            <Link ref={cardRef1} to="/skills" className={`card card-1 portal${hoveredCard === 1 ? " card-hover-active" : ""}`} aria-label="Go to Skills">
+              <span className="portal-glow portal-1" aria-hidden="true" />
+              <div className="card-head">
+                <span className="icon">
+                  <IconGraph />
+                </span>
+                <h2>Skills</h2>
+              </div>
+              <p className="card-copy">A visual and interactive map of my skills</p>
+              <div className="peek">
+                <img
+                  src={process.env.PUBLIC_URL + "/previews/skills.jpg"}
+                  alt="Preview of Skills page"
+                  loading="lazy"
+                />
+              </div>
+            </Link>
+          </div>
 
           {/* Projects */}
-          <Link to="/projects" className={`card card-2 portal${hoveredCard === 2 ? " card-hover-active" : ""}`} aria-label="Go to Projects" onMouseEnter={() => setHoveredCard(2)} onMouseLeave={() => setHoveredCard(null)}>
-            <span className="portal-glow portal-2" aria-hidden="true" />
-            <div className="card-head">
-              <span className="icon">
-                <IconLayers />
-              </span>
-              <h2>Projects</h2>
-            </div>
-            <p className="card-copy">See my write-ups on past projects</p>
-            <div className="peek">
-              <img
-                src={process.env.PUBLIC_URL + "/previews/projects.jpg"}
-                alt="Preview of Projects page"
-                loading="lazy"
-              />
-            </div>
-          </Link>
+          <div className="card-wrap" onMouseEnter={() => setHoveredCard(2)} onMouseLeave={() => setHoveredCard(null)}>
+            <Link ref={cardRef2} to="/projects" className={`card card-2 portal${hoveredCard === 2 ? " card-hover-active" : ""}`} aria-label="Go to Projects">
+              <span className="portal-glow portal-2" aria-hidden="true" />
+              <div className="card-head">
+                <span className="icon">
+                  <IconLayers />
+                </span>
+                <h2>Projects</h2>
+              </div>
+              <p className="card-copy">See my write-ups on past projects</p>
+              <div className="peek">
+                <img
+                  src={process.env.PUBLIC_URL + "/previews/projects.jpg"}
+                  alt="Preview of Projects page"
+                  loading="lazy"
+                />
+              </div>
+            </Link>
+          </div>
 
           {/* About */}
-          <Link to="/about" className={`card card-3 portal${hoveredCard === 3 ? " card-hover-active" : ""}`} aria-label="Go to About" onMouseEnter={() => setHoveredCard(3)} onMouseLeave={() => setHoveredCard(null)}>
-            <span className="portal-glow portal-3" aria-hidden="true" />
-            <div className="card-head">
-              <span className="icon">
-                <IconUser />
-              </span>
-              <h2>About</h2>
-            </div>
-            <p className="card-copy">Background, approach, and what I'm exploring</p>
-            <div className="peek">
-              <img
-                src={process.env.PUBLIC_URL + "/previews/about.jpg"}
-                alt="Preview of About page"
-                loading="lazy"
-              />
-            </div>
-          </Link>
+          <div className="card-wrap" onMouseEnter={() => setHoveredCard(3)} onMouseLeave={() => setHoveredCard(null)}>
+            <Link ref={cardRef3} to="/about" className={`card card-3 portal${hoveredCard === 3 ? " card-hover-active" : ""}`} aria-label="Go to About">
+              <span className="portal-glow portal-3" aria-hidden="true" />
+              <div className="card-head">
+                <span className="icon">
+                  <IconUser />
+                </span>
+                <h2>About</h2>
+              </div>
+              <p className="card-copy">Background, approach, and what I'm exploring</p>
+              <div className="peek">
+                <img
+                  src={process.env.PUBLIC_URL + "/previews/about.jpg"}
+                  alt="Preview of About page"
+                  loading="lazy"
+                />
+              </div>
+            </Link>
+          </div>
 
           {/* Resume */}
-          <Link to="/resume" className={`card card-4 portal${hoveredCard === 4 ? " card-hover-active" : ""}`} aria-label="Go to Résumé" onMouseEnter={() => setHoveredCard(4)} onMouseLeave={() => setHoveredCard(null)}>
-            <span className="portal-glow portal-4" aria-hidden="true" />
-            <div className="card-head">
-              <span className="icon">
-                <IconDoc />
-              </span>
-              <h2>Resume</h2>
-            </div>
-            <p className="card-copy">Experience, education, and highlights</p>
-            <div className="peek">
-              <img
-                src={process.env.PUBLIC_URL + "/previews/resume.jpg"}
-                alt="Preview of Resume page"
-                loading="lazy"
-              />
-            </div>
-          </Link>
+          <div className="card-wrap" onMouseEnter={() => setHoveredCard(4)} onMouseLeave={() => setHoveredCard(null)}>
+            <Link ref={cardRef4} to="/resume" className={`card card-4 portal${hoveredCard === 4 ? " card-hover-active" : ""}`} aria-label="Go to Résumé">
+              <span className="portal-glow portal-4" aria-hidden="true" />
+              <div className="card-head">
+                <span className="icon">
+                  <IconDoc />
+                </span>
+                <h2>Resume</h2>
+              </div>
+              <p className="card-copy">Experience, education, and highlights</p>
+              <div className="peek">
+                <img
+                  src={process.env.PUBLIC_URL + "/previews/resume.jpg"}
+                  alt="Preview of Resume page"
+                  loading="lazy"
+                />
+              </div>
+            </Link>
+          </div>
         </section>
       </div>
     </div>
