@@ -531,6 +531,24 @@ export default function About() {
     const body = block.body;
 
     if (body.isStatic) {
+      // Wake bodies resting on this paragraph for 2s as it moves away
+      const bpos = body.position;
+      const halfW = block.w / 2;
+      const left = bpos.x - halfW - 80;
+      const right = bpos.x + halfW + 80;
+      const bottom = bpos.y + block.h / 2;
+      const wakeAbove = () => {
+        const bodies = Composite.allBodies(engine.world);
+        for (const b of bodies) {
+          if (b !== body && !b.isStatic && b.isSleeping && b.position.x > left && b.position.x < right && b.position.y < bottom) {
+            Matter.Sleeping.set(b, false);
+          }
+        }
+      };
+      wakeAbove();
+      const wakeIv = setInterval(wakeAbove, 200);
+      setTimeout(() => clearInterval(wakeIv), 2000);
+
       wakeBody(body, block.w, block.h);
       const el = elMapRef.current[block.id];
       if (el) el.classList.add("awake");
