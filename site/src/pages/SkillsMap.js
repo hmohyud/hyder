@@ -969,9 +969,9 @@ export default function SkillsMap() {
               <div className="hint-title"></div>
               <div className="hint-text">
                 {isPhone ? (
-                  <>Tap a <strong>skill in the list</strong> to add a card. Cards open expanded — tap to collapse.</>
+                  <>Tap a <strong>skill in the list</strong> to add a card.</>
                 ) : (
-                  <>Click a <span className="hint-node-circle" aria-label="graph node example"><span>node</span></span> to add a card. Cards open expanded — click to collapse.</>
+                  <>Click a <span className="hint-node-circle" aria-label="graph node example"><span>node</span></span> to add a card.</>
                 )}
               </div>
               <button
