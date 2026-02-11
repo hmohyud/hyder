@@ -162,7 +162,6 @@
   color: #eaeaea;
   cursor: grab;
   user-select: none;
-  will-change: transform;
   white-space: nowrap;
 }
 
@@ -206,6 +205,15 @@
 
 .about-reset-btn:hover {
   background: rgba(30, 20, 20, 0.95);
+}
+
+/* Reset button flash glow (GPU-composited via CSS animation) */
+@keyframes reset-flash-glow {
+  0%, 100% { box-shadow: none; }
+  50% { box-shadow: 0 0 20px rgba(255, 60, 60, 0.4); }
+}
+.about-reset-btn.flashing {
+  animation: reset-flash-glow 3.14s ease-in-out infinite;
 }
 
 /* Hidden measuring container */

@@ -97,6 +97,10 @@ const WALL_OPTS = {
   collisionFilter: { category: 0x0001, mask: 0xffff },
 };
 
+/* ───── dirty-check tolerances ───── */
+const POS_EPSILON = 0.1;
+const ANGLE_EPSILON = 0.001;
+
 /* ───── helpers (pure, no hooks) ───── */
 function createWalls(engine, w, h) {
   const walls = [
@@ -262,7 +266,10 @@ function buildBlocks(engine, mDiv, cw) {
     color: "#ffffff",
     type: "h",
     isTitle: true,
+    _lastX: -9999, _lastY: -9999, _lastAngle: -9999, // force first write
   };
+  // Pre-cache word measurements for shatter
+  titleBlock._wordMeasures = measureHeadingWords(mDiv, "About Me", titleW, true);
   titleBody._blockRef = titleBlock;
   Composite.add(engine.world, titleBody);
   blocks.push(titleBlock);
@@ -284,7 +291,10 @@ function buildBlocks(engine, mDiv, cw) {
       color: sec.color,
       type: "h",
       isTitle: false,
+      _lastX: -9999, _lastY: -9999, _lastAngle: -9999,
     };
+    // Pre-cache word measurements
+    headBlock._wordMeasures = measureHeadingWords(mDiv, sec.heading, hw, false);
     headBody._blockRef = headBlock;
     Composite.add(engine.world, headBody);
     blocks.push(headBlock);
@@ -309,7 +319,10 @@ function buildBlocks(engine, mDiv, cw) {
         sectionId: sec.id,
         color: sec.color,
         type: "p",
+        _lastX: -9999, _lastY: -9999, _lastAngle: -9999,
       };
+      // Pre-cache word measurements
+      block._wordMeasures = measureWords(mDiv, pText, pw);
       body._blockRef = block;
 
       Composite.add(engine.world, body);
@@ -346,9 +359,24 @@ export default function About() {
   const resetBtnRef = useRef(null);
   const chaosRef = useRef(0);
   const shatteringRef = useRef(new Set());
+  const wakeRegionsRef = useRef([]);
+  const lastFragCountRef = useRef(-1);
+  const chaosStateRef = useRef({
+    scale: "1.00", colorR: 170, colorG: 204, colorB: 221,
+    borderR: 127, borderG: 211, borderB: 255, borderA: "0.25",
+    flashT: 0,
+  });
 
   const [, forceRender] = useState(0);
   const bump = useCallback(() => forceRender((n) => n + 1), []);
+
+  /* ─── add a wake region instead of creating a new setInterval ─── */
+  const addWakeRegion = useCallback((left, right, bottom) => {
+    wakeRegionsRef.current.push({
+      left, right, bottom,
+      expires: performance.now() + 2000,
+    });
+  }, []);
 
   /* ─── shatter a paragraph block into word bodies ─── */
   const shatterBlock = useCallback(
@@ -364,30 +392,18 @@ export default function About() {
       const pos = body.position;
       const angle = body.angle;
 
-      // Keep waking sleeping bodies above this block for 2s so nothing floats
-      const left = pos.x - bw / 2 - 80;
-      const right = pos.x + bw / 2 + 80;
-      const bottom = pos.y + block.h / 2;
-      const wakeNearby = () => {
-        const bodies = Composite.allBodies(engine.world);
-        for (const b of bodies) {
-          if (!b.isStatic && b.isSleeping && b.position.x > left && b.position.x < right && b.position.y < bottom) {
-            Matter.Sleeping.set(b, false);
-          }
-        }
-      };
-      wakeNearby();
-      const wakeInterval = setInterval(wakeNearby, 200);
-      setTimeout(() => clearInterval(wakeInterval), 2000);
+      // Register wake region (consolidated manager handles scanning)
+      addWakeRegion(pos.x - bw / 2 - 80, pos.x + bw / 2 + 80, pos.y + block.h / 2);
 
       Composite.remove(engine.world, body);
       blocksRef.current = blocksRef.current.filter((b) => b !== block);
       const shatterEl = elMapRef.current[block.id];
       if (shatterEl) shatterEl.style.display = "none";
 
-      const wordMeasures = block.type === "h"
+      // Use cached measurements; fallback to measuring if missing
+      const wordMeasures = block._wordMeasures || (block.type === "h"
         ? measureHeadingWords(mDiv, block.text, bw, block.isTitle)
-        : measureWords(mDiv, block.text, bw);
+        : measureWords(mDiv, block.text, bw));
 
       wordMeasures.forEach((wm, i) => {
         const cos = Math.cos(angle);
@@ -421,6 +437,7 @@ export default function About() {
           flash: true,
           fromHeading: block.type === "h",
           isTitle: block.isTitle || false,
+          _lastX: -9999, _lastY: -9999, _lastAngle: -9999,
         };
         wordBody._blockRef = wordBlock;
         wordsRef.current.push(wordBlock);
@@ -428,7 +445,7 @@ export default function About() {
 
       bump();
     },
-    [bump]
+    [bump, addWakeRegion]
   );
 
   /* ─── shatter a word block into letter bodies ─── */
@@ -445,28 +462,19 @@ export default function About() {
       const pos = body.position;
       const angle = body.angle;
 
-      // Keep waking sleeping bodies above this word for 2s so nothing floats
-      const left = pos.x - word.w / 2 - 40;
-      const right = pos.x + word.w / 2 + 40;
-      const bottom = pos.y + word.h / 2;
-      const wakeNearby = () => {
-        const bodies = Composite.allBodies(engine.world);
-        for (const b of bodies) {
-          if (!b.isStatic && b.isSleeping && b.position.x > left && b.position.x < right && b.position.y < bottom) {
-            Matter.Sleeping.set(b, false);
-          }
-        }
-      };
-      wakeNearby();
-      const wakeInterval = setInterval(wakeNearby, 200);
-      setTimeout(() => clearInterval(wakeInterval), 2000);
+      // Register wake region (consolidated manager handles scanning)
+      addWakeRegion(pos.x - word.w / 2 - 40, pos.x + word.w / 2 + 40, pos.y + word.h / 2);
 
       Composite.remove(engine.world, body);
       wordsRef.current = wordsRef.current.filter((w) => w !== word);
       const wordEl = elMapRef.current[word.id];
       if (wordEl) wordEl.style.display = "none";
 
-      const letterMeasures = measureLetters(mDiv, word.text);
+      // Use cached measurements; lazily compute and cache if missing
+      if (!word._letterMeasures) {
+        word._letterMeasures = measureLetters(mDiv, word.text);
+      }
+      const letterMeasures = word._letterMeasures;
 
       letterMeasures.forEach((lm, i) => {
         const cos = Math.cos(angle);
@@ -500,6 +508,7 @@ export default function About() {
           flash: true,
           fromHeading: word.fromHeading || false,
           isTitle: word.isTitle || false,
+          _lastX: -9999, _lastY: -9999, _lastAngle: -9999,
         };
         letterBody._blockRef = letterBlock;
         lettersRef.current.push(letterBlock);
@@ -507,7 +516,7 @@ export default function About() {
 
       bump();
     },
-    [bump]
+    [bump, addWakeRegion]
   );
 
   /* ─── init engine + rAF — runs exactly once ─── */
@@ -571,68 +580,125 @@ export default function About() {
     // trigger render so React creates the DOM elements
     bump();
 
-    // Start rAF loop after a microtask so React has committed the DOM
-    // (bump() schedules a state update, React commits in same frame or next)
-    const syncDOM = () => {
-      const eMap = elMapRef.current;
-      const all = [...blocksRef.current, ...wordsRef.current, ...lettersRef.current];
-      for (const b of all) {
-        const el = eMap[b.id];
-        if (!el || !b.body) continue;
-        if (b.body.isStatic && (b.type === "p" || b.type === "h")) {
-          const { x, y } = b.body.position;
-          el.style.transform = `translate(${x - b.w / 2}px, ${y - b.h / 2}px)`;
-          continue;
-        }
-        const { x, y } = b.body.position;
-        const angle = b.body.angle;
+    /* ─── syncDOM: update element transforms with dirty checking ─── */
+    const syncOne = (b) => {
+      const el = elMapRef.current[b.id];
+      if (!el || !b.body) return;
+      const { x, y } = b.body.position;
+      const angle = b.body.angle;
+
+      // Dirty check: skip if position/angle hasn't meaningfully changed
+      if (
+        Math.abs(x - b._lastX) < POS_EPSILON &&
+        Math.abs(y - b._lastY) < POS_EPSILON &&
+        Math.abs(angle - b._lastAngle) < ANGLE_EPSILON
+      ) return;
+
+      b._lastX = x;
+      b._lastY = y;
+      b._lastAngle = angle;
+
+      if (b.body.isStatic && (b.type === "p" || b.type === "h")) {
+        el.style.transform = `translate(${x - b.w / 2}px, ${y - b.h / 2}px)`;
+      } else {
         el.style.transform = `translate(${x - b.w / 2}px, ${y - b.h / 2}px) rotate(${angle}rad)`;
       }
+    };
+
+    const syncDOM = () => {
+      // Iterate each array directly — no spread/concat allocation
+      const blocks = blocksRef.current;
+      const words = wordsRef.current;
+      const letters = lettersRef.current;
+      for (let i = 0; i < blocks.length; i++) syncOne(blocks[i]);
+      for (let i = 0; i < words.length; i++) syncOne(words[i]);
+      for (let i = 0; i < letters.length; i++) syncOne(letters[i]);
 
       // Animate reset button based on chaos level
       const btn = resetBtnRef.current;
       if (btn) {
-        const fragCount = wordsRef.current.length + lettersRef.current.length;
-        // Chaos: 0 until 200 fragments, ramps to 1 at 600
-        const targetChaos = Math.min(Math.max((fragCount - 200) / 400, 0), 1);
-        chaosRef.current += (targetChaos - chaosRef.current) * 0.015;
-        const c = chaosRef.current;
+        const fragCount = words.length + letters.length;
 
-        // Snap to target when very close to avoid sub-pixel jitter
-        if (Math.abs(targetChaos - chaosRef.current) < 0.001) chaosRef.current = targetChaos;
+        // Only recalculate colors/scale when fragment count changes
+        if (fragCount !== lastFragCountRef.current) {
+          lastFragCountRef.current = fragCount;
 
-        // Scale: 1 → 1.55
-        const scale = 1 + c * 0.55;
-        // Color: lerp from #aaccdd to #ff3333
-        const r = Math.round(170 + c * (255 - 170));
-        const g = Math.round(204 - c * (204 - 51));
-        const b2 = Math.round(221 - c * (221 - 51));
-        // Border: lerp from rgba(127,211,255,0.25) to rgba(255,80,80,0.7)
-        const br = Math.round(127 + c * (255 - 127));
-        const bg = Math.round(211 - c * (211 - 80));
-        const bb = Math.round(255 - c * (255 - 80));
-        const ba = (0.25 + c * 0.45).toFixed(2);
-        // Flash: only kicks in above 600 fragments, slow pulse
-        const now = performance.now();
-        const flashT = Math.min(Math.max((fragCount - 600) / 300, 0), 1);
-        const flash = (Math.sin(now * 0.002) * 0.5 + 0.5) * flashT;
-        const flashR = Math.round(r + (255 - r) * flash);
-        const flashG = Math.round(g * (1 - flash * 0.7));
-        const flashB = Math.round(b2 * (1 - flash * 0.7));
+          const targetChaos = Math.min(Math.max((fragCount - 200) / 400, 0), 1);
+          chaosRef.current += (targetChaos - chaosRef.current) * 0.015;
+          if (Math.abs(targetChaos - chaosRef.current) < 0.001) chaosRef.current = targetChaos;
+          const c = chaosRef.current;
 
-        btn.style.transform = `scale(${(Math.round(scale * 20) / 20).toFixed(2)})`;
-        btn.style.color = `rgb(${flashR},${flashG},${flashB})`;
-        btn.style.borderColor = `rgba(${br},${bg},${bb},${ba})`;
-        btn.style.boxShadow = flash > 0.01 ? `0 0 ${(flash * 20).toFixed(0)}px rgba(255,60,60,${(flash * 0.4).toFixed(2)})` : 'none';
+          const scale = 1 + c * 0.55;
+          const cs = chaosStateRef.current;
+          cs.scale = (Math.round(scale * 20) / 20).toFixed(2);
+          cs.colorR = Math.round(170 + c * (255 - 170));
+          cs.colorG = Math.round(204 - c * (204 - 51));
+          cs.colorB = Math.round(221 - c * (221 - 51));
+          cs.borderR = Math.round(127 + c * (255 - 127));
+          cs.borderG = Math.round(211 - c * (211 - 80));
+          cs.borderB = Math.round(255 - c * (255 - 80));
+          cs.borderA = (0.25 + c * 0.45).toFixed(2);
+          cs.flashT = Math.min(Math.max((fragCount - 600) / 300, 0), 1);
+
+          btn.style.transform = `scale(${cs.scale})`;
+          btn.style.borderColor = `rgba(${cs.borderR},${cs.borderG},${cs.borderB},${cs.borderA})`;
+          // Set base color (flash pulse overrides this per-frame when active)
+          if (cs.flashT <= 0) {
+            btn.style.color = `rgb(${cs.colorR},${cs.colorG},${cs.colorB})`;
+          }
+
+          // Toggle flash CSS class
+          if (cs.flashT > 0 && !btn.classList.contains("flashing")) {
+            btn.classList.add("flashing");
+          } else if (cs.flashT <= 0 && btn.classList.contains("flashing")) {
+            btn.classList.remove("flashing");
+          }
+        }
+
+        // Flash color pulse: only compute when active (time-based, must run each frame)
+        if (chaosStateRef.current.flashT > 0) {
+          const cs = chaosStateRef.current;
+          const flash = (Math.sin(performance.now() * 0.002) * 0.5 + 0.5) * cs.flashT;
+          const flashR = Math.round(cs.colorR + (255 - cs.colorR) * flash);
+          const flashG = Math.round(cs.colorG * (1 - flash * 0.7));
+          const flashB = Math.round(cs.colorB * (1 - flash * 0.7));
+          btn.style.color = `rgb(${flashR},${flashG},${flashB})`;
+        }
       }
     };
 
     let lastTime = performance.now();
+    let frameCount = 0;
     const tick = (now) => {
       const delta = Math.min(now - lastTime, 16.667);
       lastTime = now;
       Engine.update(engine, delta);
       syncDOM();
+      frameCount++;
+
+      // Consolidated wake manager: scan every ~12 frames (~200ms at 60fps)
+      if (frameCount % 12 === 0) {
+        const regions = wakeRegionsRef.current;
+        if (regions.length > 0) {
+          const bodies = Composite.allBodies(engine.world);
+          for (let bi = 0; bi < bodies.length; bi++) {
+            const b = bodies[bi];
+            if (!b.isStatic && b.isSleeping) {
+              for (let ri = 0; ri < regions.length; ri++) {
+                const r = regions[ri];
+                if (b.position.x > r.left && b.position.x < r.right && b.position.y < r.bottom) {
+                  Matter.Sleeping.set(b, false);
+                  break;
+                }
+              }
+            }
+          }
+          // Remove expired regions
+          const nowMs = performance.now();
+          wakeRegionsRef.current = regions.filter(r => r.expires > nowMs);
+        }
+      }
+
       rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
@@ -668,23 +734,10 @@ export default function About() {
     const body = block.body;
 
     if (body.isStatic) {
-      // Wake bodies resting on this paragraph for 2s as it moves away
+      // Register wake region (consolidated manager handles scanning)
       const bpos = body.position;
       const halfW = block.w / 2;
-      const left = bpos.x - halfW - 80;
-      const right = bpos.x + halfW + 80;
-      const bottom = bpos.y + block.h / 2;
-      const wakeAbove = () => {
-        const bodies = Composite.allBodies(engine.world);
-        for (const b of bodies) {
-          if (b !== body && !b.isStatic && b.isSleeping && b.position.x > left && b.position.x < right && b.position.y < bottom) {
-            Matter.Sleeping.set(b, false);
-          }
-        }
-      };
-      wakeAbove();
-      const wakeIv = setInterval(wakeAbove, 200);
-      setTimeout(() => clearInterval(wakeIv), 2000);
+      addWakeRegion(bpos.x - halfW - 80, bpos.x + halfW + 80, bpos.y + block.h / 2);
 
       wakeBody(body, block.w, block.h);
       const el = elMapRef.current[block.id];
@@ -777,6 +830,17 @@ export default function About() {
     elMapRef.current = {};
     shatteringRef.current.clear();
     chaosRef.current = 0;
+    lastFragCountRef.current = -1;
+    wakeRegionsRef.current = [];
+
+    // Reset button styles
+    const btn = resetBtnRef.current;
+    if (btn) {
+      btn.style.transform = "scale(1.00)";
+      btn.style.color = "rgb(170,204,221)";
+      btn.style.borderColor = "rgba(127,211,255,0.25)";
+      btn.classList.remove("flashing");
+    }
 
     // remove all letter bodies
     for (const l of lettersRef.current) {
