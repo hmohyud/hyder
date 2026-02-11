@@ -1,0 +1,193 @@
+.about-physics-container {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  overflow: hidden;
+  contain: style;
+  font-family: monospace;
+  color: #eaeaea;
+  line-height: 1.6;
+  background: transparent;
+}
+
+/* Static headings */
+.about-heading {
+  position: absolute;
+  left: 0;
+  right: 0;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  font-size: 1.6rem;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.7;
+  transition: opacity 0.3s;
+}
+
+.about-title {
+  position: absolute;
+  left: 0;
+  right: 0;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 2rem;
+  font-size: 2.5rem;
+  pointer-events: none;
+  z-index: 2;
+  border-bottom: 1px solid #444;
+  padding-bottom: 0.5rem;
+}
+
+/* Paragraph physics blocks */
+.physics-block {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 0.6rem 0.9rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+  cursor: grab;
+  user-select: none;
+  will-change: transform;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.physics-block:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 12px rgba(127, 211, 255, 0.12);
+}
+
+.physics-block.awake {
+  border-color: rgba(127, 211, 255, 0.15);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.physics-block.grabbing {
+  cursor: grabbing;
+  border-color: rgba(127, 211, 255, 0.35);
+  box-shadow: 0 0 20px rgba(127, 211, 255, 0.2);
+  z-index: 10;
+}
+
+/* Word physics blocks (after shatter) */
+.physics-word {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 2px 5px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 0.95rem;
+  color: #eaeaea;
+  cursor: grab;
+  user-select: none;
+  will-change: transform;
+  white-space: nowrap;
+}
+
+.physics-word:hover {
+  border-color: rgba(127, 211, 255, 0.2);
+}
+
+.physics-word.grabbing {
+  cursor: grabbing;
+  border-color: rgba(127, 211, 255, 0.35);
+  box-shadow: 0 0 12px rgba(127, 211, 255, 0.2);
+  z-index: 10;
+}
+
+/* Shatter flash animation */
+@keyframes shatter-flash {
+  0% { border-color: rgba(127, 211, 255, 0.6); box-shadow: 0 0 15px rgba(127, 211, 255, 0.3); }
+  100% { border-color: rgba(255, 255, 255, 0.08); box-shadow: none; }
+}
+
+.physics-word.shatter-enter {
+  animation: shatter-flash 0.4s ease-out forwards;
+}
+
+/* Letter physics blocks (after word shatter) */
+.physics-letter {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 1px 3px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  font-family: monospace;
+  font-size: 0.95rem;
+  color: #eaeaea;
+  cursor: grab;
+  user-select: none;
+  will-change: transform;
+  white-space: nowrap;
+}
+
+.physics-letter:hover {
+  border-color: rgba(127, 211, 255, 0.25);
+}
+
+.physics-letter.grabbing {
+  cursor: grabbing;
+  border-color: rgba(127, 211, 255, 0.35);
+  box-shadow: 0 0 8px rgba(127, 211, 255, 0.2);
+  z-index: 10;
+}
+
+.physics-letter.shatter-enter {
+  animation: shatter-flash 0.4s ease-out forwards;
+}
+
+/* Reset button */
+.about-reset-btn {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  color: #ccc;
+  font-family: monospace;
+  font-size: 0.8rem;
+  padding: 6px 14px;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.about-reset-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(127, 211, 255, 0.3);
+  color: #fff;
+}
+
+/* Hidden measuring container */
+.about-measure {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  top: 0;
+  left: 0;
+  max-width: 900px;
+  padding: 0 2rem;
+  margin: 0 auto;
+  right: 0;
+  font-family: monospace;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  box-sizing: border-box;
+}
+
+.about-measure p {
+  padding: 0.6rem 0.9rem;
+  margin: 0;
+  box-sizing: border-box;
+}
