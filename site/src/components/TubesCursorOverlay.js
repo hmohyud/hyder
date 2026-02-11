@@ -32,7 +32,7 @@ export default function TubesCursorOverlay({ hoveredCard }) {
           noise: 0.006,
           colors: DEFAULT_COLORS,
           lights: {
-            intensity: 120,
+            intensity: 60,
             colors: DEFAULT_LIGHTS,
           },
         },
