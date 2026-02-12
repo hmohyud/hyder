@@ -282,8 +282,26 @@
   object-position: top center;
   transition: filter .25s ease;
 }
-.card:hover .peek img{
+.card:hover .peek img:not(.peek-hidden){
   filter: saturate(1.05) contrast(1.05);
+}
+/* Video preview swap */
+.peek-hidden{
+  opacity: 0;
+}
+.peek-video{
+  position: absolute;
+  inset: 6px;
+  width: calc(100% - 12px);
+  height: calc(100% - 12px);
+  object-fit: cover;
+  object-position: top center;
+  border-radius: 8px;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.peek-video.peek-visible{
+  opacity: 1;
 }
 
 /* Animations */

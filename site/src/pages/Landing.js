@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import BgVariantB from "../components/BgVariantB";
 import TubesCursorOverlay from "../components/TubesCursorOverlay";
@@ -37,6 +37,51 @@ const IconDoc = () => (
   </svg>
 );
 
+/**
+ * CardPreview — shows a static JPG poster, lazy-loads and plays a looping
+ * video on hover. The video src is only set on the first hover so the browser
+ * never fetches it until needed.
+ */
+function CardPreview({ imgSrc, videoSrc, alt, isHovered }) {
+  const videoRef = useRef(null);
+  const loadedRef = useRef(false);
+
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    if (isHovered) {
+      // Lazy-set src on first hover
+      if (!loadedRef.current) {
+        vid.src = videoSrc;
+        loadedRef.current = true;
+      }
+      vid.currentTime = 0;
+      vid.play().catch(() => {});
+    } else {
+      vid.pause();
+    }
+  }, [isHovered, videoSrc]);
+
+  return (
+    <div className="peek">
+      <img
+        src={imgSrc}
+        alt={alt}
+        loading="lazy"
+        className={isHovered ? "peek-hidden" : ""}
+      />
+      <video
+        ref={videoRef}
+        muted
+        loop
+        playsInline
+        preload="none"
+        className={`peek-video ${isHovered ? "peek-visible" : ""}`}
+      />
+    </div>
+  );
+}
+
 export default function Landing() {
   const particlesRef = useRef(null);
   const wrapRef = useRef(null);
@@ -44,7 +89,7 @@ export default function Landing() {
 
   // Card refs for magnet targeting
   const cardRefs = useRef({});
-  const setCardRef = (id) => (el) => { cardRefs.current[id] = el; };
+  const setCardRef = useCallback((id) => (el) => { cardRefs.current[id] = el; }, []);
 
   // The actual DOM element to magnetize toward (or null)
   const magnetTarget = hoveredCard ? cardRefs.current[hoveredCard] : null;
@@ -97,6 +142,8 @@ export default function Landing() {
     };
   }, []);
 
+  const PU = process.env.PUBLIC_URL;
+
   return (
     <div className={`landing${hoveredCard ? " card-focus" : ""}`}>
       {/* Background */}
@@ -132,76 +179,64 @@ export default function Landing() {
           <Link ref={setCardRef(1)} to="/skills" className={`card card-1 portal${hoveredCard === 1 ? " card-hover-active" : ""}`} aria-label="Go to Skills" onMouseEnter={() => setHoveredCard(1)} onMouseLeave={() => setHoveredCard(null)}>
             <span className="portal-glow portal-1" aria-hidden="true" />
             <div className="card-head">
-              <span className="icon">
-                <IconGraph />
-              </span>
+              <span className="icon"><IconGraph /></span>
               <h2>Skills</h2>
             </div>
             <p className="card-copy">A visual and interactive map of my skills</p>
-            <div className="peek">
-              <img
-                src={process.env.PUBLIC_URL + "/previews/skills.jpg"}
-                alt="Preview of Skills page"
-                loading="lazy"
-              />
-            </div>
+            <CardPreview
+              imgSrc={PU + "/previews/skills.jpg"}
+              videoSrc={PU + "/previews/skills.mp4"}
+              alt="Preview of Skills page"
+              isHovered={hoveredCard === 1}
+            />
           </Link>
 
           {/* Projects */}
           <Link ref={setCardRef(2)} to="/projects" className={`card card-2 portal${hoveredCard === 2 ? " card-hover-active" : ""}`} aria-label="Go to Projects" onMouseEnter={() => setHoveredCard(2)} onMouseLeave={() => setHoveredCard(null)}>
             <span className="portal-glow portal-2" aria-hidden="true" />
             <div className="card-head">
-              <span className="icon">
-                <IconLayers />
-              </span>
+              <span className="icon"><IconLayers /></span>
               <h2>Projects</h2>
             </div>
             <p className="card-copy">See my write-ups on past projects</p>
-            <div className="peek">
-              <img
-                src={process.env.PUBLIC_URL + "/previews/projects.jpg"}
-                alt="Preview of Projects page"
-                loading="lazy"
-              />
-            </div>
+            <CardPreview
+              imgSrc={PU + "/previews/projects.jpg"}
+              videoSrc={PU + "/previews/projects.mp4"}
+              alt="Preview of Projects page"
+              isHovered={hoveredCard === 2}
+            />
           </Link>
 
           {/* About */}
           <Link ref={setCardRef(3)} to="/about" className={`card card-3 portal${hoveredCard === 3 ? " card-hover-active" : ""}`} aria-label="Go to About" onMouseEnter={() => setHoveredCard(3)} onMouseLeave={() => setHoveredCard(null)}>
             <span className="portal-glow portal-3" aria-hidden="true" />
             <div className="card-head">
-              <span className="icon">
-                <IconUser />
-              </span>
+              <span className="icon"><IconUser /></span>
               <h2>About</h2>
             </div>
             <p className="card-copy">Background, approach, and what I'm exploring</p>
-            <div className="peek">
-              <img
-                src={process.env.PUBLIC_URL + "/previews/about.jpg"}
-                alt="Preview of About page"
-                loading="lazy"
-              />
-            </div>
+            <CardPreview
+              imgSrc={PU + "/previews/about.jpg"}
+              videoSrc={PU + "/previews/about.mp4"}
+              alt="Preview of About page"
+              isHovered={hoveredCard === 3}
+            />
           </Link>
 
           {/* Resume */}
           <Link ref={setCardRef(4)} to="/resume" className={`card card-4 portal${hoveredCard === 4 ? " card-hover-active" : ""}`} aria-label="Go to Résumé" onMouseEnter={() => setHoveredCard(4)} onMouseLeave={() => setHoveredCard(null)}>
             <span className="portal-glow portal-4" aria-hidden="true" />
             <div className="card-head">
-              <span className="icon">
-                <IconDoc />
-              </span>
+              <span className="icon"><IconDoc /></span>
               <h2>Resume</h2>
             </div>
             <p className="card-copy">Experience, education, and highlights</p>
-            <div className="peek">
-              <img
-                src={process.env.PUBLIC_URL + "/previews/resume.jpg"}
-                alt="Preview of Resume page"
-                loading="lazy"
-              />
-            </div>
+            <CardPreview
+              imgSrc={PU + "/previews/resume.jpg"}
+              videoSrc={PU + "/previews/resume.mp4"}
+              alt="Preview of Resume page"
+              isHovered={hoveredCard === 4}
+            />
           </Link>
         </section>
       </div>
