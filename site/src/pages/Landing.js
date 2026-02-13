@@ -44,23 +44,19 @@ const IconDoc = () => (
  */
 function CardPreview({ imgSrc, videoSrc, alt, isHovered }) {
   const videoRef = useRef(null);
-  const loadedRef = useRef(false);
+  const [playing, setPlaying] = useState(false);
 
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid) return;
     if (isHovered) {
-      // Lazy-set src on first hover
-      if (!loadedRef.current) {
-        vid.src = videoSrc;
-        loadedRef.current = true;
-      }
       vid.currentTime = 0;
-      vid.play().catch(() => {});
+      vid.play().then(() => setPlaying(true)).catch(() => {});
     } else {
       vid.pause();
+      setPlaying(false);
     }
-  }, [isHovered, videoSrc]);
+  }, [isHovered]);
 
   return (
     <div className="peek">
@@ -68,15 +64,16 @@ function CardPreview({ imgSrc, videoSrc, alt, isHovered }) {
         src={imgSrc}
         alt={alt}
         loading="lazy"
-        className={isHovered ? "peek-hidden" : ""}
+        className={playing ? "peek-hidden" : ""}
       />
       <video
         ref={videoRef}
+        src={videoSrc}
         muted
         loop
         playsInline
-        preload="none"
-        className={`peek-video ${isHovered ? "peek-visible" : ""}`}
+        preload="auto"
+        className={`peek-video ${playing ? "peek-visible" : ""}`}
       />
     </div>
   );
