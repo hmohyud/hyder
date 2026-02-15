@@ -253,7 +253,7 @@ const projects = [
     images: DOT_IMAGES,
     description: [
       "A trilingual (English, Hindi, Urdu) static site for a Nonviolent Communication community — event listings, a 12-week compassion course, curated resources with a canvas audio visualizer, and a community blog.",
-      "Built without frameworks: vanilla HTML/CSS/JS, data-driven rendering, full RTL support for Urdu, URL-based language sharing (?lang=), and a dot-constellation canvas background with mouse interaction.",
+      "Built without frameworks: vanilla HTML/CSS/JS, data-driven rendering, and full RTL support for Urdu.",
     ],
     links: [
       { label: "Visit Site", href: "https://jointhedots.info/" },
