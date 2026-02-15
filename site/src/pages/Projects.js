@@ -32,7 +32,7 @@ const ART_IMAGES = [
 ];
 
 const DOT_IMAGES = Array.from(
-  { length: 9 },
+  { length: 5 },
   (_, i) => `/hyder/projects/DOT_${i + 1}.png`
 );
 
