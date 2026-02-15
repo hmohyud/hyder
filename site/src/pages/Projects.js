@@ -30,6 +30,12 @@ const ART_IMAGES = [
   "/hyder/art/artworks/ScratchBoard/WolfScratchV2.jpg",
   "/hyder/art/artworks/Hands/INVHand3V1.jpeg",
 ];
+
+const DOT_IMAGES = Array.from(
+  { length: 9 },
+  (_, i) => `/hyder/projects/DOT_${i + 1}.png`
+);
+
 const ART_MANIFEST = `${process.env.PUBLIC_URL}/art/manifest.json`;
 
 const TYPO_IMAGES = Array.from(
@@ -241,6 +247,19 @@ const projects = [
       // { label: "GitHub", href: "https://github.com/hmohyud/typometry" },
     ],
   },
+  {
+    title: "Join the Dots",
+    color: "#9BAA8F",
+    images: DOT_IMAGES,
+    description: [
+      "A trilingual (English, Hindi, Urdu) static site for a Nonviolent Communication community — event listings, a 12-week compassion course, curated resources with a canvas audio visualizer, and a community blog.",
+      "Built without frameworks: vanilla HTML/CSS/JS, data-driven rendering, full RTL support for Urdu, URL-based language sharing (?lang=), and a dot-constellation canvas background with mouse interaction.",
+    ],
+    links: [
+      { label: "Visit Site", href: "https://jointhedots.info/" },
+    ],
+  },
+
 ];
 
 // Build a QR image URL (no extra deps)
@@ -509,8 +528,8 @@ export default function Projects() {
         // accept both [{src, ...}] and ["url", ...]
         return Array.isArray(list)
           ? list
-              .map((item) => (typeof item === "string" ? item : item?.src))
-              .filter(Boolean)
+            .map((item) => (typeof item === "string" ? item : item?.src))
+            .filter(Boolean)
           : [];
       } catch {
         return [];
@@ -693,7 +712,7 @@ export default function Projects() {
                       aria-expanded={qrOpen ? true : false}
                     >
                       {typeof proj.qrData === "string" &&
-                      proj.qrData.toLowerCase().includes("expo.dev")
+                        proj.qrData.toLowerCase().includes("expo.dev")
                         ? "Show QR (scan in Expo Go)"
                         : "Show QR"}
                     </button>
