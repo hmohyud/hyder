@@ -36,6 +36,11 @@ const DOT_IMAGES = Array.from(
   (_, i) => `/hyder/projects/DOT_${i + 1}.png`
 );
 
+const CC_IMAGES = Array.from(
+  { length: 9 },
+  (_, i) => `/hyder/projects/CC_${i + 1}.jpg`
+);
+
 const ART_MANIFEST = `${process.env.PUBLIC_URL}/art/manifest.json`;
 
 const TYPO_IMAGES = Array.from(
@@ -184,6 +189,16 @@ const projects = [
     ],
   },
 
+  {
+    title: "Compassion Course Online",
+    color: "#f4a261",
+    images: CC_IMAGES,
+    description: [
+      "Designed and built the website for Thom Bond's Compassion Course — a structured online program teaching Nonviolent Communication.",
+      "The site handles course information, registration, and resources for participants across multiple cohorts.",
+    ],
+    links: [{ label: "Visit Site", href: "https://compassioncourse.org/" }],
+  },
   {
     title: "AutoLens — Visual Vehicle ID (Expo)",
     color: "#6bff9d",
