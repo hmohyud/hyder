@@ -194,8 +194,8 @@ const projects = [
     color: "#f4a261",
     images: CC_IMAGES,
     description: [
-      "Designed and built the website for Thom Bond's Compassion Course — a structured online program teaching Nonviolent Communication.",
-      "The site handles course information, registration, and resources for participants across multiple cohorts.",
+      "Built the website for Thom Bond's Compassion Course — a year-long online program teaching Nonviolent Communication that has reached over 50,000 participants across 120+ countries in 19 languages.",
+      "The site handles course information, registration, scheduling, and resources for active cohorts. Thom is the Director of Education at NYCNVC, a UN Civil Society Organization.",
     ],
     links: [{ label: "Visit Site", href: "https://compassioncourse.org/" }],
   },
