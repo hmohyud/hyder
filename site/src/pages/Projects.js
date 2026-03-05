@@ -463,12 +463,31 @@ function RotatingImage({
         );
       })}
 
-      {!usable && (
+      {/* Loading spinner — visible until at least one image is ready */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "grid",
+          placeItems: "center",
+          background: "#1a1a1a",
+          opacity: usable ? 0 : 1,
+          transition: "opacity 0.4s ease",
+          pointerEvents: "none",
+        }}
+      >
         <div
-          aria-hidden="true"
-          style={{ position: "absolute", inset: 0, background: "#1a1a1a" }}
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: "50%",
+            border: "2.5px solid #333",
+            borderTopColor: borderColor,
+            animation: "spin 0.8s linear infinite",
+          }}
         />
-      )}
+      </div>
 
       {/* Dot indicators with blocking strip */}
       {visibleIdxs.length > 1 && (
@@ -1030,6 +1049,7 @@ export default function Projects() {
           })()}
 
           <style>{`
+      @keyframes spin { to { transform: rotate(360deg); } }
       @keyframes zoomIn { from { transform: scale(0.98); opacity: 0; } to { transform: scale(1); opacity: 1; } }
       @media (prefers-reduced-motion: reduce) {
         * { transition-duration: 0s !important; animation-duration: 0s !important; }
