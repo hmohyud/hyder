@@ -47,11 +47,21 @@ const TYPO_IMAGES = Array.from(
   { length: 3 },
   (_, i) => `/hyder/projects/TYPO_${i + 1}.jpg`
 );
+// ---------- Category filter ----------
+const CATEGORIES = [
+  { key: "all",      label: "All" },
+  { key: "web",      label: "Web Dev" },
+  { key: "software", label: "Software" },
+  { key: "art",      label: "Art" },
+  { key: "other",    label: "Other" },
+];
+
 // ---------- Project data ----------
 const projects = [
   {
     title: "SPIM (Salavon’s Pathology Inducing Machine)",
     color: "#00ff88",
+    tags: ["web", "software"],
     images: SPIM_IMAGES,
     description: [
       `An experimental platform that lets users manipulate the internal layers of diffusion models to generate off-manifold, dreamlike imagery.`,
@@ -63,6 +73,7 @@ const projects = [
   {
     title: "Environmental Data Globe (Booth School of Business)",
     color: "#00d1ff",
+    tags: ["software"],
     image: "/hyder/projects/GLOBE_1.jpg",
     description: [
       `Built an interactive globe for visualizing over 200GB of environmental data using JavaScript and Three.js.`,
@@ -72,6 +83,7 @@ const projects = [
   {
     title: "AI Research & Model Tools",
     color: "#ffaa00",
+    tags: ["software"],
     image: "/hyder/projects/AI_STANDIN.png",
     description: [
       `Created tooling for structured experimentation with diffusion models: formula generators, pixel-level perturbations, and statistical logging systems.`,
@@ -83,6 +95,7 @@ const projects = [
   {
     title: "ComfyUI Character Pipeline — Consistent Kids’ Book Art",
     color: "#b48bff",
+    tags: ["software"],
     image: "/hyder/projects/COMFY_STANDIN.png",
     description: [
       "A reproducible ComfyUI workflow to keep a main character consistent across a whole picture book: poses, outfits, angles, scenes.",
@@ -94,6 +107,7 @@ const projects = [
   {
     title: "Educational Tech & Curriculum",
     color: "#ff8888",
+    tags: ["other"],
     images: TEACH_IMAGES,
     description: [
       `Taught programming through nonprofits (Code Platoon, Code Your Dreams) and private tutoring.`,
@@ -103,6 +117,7 @@ const projects = [
   {
     title: "IT Support & Deployment Automation",
     color: "#bbbbbb",
+    tags: ["other"],
     image: "/hyder/projects/IT_STANDIN.png",
     description: [
       `Provided in-person IT support and automated OS/application setup for 100+ machines at the University of Chicago.`,
@@ -114,6 +129,7 @@ const projects = [
   {
     title: "Jar Jar Quote Bot (Twitter/X)",
     color: "#ff6b9d",
+    tags: ["software"],
     images: JARJAR_IMAGES,
     description: [
       `Daily pipeline that scrapes a random historical quote, translates it into Jar Jar Binks (Gungan) speech, and posts the result.`,
@@ -127,6 +143,7 @@ const projects = [
   {
     title: "Aerospace Part Finder (Async Scraper + Local LLM)",
     color: "#c3ff7f",
+    tags: ["software"],
     images: SPEC_IMAGES,
     description: [
       `Personal convenience tool to search suppliers for exact aerospace part numbers and officially documented equivalents.`,
@@ -141,6 +158,7 @@ const projects = [
   {
     title: "The Echoes of the Colorful Shadows",
     color: "#4b7f96ff",
+    tags: ["art"],
     images: COMIC_IMAGES,
     description: [
       "A timeboxed comic made near the start of AI image generation for a college project: a burned-out artist stumbles into four linked realms—Colorful Shadows, Whispers, Mirrored Realities, Fragmented Time—guided by spirits, books, and sound to rekindle his spark and steady a world in decay.",
@@ -169,6 +187,7 @@ const projects = [
   {
     title: "Motām — Poetry Collection",
     color: "#ffd166",
+    tags: ["web", "art"],
     image: "/hyder/projects/MOTAM_1.jpg",
     description: [
       `Designed and built a quiet website to present my grandmother's poetry collection across the years.`,
@@ -179,6 +198,7 @@ const projects = [
   {
     title: "Humrahe Khair — Together for Good",
     color: "#439184ff",
+    tags: ["web"],
     image: "/hyder/projects/CHARITY_1.jpg",
     description: [
       `Designed and built the landing page and nomination/registration pipeline for Zahra Hasanaat's 2025 initiative—a charity run by my extended family.`,
@@ -192,6 +212,7 @@ const projects = [
   {
     title: "Compassion Course Online",
     color: "#f4a261",
+    tags: ["web", "software", "art"],
     images: CC_IMAGES,
     description: [
       "Built the website for Thom Bond's Compassion Course — a year-long online program teaching Nonviolent Communication that has reached over 50,000 participants across 120+ countries in 20 languages.",
@@ -202,6 +223,7 @@ const projects = [
   {
     title: "AutoLens — Visual Vehicle ID (Expo)",
     color: "#6bff9d",
+    tags: ["software"],
     image: "/hyder/projects/AUTO_STANDIN.png",
     description: [
       "Mobile app that identifies cars from a photo (or live camera) and breaks down model trims, years, and key specs.",
@@ -220,6 +242,7 @@ const projects = [
   {
     title: "Pocket Sous Chef",
     color: "#b3fff2ff",
+    tags: ["art"],
     images: COOK_IMAGES,
     description: [
       "iOS recipe assistant that turns pantry photos or typed ingredients into step-by-step recipes.",
@@ -240,6 +263,7 @@ const projects = [
   {
     title: "High School Art Portfolio",
     color: "#ff9ae0",
+    tags: ["art"],
     manifest: ART_MANIFEST,
     images: ART_IMAGES,
     description: [
@@ -251,6 +275,7 @@ const projects = [
   {
     title: "Typometry — Absurdly Detailed Typing Stats",
     color: "#e2b714",
+    tags: ["web", "software", "art"],
     images: TYPO_IMAGES,
     description: [
       'Made purely for fun. Typing analysis that goes beyond WPM—keyboard heatmaps, bigram timing, behavioral profiling, and a "typing archetype" system.',
@@ -265,6 +290,7 @@ const projects = [
   {
     title: "Join the Dots",
     color: "#9BAA8F",
+    tags: ["web", "art"],
     images: DOT_IMAGES,
     description: [
       "A trilingual (English, Hindi, Urdu) static site for a Nonviolent Communication community — event listings, a 12-week compassion course, curated resources with a canvas audio visualizer, and a community blog.",
@@ -337,6 +363,7 @@ function RotatingImage({
   altBase = "project image",
   intervalMs = 5000,
   onClick,
+  isVisible = true,
 }) {
   const meta = usePreloaded(images);
   const ok = meta.map((m) => m.ok);
@@ -362,13 +389,14 @@ function RotatingImage({
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
-    if (visibleIdxs.length > 1) {
+    if (visibleIdxs.length > 1 && isVisible) {
       timerRef.current = setInterval(next, intervalMs);
     }
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [intervalMs, visibleIdxs.length]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intervalMs, visibleIdxs.length, isVisible]);
 
   const usable = visibleIdxs.length > 0;
   const activeReal = visibleIdxs.length ? visibleIdxs[idx] : -1;
@@ -386,7 +414,7 @@ function RotatingImage({
       }}
       onMouseLeave={() => {
         setHovered(false);
-        if (!timerRef.current && visibleIdxs.length > 1) {
+        if (!timerRef.current && visibleIdxs.length > 1 && isVisible) {
           timerRef.current = setInterval(next, intervalMs);
         }
       }}
@@ -494,6 +522,7 @@ function RotatingImage({
 }
 
 export default function Projects() {
+  const [activeFilter, setActiveFilter] = useState("all");
   const [qrOpen, setQrOpen] = useState(null); // { title, data, color } | null
   const [lightbox, setLightbox] = useState(null); // { title, color, images, index }
 
@@ -599,13 +628,63 @@ export default function Projects() {
       <h1
         style={{
           fontSize: "2rem",
-          marginBottom: "2rem",
+          marginBottom: "1.2rem",
           borderBottom: "1px solid #444",
           paddingBottom: "0.5rem",
         }}
       >
         Projects
       </h1>
+
+      {/* Category filter pills */}
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 8,
+          marginBottom: "2rem",
+        }}
+      >
+        {CATEGORIES.map(({ key, label }) => {
+          const count =
+            key === "all"
+              ? projects.length
+              : projects.filter((p) => p.tags?.includes(key)).length;
+          const isActive = activeFilter === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setActiveFilter(key)}
+              style={{
+                fontFamily: "monospace",
+                fontSize: "0.85rem",
+                padding: "6px 14px",
+                borderRadius: 999,
+                border: `1px solid ${isActive ? "#eaeaea" : "#444"}`,
+                background: isActive ? "rgba(234,234,234,0.1)" : "transparent",
+                color: isActive ? "#eaeaea" : "#999",
+                cursor: "pointer",
+                transition: "all 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.color = "#ccc";
+                  e.currentTarget.style.borderColor = "#666";
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.color = "#999";
+                  e.currentTarget.style.borderColor = "#444";
+                }
+              }}
+            >
+              {label} ({count})
+            </button>
+          );
+        })}
+      </div>
 
       {projects.map((proj, i) => {
         // const images = proj.images || (proj.image ? [proj.image] : []);
@@ -614,26 +693,41 @@ export default function Projects() {
           (proj.image ? [proj.image] : null) ||
           (proj.manifest ? manifestImages[i] || [] : []);
 
+        const isVisible =
+          activeFilter === "all" || proj.tags?.includes(activeFilter);
+
         return (
           <div
             key={i}
             style={{
+              overflow: "hidden",
+              opacity: isVisible ? 1 : 0,
+              maxHeight: isVisible ? 1200 : 0,
+              marginBottom: isVisible ? "3rem" : 0,
+              transform: isVisible ? "scale(1)" : "scale(0.97)",
+              pointerEvents: isVisible ? "auto" : "none",
+              transition: isVisible
+                ? "opacity 0.35s ease 0.08s, transform 0.35s ease 0.08s, max-height 0.35s ease, margin-bottom 0.35s ease"
+                : "opacity 0.2s ease, transform 0.2s ease, max-height 0.2s ease 0.15s, margin-bottom 0.2s ease 0.15s",
+            }}
+          >
+          <div
+            style={{
               display: "flex",
               flexWrap: "wrap",
-              marginBottom: "3rem",
               gap: "1.5rem",
               alignItems: "flex-start",
             }}
           >
-            {/* Image box (slideshow if multiple images) */}
+            {/* Image box */}
             <RotatingImage
               images={images}
               borderColor={proj.color}
               altBase={`${proj.title} preview`}
-              fit="height" // fill height, centered (side-crop if needed)
+              isVisible={isVisible}
+              fit="height"
               onClick={(index) => {
                 if (!images.length) return;
-                // Lightbox opens with the same list; it's okay if some are broken; previews no longer flash
                 const start = Math.min(index, (images.length || 1) - 1);
                 setLightbox({
                   title: proj.title,
@@ -735,6 +829,7 @@ export default function Projects() {
                 </div>
               ) : null}
             </div>
+          </div>
           </div>
         );
       })}
@@ -936,6 +1031,9 @@ export default function Projects() {
 
           <style>{`
       @keyframes zoomIn { from { transform: scale(0.98); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+      @media (prefers-reduced-motion: reduce) {
+        * { transition-duration: 0s !important; animation-duration: 0s !important; }
+      }
     `}</style>
         </div>
       )}
