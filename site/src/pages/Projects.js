@@ -1,51 +1,53 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-// ---------- Helper: build an array of SPIM images in /public/hyder/projects ----------
+// ---------- Helper: build an array of images in /public/projects ----------
+const PU = process.env.PUBLIC_URL;
+
 const SPIM_IMAGES = Array.from(
   { length: 5 },
-  (_, i) => `/hyder/projects/SPIM_${i + 1}.jpg`
+  (_, i) => `${PU}/projects/SPIM_${i + 1}.jpg`
 );
 const JARJAR_IMAGES = Array.from(
   { length: 4 },
-  (_, i) => `/hyder/projects/JARJAR_${i + 1}.jpg`
+  (_, i) => `${PU}/projects/JARJAR_${i + 1}.jpg`
 );
 const SPEC_IMAGES = Array.from(
   { length: 5 },
-  (_, i) => `/hyder/projects/SPEC_${i + 1}.jpg`
+  (_, i) => `${PU}/projects/SPEC_${i + 1}.jpg`
 );
 const COOK_IMAGES = Array.from(
   { length: 4 },
-  (_, i) => `/hyder/projects/COOK_${i + 1}.jpg`
+  (_, i) => `${PU}/projects/COOK_${i + 1}.jpg`
 );
 const COMIC_IMAGES = Array.from(
   { length: 6 },
-  (_, i) => `/hyder/projects/COMIC_${i + 1}.jpg`
+  (_, i) => `${PU}/projects/COMIC_${i + 1}.jpg`
 );
 const TEACH_IMAGES = Array.from(
   { length: 2 },
-  (_, i) => `/hyder/projects/TEACH_${i + 1}.jpg`
+  (_, i) => `${PU}/projects/TEACH_${i + 1}.jpg`
 );
 const ART_IMAGES = [
-  "/hyder/art/artworks/Painting/Hyder'sV1.JPG",
-  "/hyder/art/artworks/ScratchBoard/WolfScratchV2.jpg",
-  "/hyder/art/artworks/Hands/INVHand3V1.jpeg",
+  `${PU}/art/artworks/Painting/Hyder'sV1.JPG`,
+  `${PU}/art/artworks/ScratchBoard/WolfScratchV2.jpg`,
+  `${PU}/art/artworks/Hands/INVHand3V1.jpeg`,
 ];
 
 const DOT_IMAGES = Array.from(
   { length: 5 },
-  (_, i) => `/hyder/projects/DOT_${i + 1}.png`
+  (_, i) => `${PU}/projects/DOT_${i + 1}.png`
 );
 
 const CC_IMAGES = Array.from(
   { length: 9 },
-  (_, i) => `/hyder/projects/CC_${i + 1}.jpg`
+  (_, i) => `${PU}/projects/CC_${i + 1}.jpg`
 );
 
-const ART_MANIFEST = `${process.env.PUBLIC_URL}/art/manifest.json`;
+const ART_MANIFEST = `${PU}/art/manifest.json`;
 
 const TYPO_IMAGES = Array.from(
   { length: 3 },
-  (_, i) => `/hyder/projects/TYPO_${i + 1}.jpg`
+  (_, i) => `${PU}/projects/TYPO_${i + 1}.jpg`
 );
 // ---------- Category filter ----------
 const CATEGORIES = [
@@ -74,7 +76,7 @@ const projects = [
     title: "Environmental Data Globe (Booth School of Business)",
     color: "#00d1ff",
     tags: ["software"],
-    image: "/hyder/projects/GLOBE_1.jpg",
+    image: `${PU}/projects/GLOBE_1.jpg`,
     description: [
       `Built an interactive globe for visualizing over 200GB of environmental data using JavaScript and Three.js.`,
       `Developed dynamic cluster filtering, palette switching, and automated SQL data preprocessing in Python to support visual clarity and performance.`,
@@ -84,7 +86,7 @@ const projects = [
     title: "AI Research & Model Tools",
     color: "#ffaa00",
     tags: ["software"],
-    image: "/hyder/projects/AI_STANDIN.png",
+    image: `${PU}/projects/AI_STANDIN.png`,
     description: [
       `Created tooling for structured experimentation with diffusion models: formula generators, pixel-level perturbations, and statistical logging systems.`,
       `These tools were used to explore model interpretability, generative tuning, and output consistency.`,
@@ -96,7 +98,7 @@ const projects = [
     title: "ComfyUI Character Pipeline — Consistent Kids’ Book Art",
     color: "#b48bff",
     tags: ["software"],
-    image: "/hyder/projects/COMFY_STANDIN.png",
+    image: `${PU}/projects/COMFY_STANDIN.png`,
     description: [
       "A reproducible ComfyUI workflow to keep a main character consistent across a whole picture book: poses, outfits, angles, scenes.",
       "Techniques: identity conditioning (IP-Adapter / LoRA) blending, ControlNet pose, prompt/seed scheduling, palette locks, and layout templates.",
@@ -118,7 +120,7 @@ const projects = [
     title: "IT Support & Deployment Automation",
     color: "#bbbbbb",
     tags: ["other"],
-    image: "/hyder/projects/IT_STANDIN.png",
+    image: `${PU}/projects/IT_STANDIN.png`,
     description: [
       `Provided in-person IT support and automated OS/application setup for 100+ machines at the University of Chicago.`,
       `This early experience taught me about system maintenance, scripting, and hands-on problem-solving.`,
@@ -168,11 +170,11 @@ const projects = [
       // { label: 'pdf', href: 'https://flowcode.com/p/2c3S4xwGF' }
       {
         label: "PDF",
-        href: "https://hmohyud.github.io/hyder/projects/Echoes_of_the_Colorful_Shadows_5x7.pdf",
+        href: `${PU}/projects/Echoes_of_the_Colorful_Shadows_5x7.pdf`,
       },
     ],
     // Point QR at your canonical route so it never goes stale
-    qrData: "/hyder/projects/QR_COMIC.png",
+    qrData: `${PU}/projects/QR_COMIC.png`,
   },
   // {
   //   title: 'Client Sites & Revamps',
@@ -188,7 +190,7 @@ const projects = [
     title: "Motām — Poetry Collection",
     color: "#ffd166",
     tags: ["web", "art"],
-    image: "/hyder/projects/MOTAM_1.jpg",
+    image: `${PU}/projects/MOTAM_1.jpg`,
     description: [
       `Designed and built a quiet website to present my grandmother's poetry collection across the years.`,
       `Typography-focused, accessible, and easy to maintain.`,
@@ -199,7 +201,7 @@ const projects = [
     title: "Humrahe Khair — Together for Good",
     color: "#439184ff",
     tags: ["web"],
-    image: "/hyder/projects/CHARITY_1.jpg",
+    image: `${PU}/projects/CHARITY_1.jpg`,
     description: [
       `Designed and built the landing page and nomination/registration pipeline for Zahra Hasanaat's 2025 initiative—a charity run by my extended family.`,
       `The site promotes interfaith cooperation and highlights three pillars: free meals, Punji seed grants for small businesses, and vocational skills training.`,
@@ -224,7 +226,7 @@ const projects = [
     title: "AutoLens — Visual Vehicle ID (Expo)",
     color: "#6bff9d",
     tags: ["software"],
-    image: "/hyder/projects/AUTO_STANDIN.png",
+    image: `${PU}/projects/AUTO_STANDIN.png`,
     description: [
       "Mobile app that identifies cars from a photo (or live camera) and breaks down model trims, years, and key specs.",
       "Built with Expo + React Native; on-device pre/post-processing, server-side model inference, and a clean results UI.",
@@ -270,7 +272,7 @@ const projects = [
       "Highlights, studies, and experiments from high school.",
       "College pieces are in progress—I haven’t bundled them into a portfolio yet.",
     ],
-    links: [{ label: "Open full gallery", href: "/hyder/art/" }],
+    links: [{ label: "Open full gallery", href: `${PU}/art/` }],
   },
   {
     title: "Typometry — Absurdly Detailed Typing Stats",
@@ -906,7 +908,7 @@ export default function Projects() {
             // const copiedMsg = isExpo ? 'Preview URL copied to clipboard' : 'Link copied to clipboard';
             const imgLoc = isExpo
               ? qrOpen.data
-              : "https://hmohyud.github.io/hyder/projects/Echoes_of_the_Colorful_Shadows_5x7.pdf";
+              : `${PU}/projects/Echoes_of_the_Colorful_Shadows_5x7.pdf`;
 
             return (
               <div
@@ -995,7 +997,7 @@ export default function Projects() {
                     href={
                       isExpo
                         ? qrOpen.data
-                        : "https://hmohyud.github.io/hyder/projects/Echoes_of_the_Colorful_Shadows_5x7.pdf"
+                        : `${PU}/projects/Echoes_of_the_Colorful_Shadows_5x7.pdf`
                     }
                     target="_blank"
                     rel="noreferrer"
