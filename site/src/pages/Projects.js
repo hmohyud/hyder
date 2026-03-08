@@ -60,8 +60,9 @@ const CATEGORIES = [
 
 // ---------- Project data ----------
 const projects = [
+  // 1. SPIM
   {
-    title: "SPIM (Salavon’s Pathology Inducing Machine)",
+    title: "SPIM (Salavon's Pathology Inducing Machine)",
     color: "#00ff88",
     tags: ["web", "software"],
     images: SPIM_IMAGES,
@@ -72,6 +73,7 @@ const projects = [
     ],
     links: [{ label: "Visit Site", href: "https://latentculture.com/spim/" }],
   },
+  // 2. Globe
   {
     title: "Environmental Data Globe (Booth School of Business)",
     color: "#00d1ff",
@@ -82,66 +84,19 @@ const projects = [
       `Developed dynamic cluster filtering, palette switching, and automated SQL data preprocessing in Python to support visual clarity and performance.`,
     ],
   },
+  // 3. Compassion Course
   {
-    title: "AI Research & Model Tools",
-    color: "#ffaa00",
-    tags: ["software"],
-    image: `${PU}/projects/AI_STANDIN.png`,
+    title: "Compassion Course Online",
+    color: "#f4a261",
+    tags: ["web", "software", "art"],
+    images: CC_IMAGES,
     description: [
-      `Created tooling for structured experimentation with diffusion models: formula generators, pixel-level perturbations, and statistical logging systems.`,
-      `These tools were used to explore model interpretability, generative tuning, and output consistency.`,
+      "Built the website for Thom Bond's Compassion Course — a year-long online program teaching Nonviolent Communication that has reached over 50,000 participants across 120+ countries in 20 languages.",
+      "The site handles course information, registration, scheduling, and resources for active cohorts. Thom is the Director of Education at NYCNVC, a UN Civil Society Organization.",
     ],
+    links: [{ label: "Visit Site", href: "https://compassioncourse.org/" }],
   },
-
-  // NEW: ComfyUI character pipeline
-  {
-    title: "ComfyUI Character Pipeline — Consistent Kids’ Book Art",
-    color: "#b48bff",
-    tags: ["software"],
-    image: `${PU}/projects/COMFY_STANDIN.png`,
-    description: [
-      "A reproducible ComfyUI workflow to keep a main character consistent across a whole picture book: poses, outfits, angles, scenes.",
-      "Techniques: identity conditioning (IP-Adapter / LoRA) blending, ControlNet pose, prompt/seed scheduling, palette locks, and layout templates.",
-      "Exports print-ready spreads (bleed & safe margins) and auto-generates a “character bible” sheet from the same graph.",
-    ],
-  },
-
-  {
-    title: "Educational Tech & Curriculum",
-    color: "#ff8888",
-    tags: ["other"],
-    images: TEACH_IMAGES,
-    description: [
-      `Taught programming through nonprofits (Code Platoon, Code Your Dreams) and private tutoring.`,
-      `Built MIT App Inventor examples, interactive modules, and developed beginner-friendly teaching content for both students and veterans.`,
-    ],
-  },
-  {
-    title: "IT Support & Deployment Automation",
-    color: "#bbbbbb",
-    tags: ["other"],
-    image: `${PU}/projects/IT_STANDIN.png`,
-    description: [
-      `Provided in-person IT support and automated OS/application setup for 100+ machines at the University of Chicago.`,
-      `This early experience taught me about system maintenance, scripting, and hands-on problem-solving.`,
-    ],
-  },
-
-  // Jar Jar bot
-  {
-    title: "Jar Jar Quote Bot (Twitter/X)",
-    color: "#ff6b9d",
-    tags: ["software"],
-    images: JARJAR_IMAGES,
-    description: [
-      `Daily pipeline that scrapes a random historical quote, translates it into Jar Jar Binks (Gungan) speech, and posts the result.`,
-      `To bypass character limits, the text is rendered onto an AI-generated background image before posting.`,
-      `Includes basic scheduling, retries/rate-limit handling, and content moderation checks.`,
-    ],
-    links: [{ label: "View on X", href: "https://x.com/JarJarbinksays" }],
-  },
-
-  // Aerospace project with repo link
+  // 4. Aerospace Part Finder
   {
     title: "Aerospace Part Finder (Async Scraper + Local LLM)",
     color: "#c3ff7f",
@@ -157,6 +112,131 @@ const projects = [
       { label: "GitHub", href: "https://github.com/hmohyud/azizproj" },
     ],
   },
+  // 5. Typometry
+  {
+    title: "Typometry — Absurdly Detailed Typing Stats",
+    color: "#e2b714",
+    tags: ["web", "software", "art"],
+    images: TYPO_IMAGES,
+    description: [
+      'Made purely for fun. Typing analysis that goes beyond WPM—keyboard heatmaps, bigram timing, behavioral profiling, and a "typing archetype" system.',
+      "React + Vite, all client-side. Dark theme inspired by MonkeyType.",
+    ],
+    links: [
+      { label: "Visit Site", href: "https://hmohyud.github.io/typometry/" },
+      // { label: "GitHub", href: "https://github.com/hmohyud/typometry" },
+    ],
+  },
+  // 6. AutoLens
+  {
+    title: "AutoLens — Visual Vehicle ID (Expo)",
+    color: "#6bff9d",
+    tags: ["software"],
+    image: `${PU}/projects/AUTO_STANDIN.png`,
+    description: [
+      "Mobile app that identifies cars from a photo (or live camera) and breaks down model trims, years, and key specs.",
+      "Built with Expo + React Native; on-device pre/post-processing, server-side model inference, and a clean results UI.",
+      "Preview it on your phone with Expo.",
+    ],
+    links: [
+      {
+        label: "Open preview (Expo Go installed)",
+        href: "https://expo.dev/preview/update?message=Initial+commit%0A%0AGenerated+by+create-expo-app+3.4.2.&updateRuntimeVersion=1.0.0&createdAt=2025-06-30T12%3A23%3A53.766Z&slug=exp&projectId=bf485ddb-a27e-47b0-b8ba-444f4dbde301&group=ee75b629-263a-4bc1-aa43-7aa4a5313843",
+      },
+    ],
+    qrData:
+      "https://expo.dev/preview/update?message=Initial+commit%0A%0AGenerated+by+create-expo-app+3.4.2.&updateRuntimeVersion=1.0.0&createdAt=2025-06-30T12%3A23%3A53.766Z&slug=exp&projectId=bf485ddb-a27e-47b0-b8ba-444f4dbde301&group=ee75b629-263a-4bc1-aa43-7aa4a5313843",
+  },
+  // 7. Jar Jar Quote Bot
+  {
+    title: "Jar Jar Quote Bot (Twitter/X)",
+    color: "#ff6b9d",
+    tags: ["software"],
+    images: JARJAR_IMAGES,
+    description: [
+      `Daily pipeline that scrapes a random historical quote, translates it into Jar Jar Binks (Gungan) speech, and posts the result.`,
+      `To bypass character limits, the text is rendered onto an AI-generated background image before posting.`,
+      `Includes basic scheduling, retries/rate-limit handling, and content moderation checks.`,
+    ],
+    links: [{ label: "View on X", href: "https://x.com/JarJarbinksays" }],
+  },
+  // 8. ComfyUI Character Pipeline
+  {
+    title: "ComfyUI Character Pipeline — Consistent Kids' Book Art",
+    color: "#b48bff",
+    tags: ["software"],
+    image: `${PU}/projects/COMFY_STANDIN.png`,
+    description: [
+      "A reproducible ComfyUI workflow to keep a main character consistent across a whole picture book: poses, outfits, angles, scenes.",
+      "Techniques: identity conditioning (IP-Adapter / LoRA) blending, ControlNet pose, prompt/seed scheduling, palette locks, and layout templates.",
+      "Exports print-ready spreads (bleed & safe margins) and auto-generates a 'character bible' sheet from the same graph.",
+    ],
+  },
+  // 9. AI Research & Model Tools
+  {
+    title: "AI Research & Model Tools",
+    color: "#ffaa00",
+    tags: ["software"],
+    image: `${PU}/projects/AI_STANDIN.png`,
+    description: [
+      `Created tooling for structured experimentation with diffusion models: formula generators, pixel-level perturbations, and statistical logging systems.`,
+      `These tools were used to explore model interpretability, generative tuning, and output consistency.`,
+    ],
+  },
+  // 10. Humrahe Khair
+  {
+    title: "Humrahe Khair — Together for Good",
+    color: "#439184ff",
+    tags: ["web"],
+    image: `${PU}/projects/CHARITY_1.jpg`,
+    description: [
+      `Designed and built the landing page and nomination/registration pipeline for Zahra Hasanaat's 2025 initiative—a charity run by my extended family.`,
+      `The site promotes interfaith cooperation and highlights three pillars: free meals, Punji seed grants for small businesses, and vocational skills training.`,
+    ],
+    links: [
+      { label: "Visit Site", href: "https://humrahekhair.zahrahasanaat.org/" },
+    ],
+  },
+  // 11. Motām
+  {
+    title: "Motām — Poetry Collection",
+    color: "#ffd166",
+    tags: ["web", "art"],
+    image: `${PU}/projects/MOTAM_1.jpg`,
+    description: [
+      `Designed and built a quiet website to present my grandmother's poetry collection across the years.`,
+      `Typography-focused, accessible, and easy to maintain.`,
+    ],
+    links: [{ label: "Visit Site", href: "https://hmohyud.github.io/motam/" }],
+  },
+  // 12. Join the Dots
+  {
+    title: "Join the Dots",
+    color: "#9BAA8F",
+    tags: ["web", "art"],
+    images: DOT_IMAGES,
+    description: [
+      "A trilingual (English, Hindi, Urdu) static site for a Nonviolent Communication community — event listings, a 12-week compassion course, curated resources with a canvas audio visualizer, and a community blog.",
+      "Built without frameworks: vanilla HTML/CSS/JS, data-driven rendering, and full RTL support for Urdu.",
+    ],
+    links: [
+      { label: "Visit Site", href: "https://jointhedots.info/" },
+    ],
+  },
+  // 13. High School Art Portfolio
+  {
+    title: "High School Art Portfolio",
+    color: "#ff9ae0",
+    tags: ["art"],
+    manifest: ART_MANIFEST,
+    images: ART_IMAGES,
+    description: [
+      "Highlights, studies, and experiments from high school.",
+      "College pieces are in progress—I haven't bundled them into a portfolio yet.",
+    ],
+    links: [{ label: "Open full gallery", href: `${PU}/art/` }],
+  },
+  // 14. Echoes of the Colorful Shadows
   {
     title: "The Echoes of the Colorful Shadows",
     color: "#4b7f96ff",
@@ -185,62 +265,7 @@ const projects = [
   //     `Typical stack: React/Vite/Next or lightweight static builds (Eleventy). Integrated forms, CMS where needed, and CI deploys.`,
   //   ]
   // },
-
-  {
-    title: "Motām — Poetry Collection",
-    color: "#ffd166",
-    tags: ["web", "art"],
-    image: `${PU}/projects/MOTAM_1.jpg`,
-    description: [
-      `Designed and built a quiet website to present my grandmother's poetry collection across the years.`,
-      `Typography-focused, accessible, and easy to maintain.`,
-    ],
-    links: [{ label: "Visit Site", href: "https://hmohyud.github.io/motam/" }],
-  },
-  {
-    title: "Humrahe Khair — Together for Good",
-    color: "#439184ff",
-    tags: ["web"],
-    image: `${PU}/projects/CHARITY_1.jpg`,
-    description: [
-      `Designed and built the landing page and nomination/registration pipeline for Zahra Hasanaat's 2025 initiative—a charity run by my extended family.`,
-      `The site promotes interfaith cooperation and highlights three pillars: free meals, Punji seed grants for small businesses, and vocational skills training.`,
-    ],
-    links: [
-      { label: "Visit Site", href: "https://humrahekhair.zahrahasanaat.org/" },
-    ],
-  },
-
-  {
-    title: "Compassion Course Online",
-    color: "#f4a261",
-    tags: ["web", "software", "art"],
-    images: CC_IMAGES,
-    description: [
-      "Built the website for Thom Bond's Compassion Course — a year-long online program teaching Nonviolent Communication that has reached over 50,000 participants across 120+ countries in 20 languages.",
-      "The site handles course information, registration, scheduling, and resources for active cohorts. Thom is the Director of Education at NYCNVC, a UN Civil Society Organization.",
-    ],
-    links: [{ label: "Visit Site", href: "https://compassioncourse.org/" }],
-  },
-  {
-    title: "AutoLens — Visual Vehicle ID (Expo)",
-    color: "#6bff9d",
-    tags: ["software"],
-    image: `${PU}/projects/AUTO_STANDIN.png`,
-    description: [
-      "Mobile app that identifies cars from a photo (or live camera) and breaks down model trims, years, and key specs.",
-      "Built with Expo + React Native; on-device pre/post-processing, server-side model inference, and a clean results UI.",
-      "Preview it on your phone with Expo.",
-    ],
-    links: [
-      {
-        label: "Open preview (Expo Go installed)",
-        href: "https://expo.dev/preview/update?message=Initial+commit%0A%0AGenerated+by+create-expo-app+3.4.2.&updateRuntimeVersion=1.0.0&createdAt=2025-06-30T12%3A23%3A53.766Z&slug=exp&projectId=bf485ddb-a27e-47b0-b8ba-444f4dbde301&group=ee75b629-263a-4bc1-aa43-7aa4a5313843",
-      },
-    ],
-    qrData:
-      "https://expo.dev/preview/update?message=Initial+commit%0A%0AGenerated+by+create-expo-app+3.4.2.&updateRuntimeVersion=1.0.0&createdAt=2025-06-30T12%3A23%3A53.766Z&slug=exp&projectId=bf485ddb-a27e-47b0-b8ba-444f4dbde301&group=ee75b629-263a-4bc1-aa43-7aa4a5313843",
-  },
+  // 15. Pocket Sous Chef
   {
     title: "Pocket Sous Chef",
     color: "#b3fff2ff",
@@ -262,47 +287,28 @@ const projects = [
       },
     ],
   },
+  // 16. Educational Tech & Curriculum
   {
-    title: "High School Art Portfolio",
-    color: "#ff9ae0",
-    tags: ["art"],
-    manifest: ART_MANIFEST,
-    images: ART_IMAGES,
+    title: "Educational Tech & Curriculum",
+    color: "#ff8888",
+    tags: ["other"],
+    images: TEACH_IMAGES,
     description: [
-      "Highlights, studies, and experiments from high school.",
-      "College pieces are in progress—I haven’t bundled them into a portfolio yet.",
-    ],
-    links: [{ label: "Open full gallery", href: `${PU}/art/` }],
-  },
-  {
-    title: "Typometry — Absurdly Detailed Typing Stats",
-    color: "#e2b714",
-    tags: ["web", "software", "art"],
-    images: TYPO_IMAGES,
-    description: [
-      'Made purely for fun. Typing analysis that goes beyond WPM—keyboard heatmaps, bigram timing, behavioral profiling, and a "typing archetype" system.',
-      "React + Vite, all client-side. Dark theme inspired by MonkeyType.",
-    ],
-
-    links: [
-      { label: "Visit Site", href: "https://hmohyud.github.io/typometry/" },
-      // { label: "GitHub", href: "https://github.com/hmohyud/typometry" },
+      `Taught programming through nonprofits (Code Platoon, Code Your Dreams) and private tutoring.`,
+      `Built MIT App Inventor examples, interactive modules, and developed beginner-friendly teaching content for both students and veterans.`,
     ],
   },
+  // 17. IT Support & Deployment Automation
   {
-    title: "Join the Dots",
-    color: "#9BAA8F",
-    tags: ["web", "art"],
-    images: DOT_IMAGES,
+    title: "IT Support & Deployment Automation",
+    color: "#bbbbbb",
+    tags: ["other"],
+    image: `${PU}/projects/IT_STANDIN.png`,
     description: [
-      "A trilingual (English, Hindi, Urdu) static site for a Nonviolent Communication community — event listings, a 12-week compassion course, curated resources with a canvas audio visualizer, and a community blog.",
-      "Built without frameworks: vanilla HTML/CSS/JS, data-driven rendering, and full RTL support for Urdu.",
-    ],
-    links: [
-      { label: "Visit Site", href: "https://jointhedots.info/" },
+      `Provided in-person IT support and automated OS/application setup for 100+ machines at the University of Chicago.`,
+      `This early experience taught me about system maintenance, scripting, and hands-on problem-solving.`,
     ],
   },
-
 ];
 
 // Build a QR image URL (no extra deps)
@@ -910,7 +916,7 @@ export default function Projects() {
               </>
             ) : (
               <>
-                Tip: Open your phone’s camera (or any QR app) and scan to open
+                Tip: Open your phone's camera (or any QR app) and scan to open
                 the page.
               </>
             );
