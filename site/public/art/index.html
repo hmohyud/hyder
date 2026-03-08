@@ -278,14 +278,14 @@
             color: var(--muted)
         }
     </style>
-    <link rel="icon" href="/hyder/logoV6.png" />
+    <link rel="icon" href="/logoV6.png" />
 </head>
 
 <body>
     <div class="wrap">
         <header>
             <h1>Art Portfolio</h1>
-            <a class="back" href="/hyder#/projects">Back</a>
+            <a class="back" href="/projects">Back</a>
         </header>
 
         <p class="muted">Selection of pieces, studies, and experiments. Click any image to view full size.</p>
@@ -334,9 +334,8 @@
             function resolveSrc(s) {
                 if (!s) return s;
                 if (/^https?:\/\//i.test(s)) return s;
-                if (s.startsWith('/hyder/')) return s;
-                if (s.startsWith('/')) return '/hyder' + s;
-                return '/hyder/' + s.replace(/^\.?\//, '');
+                if (s.startsWith('/')) return s;
+                return '/' + s.replace(/^\.?\//, '');
             }
 
             let flat = []; let view = []; let idx = 0;
