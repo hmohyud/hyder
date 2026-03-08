@@ -789,8 +789,10 @@ export default function Projects() {
                     <a
                       key={k}
                       href={l.href}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      {...(!/\/art\/?$/.test(l.href) && {
+                        target: "_blank",
+                        rel: "noopener noreferrer",
+                      })}
                       style={{
                         display: "inline-block",
                         padding: "6px 10px",
