@@ -803,7 +803,9 @@ export default function Projects() {
                         rel: "noopener noreferrer",
                       })}
                       {...(/\/art\/?$/.test(l.href) && {
-                        onClick: () => sessionStorage.setItem("projects-scroll", window.scrollY),
+                        onClick: () => {
+                          sessionStorage.setItem("projects-scroll", window.scrollY);
+                        },
                       })}
                       style={{
                         display: "inline-block",

@@ -262,9 +262,9 @@
     -->
     <script>
       (function(){
-        // Skip the splash loader entirely on back/forward navigation
-        var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
-        if (nav && nav.type === 'back_forward') {
+        // Skip the splash loader when returning from the art gallery
+        if (sessionStorage.getItem('skip-loader')) {
+          sessionStorage.removeItem('skip-loader');
           var loader = document.getElementById('loader');
           if (loader) loader.remove();
           return;
