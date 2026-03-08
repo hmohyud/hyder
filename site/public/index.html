@@ -261,12 +261,21 @@
       real frame was presented before .go is added.
     -->
     <script>
-      requestAnimationFrame(function(){
+      (function(){
+        // Skip the splash loader entirely on back/forward navigation
+        var nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+        if (nav && nav.type === 'back_forward') {
+          var loader = document.getElementById('loader');
+          if (loader) loader.remove();
+          return;
+        }
         requestAnimationFrame(function(){
-          var logo = document.querySelector('.loader-logo');
-          if (logo) logo.classList.add('go');
+          requestAnimationFrame(function(){
+            var logo = document.querySelector('.loader-logo');
+            if (logo) logo.classList.add('go');
+          });
         });
-      });
+      })();
     </script>
 
     <!-- GitHub Pages SPA: restore path from 404.html redirect -->

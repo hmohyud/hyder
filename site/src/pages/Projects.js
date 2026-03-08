@@ -547,6 +547,15 @@ export default function Projects() {
   const [qrOpen, setQrOpen] = useState(null); // { title, data, color } | null
   const [lightbox, setLightbox] = useState(null); // { title, color, images, index }
 
+  // Restore scroll position when returning from art gallery
+  useEffect(() => {
+    const saved = sessionStorage.getItem("projects-scroll");
+    if (saved) {
+      sessionStorage.removeItem("projects-scroll");
+      requestAnimationFrame(() => window.scrollTo(0, parseInt(saved, 10)));
+    }
+  }, []);
+
   // Lock background scroll when any overlay is open
   useEffect(() => {
     const anyOpen = Boolean(qrOpen || lightbox);
@@ -792,6 +801,9 @@ export default function Projects() {
                       {...(!/\/art\/?$/.test(l.href) && {
                         target: "_blank",
                         rel: "noopener noreferrer",
+                      })}
+                      {...(/\/art\/?$/.test(l.href) && {
+                        onClick: () => sessionStorage.setItem("projects-scroll", window.scrollY),
                       })}
                       style={{
                         display: "inline-block",
