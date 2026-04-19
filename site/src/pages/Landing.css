@@ -129,14 +129,50 @@
   animation: float 20s ease-in-out infinite;
 }
 
-/* HERO */
+/* HERO — CSS Grid layout, swaps areas at mobile breakpoints */
 .hero{
   display: grid;
-  gap: 8px;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "title  label"
+    "title  grid"
+    "sub    gh"
+    "mission mission";
+  column-gap: 12px;
+  row-gap: 10px;
   text-align: left;
 }
+.hero > .title           { grid-area: title; align-self: end; white-space: nowrap; }
+.hero > .gh-contrib-label{ grid-area: label; justify-self: end; align-self: end; }
+.hero > .gh-contrib-grid-wrap {
+  grid-area: grid;
+  align-self: start;
+  justify-self: end;
+  max-width: 560px;
+  width: 100%;
+}
+.hero > .subtitle        { grid-area: sub; }
+.hero > .hero-gh-link    { grid-area: gh; justify-self: end; align-self: center; }
+.hero > .mission         { grid-area: mission; }
+
+/* Mid + full mobile: title + small label on row 1, grid full-width row 2 */
+@media (max-width: 1050px){
+  .hero{
+    grid-template-areas:
+      "title  label"
+      "grid   grid"
+      "sub    gh"
+      "mission mission";
+  }
+  .hero > .title { align-self: baseline; white-space: normal; }
+  .hero > .gh-contrib-label{ align-self: baseline; }
+  .hero > .gh-contrib-grid-wrap{
+    justify-self: stretch;
+    max-width: none;
+  }
+}
 .title{
-  font-size: 3.2rem;
+  font-size: clamp(1.3rem, 4.5vw, 3.2rem);
   font-weight: 800;
   letter-spacing: -0.02em;
   margin: 0;
@@ -151,16 +187,53 @@
 .subtitle{
   margin: 0;
   font-weight: 600;
-  font-size: 1rem;
-  color: #d9deee;
-  opacity: .9;
+  font-size: clamp(0.52rem, 1.4vw, 0.72rem);
+  color: #a6afc9;
+  letter-spacing: clamp(0.08em, 0.4vw, 0.22em);
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: clamp(6px, 1vw, 12px);
+  white-space: nowrap;
+}
+.subtitle::before{
+  content: "";
+  display: inline-block;
+  width: clamp(14px, 3vw, 32px);
+  height: 1px;
+  flex-shrink: 0;
+  background: linear-gradient(90deg, rgba(158,216,255,0.0), rgba(158,216,255,0.7));
+}
+
+.hero-gh-link{
+  font-size: 0.72rem;
+  color: #6f788f;
+  letter-spacing: 0.04em;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  text-decoration: none;
+  transition: color 0.2s ease;
+  white-space: nowrap;
+}
+.hero-gh-link:hover,
+.hero-gh-link:focus-visible{
+  color: #9ed8ff;
+}
+/* When the user hovers the grid or label, light up the github handle too */
+.hero:has(.gh-contrib-grid-wrap:hover) .hero-gh-link,
+.hero:has(.gh-contrib-grid-wrap:focus-visible) .hero-gh-link,
+.hero:has(.gh-contrib-label:hover) .hero-gh-link,
+.hero:has(.gh-contrib-label:focus-visible) .hero-gh-link{
+  color: #9ed8ff;
 }
 .mission{
   margin: 0;
-  max-width: 900px;
+  max-width: none;
   line-height: 1.55;
   color: #dde2f4;
   font-size: 0.95rem;
+  text-align: justify;
+  text-justify: inter-word;
+  hyphens: auto;
 }
 
 /* GRID */
@@ -172,9 +245,9 @@
 @media (max-width: 760px){
   .landing{ cursor: auto; height: auto; overflow: visible; }
   .wrap{ transform: none !important; padding: 16px; }
-  .title{ font-size: 2rem; }
-  .subtitle{ font-size: 0.85rem; }
-  .mission{ font-size: 0.85rem; }
+  .mission{ font-size: 0.85rem; text-align: left; hyphens: none; }
+  .hero-gh-link{ font-size: 0.68rem; }
+  .hero{ column-gap: 8px; }
   .grid{ grid-template-columns: 1fr; }
   .card{ min-height: 220px; }
 }

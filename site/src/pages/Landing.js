@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import BgVariantB from "../components/BgVariantB";
 import TubesCursorOverlay from "../components/TubesCursorOverlay";
+import { ContribLabel, ContribGrid } from "../components/GithubContributions";
 import "./Landing.css";
 
 /* Inline icons (no emojis) */
@@ -155,7 +156,18 @@ export default function Landing() {
       <div className="wrap" ref={wrapRef}>
         <header className="hero">
           <h1 className="title">Hyder Mohyuddin</h1>
+          <ContribLabel username="hmohyud" />
+          <ContribGrid username="hmohyud" />
           <p className="subtitle">AI &amp; Software • Systems • Interfaces</p>
+          <a
+            className="hero-gh-link"
+            href="https://github.com/hmohyud"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Open GitHub profile"
+          >
+            github.com/hmohyud
+          </a>
 
           {/* <p className="mission">
             I build dependable AI tools and interfaces. Recent work: real-time tensor

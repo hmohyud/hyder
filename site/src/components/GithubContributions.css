@@ -1,0 +1,147 @@
+/* LABEL (sits inline next to the title) */
+.gh-contrib-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: clamp(3px, 0.6vw, 6px);
+  font-size: clamp(0.45rem, 1.2vw, 0.78rem);
+  color: #d9deee;
+  opacity: 0.85;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+  transition: opacity 0.25s ease, filter 0.25s ease;
+  user-select: none;
+  white-space: nowrap;
+}
+.gh-contrib-label:hover,
+.gh-contrib-label:focus-visible {
+  opacity: 1;
+  filter: brightness(1.15);
+}
+.gh-contrib-count {
+  font-weight: 700;
+  font-size: clamp(0.58rem, 1.45vw, 0.95rem);
+  background: linear-gradient(90deg, #b7c5ff, #9ed8ff, #b8ffd8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.gh-contrib-suffix {
+  color: #b9c0d4;
+}
+.gh-contrib-ytd {
+  color: #8e97b0;
+  font-size: clamp(0.42rem, 1.05vw, 0.72rem);
+  margin-left: 2px;
+}
+
+/* GRID (stretches to fill container) */
+.gh-contrib-grid-wrap {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  user-select: none;
+  cursor: pointer;
+  width: 100%;
+  transition: filter 0.25s ease;
+}
+.gh-contrib-grid-wrap:hover,
+.gh-contrib-grid-wrap:focus-visible {
+  filter: brightness(1.08);
+}
+.gh-contrib-grid-wrap:hover .gh-contrib-grid,
+.gh-contrib-grid-wrap:focus-visible .gh-contrib-grid {
+  border-color: rgba(158, 216, 255, 0.28);
+  box-shadow:
+    0 0 0 1px rgba(158, 216, 255, 0.12),
+    0 0 22px rgba(158, 216, 255, 0.08);
+}
+
+.gh-contrib-grid {
+  /* Tunable knobs:
+     --gh-h-gap   minimum horizontal gap between columns
+     --gh-v-gap   minimum vertical gap between cells
+     --gh-max-cell  maximum square cell size; grid self-caps width so cells never exceed this.
+     Below the cap, cells scale down (1fr) to fit while gaps stay at their minimum. */
+  --gh-h-gap: 2px;
+  --gh-v-gap: 2px;
+  --gh-max-cell: 12px;
+  --gh-cols: 53;
+  --gh-pad-y: 10px;
+  --gh-pad-x: 12px;
+
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  column-gap: var(--gh-h-gap);
+  padding: var(--gh-pad-y) var(--gh-pad-x);
+
+  /* Cap the grid's outer width so cells don't grow past --gh-max-cell */
+  max-width: calc(
+    var(--gh-cols) * var(--gh-max-cell)
+    + (var(--gh-cols) - 1) * var(--gh-h-gap)
+    + 2 * var(--gh-pad-x)
+  );
+  width: 100%;
+
+  border-radius: 10px;
+  background: rgba(10, 14, 28, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  overflow: hidden;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.gh-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gh-v-gap);
+  min-width: 0;
+}
+
+.gh-cell {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.04);
+  opacity: 0;
+  transform: scale(0.4);
+  animation: gh-cell-in 420ms cubic-bezier(0.25, 0.9, 0.35, 1.05) forwards;
+}
+
+.gh-cell.gh-empty {
+  background: transparent;
+  border: 1px dashed rgba(255, 255, 255, 0.04);
+}
+
+.gh-cell.gh-l0 { background: rgba(255, 255, 255, 0.05); }
+.gh-cell.gh-l1 { background: rgba(160, 190, 255, 0.35); box-shadow: 0 0 4px rgba(160, 190, 255, 0.15); }
+.gh-cell.gh-l2 { background: rgba(158, 216, 255, 0.6);  box-shadow: 0 0 6px rgba(158, 216, 255, 0.25); }
+.gh-cell.gh-l3 { background: rgba(158, 216, 255, 0.85); box-shadow: 0 0 8px rgba(158, 216, 255, 0.35); }
+.gh-cell.gh-l4 {
+  background: linear-gradient(135deg, #9ed8ff, #b8ffd8);
+  box-shadow: 0 0 10px rgba(184, 255, 216, 0.5);
+}
+
+@keyframes gh-cell-in {
+  0%   { opacity: 0; transform: scale(0.2) translateY(4px); }
+  60%  { opacity: 1; transform: scale(1.15) translateY(0); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@media (max-width: 1050px) {
+  .gh-contrib-grid {
+    --gh-h-gap: 2px;
+    --gh-v-gap: 2px;
+    max-width: none; /* let cells fill container on mobile/mid-mobile */
+  }
+}
+@media (max-width: 760px) {
+  .gh-contrib-grid {
+    --gh-h-gap: 1px;
+    --gh-v-gap: 1px;
+    --gh-pad-y: 6px;
+    --gh-pad-x: 8px;
+  }
+  .gh-contrib-ytd { display: none; }
+}
