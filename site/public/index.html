@@ -45,13 +45,8 @@
 
     <!-- ===== LOADER (inline — paints before any JS bundle) ===== -->
     <style>
-      /* Prevent white flash — body only, NOT html (html bg breaks z-index:-1 elements) */
-      body {
-        margin: 0;
-        background: #0b0d12;
-      }
+      body { margin: 0; background: #0b0d12; }
 
-      /* ---- Fullscreen overlay ---- */
       #loader {
         position: fixed;
         inset: 0;
@@ -60,183 +55,59 @@
         align-items: center;
         justify-content: center;
         background: #0b0d12;
-      }
-      /* On exit: fade only the logo, keep the bg opaque,
-         then JS removes the whole element after the transition */
-      #loader.loader-exit .loader-logo {
-        opacity: 0;
+        opacity: 1;
         transition: opacity 0.4s ease;
       }
-
-      /* ---- Logo wrapper ---- */
-      .loader-logo {
-        position: relative;
-        width: 120px;
-        height: 68px;
-      }
-
-      /* ---- Letters: start hidden & offset, no animation yet ---- */
-      .loader-letter-h,
-      .loader-letter-m {
-        position: absolute;
-        top: 0;
-        width: 120px;
-        height: 68px;
-        will-change: transform, opacity;
+      #loader.loader-exit {
         opacity: 0;
       }
-      .loader-letter-h {
-        transform: translateX(-90px);
+      #loader-canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
       }
-      .loader-letter-m {
-        transform: translateX(90px);
-      }
-      .loader-letter-h path,
-      .loader-letter-m path {
-        fill: #e8ebf4;
+      .loader-logo {
+        position: relative;
+        width: 1px;
+        height: 1px;
+        pointer-events: none;
       }
 
-      /* ---- Impact glow: hidden by default ---- */
+      /* Impact bloom: fires when letters "collide" mid-assembly */
       .loader-impact {
         position: absolute;
         left: 50%;
         top: 50%;
         translate: -50% -50%;
-        width: 180px;
-        height: 180px;
+        width: 340px;
+        height: 340px;
         border-radius: 50%;
         background: radial-gradient(
           circle,
-          rgba(160, 190, 255, 0.30) 0%,
-          rgba(160, 190, 255, 0.08) 45%,
-          transparent 70%
+          rgba(184, 255, 216, 0.35) 0%,
+          rgba(158, 216, 255, 0.14) 35%,
+          rgba(183, 197, 255, 0.06) 60%,
+          transparent 72%
         );
+        mix-blend-mode: screen;
         pointer-events: none;
         opacity: 0;
+        z-index: 2;
+      }
+      #loader.go .loader-impact {
+        animation: softBloom 0.4s 0.3s ease-out forwards;
       }
 
-      /* ========================================================
-         Animations only trigger when .go is added via JS
-         (guarantees first paint shows the hidden state)
-         ======================================================== */
-
-      /* Phase 1: letters glide in (0 – 0.55s) */
-      .go .loader-letter-h {
-        animation: glideH 0.55s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
-      }
-      .go .loader-letter-m {
-        animation: glideM 0.55s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
-      }
-
-      /* Phase 2: on collision the whole logo tumbles — like M hit harder,
-         knocking it right + spinning, then it springs back to center.
-         Starts at 0.5s (just as letters meet), runs 0.6s */
-      .go {
-        animation: collisionSwirl 0.6s 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-      }
-
-      /* Phase 2b: impact glow fires at collision moment */
-      .go .loader-impact {
-        animation: softBloom 0.6s 0.5s ease-out forwards;
-      }
-
-      /* Phase 2c: letter glow pulses after collision settles */
-      .go .loader-letter-h path,
-      .go .loader-letter-m path {
-        animation: letterGlow 0.8s 0.65s ease-out both;
-      }
-
-      /* --- Letter approach --- */
-      @keyframes glideH {
-        0% {
-          transform: translateX(-90px);
-          opacity: 0;
-        }
-        35% {
-          opacity: 0.7;
-        }
-        100% {
-          transform: translateX(0);
-          opacity: 1;
-        }
-      }
-
-      @keyframes glideM {
-        0% {
-          transform: translateX(90px);
-          opacity: 0;
-        }
-        35% {
-          opacity: 0.7;
-        }
-        100% {
-          transform: translateX(0);
-          opacity: 1;
-        }
-      }
-
-      /* --- Post-collision swirl on the whole logo ---
-         M came in harder → logo kicks right and rotates clockwise,
-         overshoots slightly, then settles perfectly centered + upright.
-         The bouncy cubic-bezier gives it a natural spring-back. */
-      @keyframes collisionSwirl {
-        0% {
-          transform: translate(0, 0) rotate(0deg) scale(1);
-        }
-        30% {
-          transform: translate(8px, -3px) rotate(12deg) scale(1.04);
-        }
-        55% {
-          transform: translate(-3px, 1px) rotate(-4deg) scale(0.98);
-        }
-        75% {
-          transform: translate(1px, 0px) rotate(1.5deg) scale(1.01);
-        }
-        100% {
-          transform: translate(0, 0) rotate(0deg) scale(1);
-        }
-      }
-
-      /* --- Soft glow bloom --- */
       @keyframes softBloom {
-        0% {
-          transform: scale(0.4);
-          opacity: 0;
-        }
-        25% {
-          opacity: 0.9;
-        }
-        100% {
-          transform: scale(2);
-          opacity: 0;
-        }
+        0%   { transform: scale(0.35); opacity: 0; }
+        25%  { opacity: 1; }
+        100% { transform: scale(2.3);  opacity: 0; }
       }
 
-      /* --- Letter glow settle --- */
-      @keyframes letterGlow {
-        0% {
-          filter: drop-shadow(0 0 0px rgba(160, 190, 255, 0));
-        }
-        25% {
-          filter: drop-shadow(0 0 14px rgba(160, 190, 255, 0.6));
-        }
-        100% {
-          filter: drop-shadow(0 0 6px rgba(160, 190, 255, 0.2));
-        }
-      }
-
-      /* ---- Reduced motion ---- */
       @media (prefers-reduced-motion: reduce) {
-        .go .loader-letter-h,
-        .go .loader-letter-m {
-          animation: none !important;
-          transform: translateX(0);
-          opacity: 1;
-        }
-        .go { animation: none !important; }
         .go .loader-impact { animation: none !important; opacity: 0; }
-        .go .loader-letter-h path,
-        .go .loader-letter-m path { animation: none !important; }
       }
     </style>
   </head>
@@ -245,35 +116,273 @@
 
     <!-- Splash loader — visible instantly, dismissed by React -->
     <div id="loader">
+      <canvas id="loader-canvas"></canvas>
       <div class="loader-logo">
-        <svg class="loader-letter-h" viewBox="0 0 120 68" xmlns="http://www.w3.org/2000/svg">
-          <path d="M8,0 L20,0 L20,28 L49,28 L49,0 L61,0 L61,68 L49,68 L49,40 L20,40 L20,68 L8,68 Z" />
-        </svg>
-        <svg class="loader-letter-m" viewBox="0 0 120 68" xmlns="http://www.w3.org/2000/svg">
-          <path d="M49,0 L63,0 L75,30 L87,0 L101,0 L101,68 L89,68 L89,22 L77,50 L73,50 L61,22 L61,68 L49,68 Z" />
-        </svg>
         <div class="loader-impact"></div>
       </div>
     </div>
-    <!--
-      Kick off animations AFTER the browser has painted the initial
-      hidden state.  Two rAF calls guarantee at least one
-      real frame was presented before .go is added.
-    -->
     <script>
+      /* Particle-assembly splash loader.
+         ~340 dots in the site's 4-color palette stream in from the edges,
+         resolve into the H and M silhouettes at ~0.75s, then scatter
+         outward on exit while a shockwave ring expands past the viewport. */
       (function(){
-        // Skip the splash loader when returning from the art gallery
+        // Skip the splash when returning from the art gallery
         if (sessionStorage.getItem('skip-loader')) {
           sessionStorage.removeItem('skip-loader');
-          var loader = document.getElementById('loader');
-          if (loader) loader.remove();
+          var el = document.getElementById('loader');
+          if (el) el.remove();
           return;
         }
-        requestAnimationFrame(function(){
+
+        var loader = document.getElementById('loader');
+        var canvas = document.getElementById('loader-canvas');
+        if (!loader || !canvas) return;
+        var ctx = canvas.getContext && canvas.getContext('2d');
+        if (!ctx) return;
+        var logoEl = loader.querySelector('.loader-logo');
+
+        /* Palette — 4 site colors. Order matters for each color mode below. */
+        var COLORS = ['#dfe6ff', '#b7c5ff', '#9ed8ff', '#b8ffd8'];
+
+        /* Color modes — pick one at random per load.
+           Each fn receives local coords (x, y) inside the logo bounding box
+           (0..w, 0..h) and returns 0..3 for the COLORS array index. */
+        var COLOR_MODES = [
+          function(x, y, w, h) {              // diagonal NW -> SE stripes
+            return Math.min(3, Math.floor(((x / w + y / h) / 2) * 4));
+          },
+          function(x, y, w, h) {              // diagonal NE -> SW stripes
+            return Math.min(3, Math.floor((((w - x) / w + y / h) / 2) * 4));
+          },
+          function(x, y, w, h) {              // horizontal bands
+            return Math.min(3, Math.floor((y / h) * 4));
+          },
+          function(x, y, w, h) {              // vertical bands
+            return Math.min(3, Math.floor((x / w) * 4));
+          },
+          function(x, y, w, h) {              // radial rings
+            var dx = x - w / 2, dy = y - h / 2;
+            var r = Math.sqrt(dx * dx + dy * dy);
+            var rmax = Math.sqrt((w / 2) * (w / 2) + (h / 2) * (h / 2));
+            return Math.min(3, Math.floor((r / rmax) * 4));
+          },
+          function(x, y, w, h) {              // quadrants
+            return (y >= h / 2 ? 2 : 0) + (x >= w / 2 ? 1 : 0);
+          },
+        ];
+        var colorMode = COLOR_MODES[(Math.random() * COLOR_MODES.length) | 0];
+        var H_PATH = 'M8,0 L20,0 L20,28 L49,28 L49,0 L61,0 L61,68 L49,68 L49,40 L20,40 L20,68 L8,68 Z';
+        var M_PATH = 'M49,0 L63,0 L75,30 L87,0 L101,0 L101,68 L89,68 L89,22 L77,50 L73,50 L61,22 L61,68 L49,68 Z';
+        var LOGO_W = 120, LOGO_H = 68;
+        var SCALE = 3.8;
+        var PER_LETTER = 320;
+        var ASSEMBLE_DUR = 720;
+        var LERP = 0.095;            // per-frame convergence toward target (lower = slower, more visible streaming)
+
+        var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+        var dpr = 1, cx = 0, cy = 0, offX = 0, offY = 0;
+        function resize() {
+          dpr = Math.min(2, window.devicePixelRatio || 1);
+          canvas.width  = Math.floor(window.innerWidth  * dpr);
+          canvas.height = Math.floor(window.innerHeight * dpr);
+          canvas.style.width  = window.innerWidth  + 'px';
+          canvas.style.height = window.innerHeight + 'px';
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          cx = window.innerWidth / 2;
+          cy = window.innerHeight / 2;
+          offX = cx - (LOGO_W * SCALE) / 2;
+          offY = cy - (LOGO_H * SCALE) / 2;
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        /* Sample n random filled points from an SVG path's interior. */
+        function samplePath(pathD, n) {
+          try {
+            var s = 4;  // supersample for denser sampling space
+            var w = LOGO_W * s, h = LOGO_H * s;
+            var off = document.createElement('canvas');
+            off.width = w; off.height = h;
+            var octx = off.getContext('2d');
+            octx.scale(s, s);
+            octx.fillStyle = '#fff';
+            octx.fill(new Path2D(pathD));
+            var img = octx.getImageData(0, 0, w, h).data;
+            var filled = [];
+            for (var y = 0; y < h; y++) {
+              for (var x = 0; x < w; x++) {
+                if (img[(y * w + x) * 4 + 3] > 128) filled.push([x / s, y / s]);
+              }
+            }
+            if (!filled.length) return [];
+            var out = [];
+            for (var i = 0; i < n; i++) {
+              var p = filled[(Math.random() * filled.length) | 0];
+              out.push([p[0] * SCALE, p[1] * SCALE]);
+            }
+            return out;
+          } catch (_) { return []; }
+        }
+
+        var targetsH = samplePath(H_PATH, PER_LETTER);
+        var targetsM = samplePath(M_PATH, PER_LETTER);
+        if (!targetsH.length || !targetsM.length) return;
+
+        var maxD = Math.max(window.innerWidth, window.innerHeight) * 0.9;
+        var LW = LOGO_W * SCALE, LH = LOGO_H * SCALE;
+        var particles = [];
+        function pushPs(targets, biasAngle) {
+          for (var i = 0; i < targets.length; i++) {
+            var localX = targets[i][0];                    // 0..LW
+            var localY = targets[i][1];                    // 0..LH
+            var q = colorMode(localX, localY, LW, LH);
+            var angle = biasAngle + (Math.random() - 0.5) * Math.PI * 1.2;
+            var dist  = maxD * (0.55 + Math.random() * 0.55);
+            var sx = cx + Math.cos(angle) * dist;
+            var sy = cy + Math.sin(angle) * dist;
+            particles.push({
+              tx: offX + localX,
+              ty: offY + localY,
+              sx: sx, sy: sy,            // remembered spawn — used on reset
+              x:  sx, y:  sy,
+              color: COLORS[q],
+              size: 1.2 + Math.random() * 1.1,
+              startDelay: 120 + Math.random() * 140, // 120–260ms: particles sit visibly at spawn before streaming in
+
+            });
+          }
+        }
+        pushPs(targetsH, Math.PI);   // H streams in from the left
+        pushPs(targetsM, 0);         // M streams in from the right
+
+        var phase = 'assembling';
+        var tStart = null;            // set on the first real animation frame
+        var rafId = 0;
+        var frameCount = 0;
+
+        var mo = new MutationObserver(function(){
+          if (loader.classList.contains('loader-exit') && phase !== 'exiting') {
+            phase = 'exiting';
+          }
+        });
+        mo.observe(loader, { attributes: true, attributeFilter: ['class'] });
+
+        function frame(now) {
+          if (phase === 'exiting') return;
+
+          // Refuse to advance the animation if the page isn't actually
+          // being seen. Catches: prerender, hidden tab, cached reload where
+          // rAFs fire during page preparation before first paint. Without
+          // this, you can land on a page where the loader is already in
+          // its finished "assembled" state.
+          if (document.hidden || document.prerendering) {
+            rafId = requestAnimationFrame(frame);
+            return;
+          }
+
+          if (tStart == null) tStart = now;
+          var elapsed = now - tStart;
+
+          // If a rAF burst pushed us far ahead on the first frame (can happen
+          // on some cached reloads / instant navigations), treat that frame
+          // as the start.
+          if (elapsed > ASSEMBLE_DUR && frameCount < 2) {
+            tStart = now;
+            elapsed = 0;
+          }
+          frameCount++;
+
+          ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+
+          for (var i = 0; i < particles.length; i++) {
+            var p = particles[i];
+            if (elapsed > p.startDelay) {
+              p.x += (p.tx - p.x) * LERP;
+              p.y += (p.ty - p.y) * LERP;
+              ctx.globalAlpha = Math.min(1, (elapsed - p.startDelay) / 110);
+            } else {
+              ctx.globalAlpha = 0.22;
+            }
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+
+          if (phase === 'assembling' && elapsed > ASSEMBLE_DUR) phase = 'settled';
+
+          rafId = requestAnimationFrame(frame);
+        }
+
+        function drawStatic() {
+          ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+          for (var i = 0; i < particles.length; i++) {
+            var p = particles[i];
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = 1;
+            ctx.beginPath();
+            ctx.arc(p.tx, p.ty, p.size, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        function startAnim() {
+          // Reset state so prerender/bfcache restore starts a fresh run
+          tStart = null;
+          phase = 'assembling';
+          frameCount = 0;
+          for (var i = 0; i < particles.length; i++) {
+            particles[i].x = particles[i].sx;
+            particles[i].y = particles[i].sy;
+          }
+          if (rafId) cancelAnimationFrame(rafId);
+
+          // Reset CSS animations on the loader (canvas fade-in + impact bloom)
+          // by removing .go, forcing a reflow, then re-adding .go in the next frame.
+          loader.classList.remove('go');
+          // eslint-disable-next-line no-unused-expressions
+          void loader.offsetWidth;
+
           requestAnimationFrame(function(){
-            var logo = document.querySelector('.loader-logo');
-            if (logo) logo.classList.add('go');
+            requestAnimationFrame(function(){
+              loader.classList.add('go');
+              if (reduced) drawStatic();
+              else rafId = requestAnimationFrame(frame);
+            });
           });
+        }
+
+        // Defer until the page is actually being viewed, so a prerender or
+        // hidden tab doesn't burn through the animation before the user sees it.
+        function kickoffWhenVisible() {
+          if (document.visibilityState === 'visible') {
+            startAnim();
+          } else {
+            var onVis = function(){
+              if (document.visibilityState !== 'visible') return;
+              document.removeEventListener('visibilitychange', onVis);
+              startAnim();
+            };
+            document.addEventListener('visibilitychange', onVis);
+          }
+        }
+
+        if (document.prerendering) {
+          document.addEventListener('prerenderingchange', kickoffWhenVisible, { once: true });
+        } else {
+          kickoffWhenVisible();
+        }
+
+        // Re-run on back-forward cache restore (page was kept in memory;
+        // scripts don't re-execute but pageshow fires with persisted=true).
+        window.addEventListener('pageshow', function(e){
+          if (e.persisted && loader.parentNode) {
+            loader.classList.remove('loader-exit');
+            kickoffWhenVisible();
+          }
         });
       })();
     </script>

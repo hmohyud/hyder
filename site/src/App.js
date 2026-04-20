@@ -82,29 +82,27 @@ function AppContent() {
   const [isReady, setIsReady] = useState(false);
   const location = useLocation();
 
-  /* Dismiss the raw-HTML splash loader after at least 1.5s */
+  /* Dismiss the raw-HTML splash loader after MINIMUM_SHOW ms. The loader
+     overlay and the page cross-fade simultaneously (no blank gap). Corner
+     gradients are already gated behind .App.visible / #bg-animation.visible
+     so they can never appear ahead of the page. */
   useEffect(() => {
-    const MINIMUM_SHOW = 1500; // ms — loader stays at least this long
+    const MINIMUM_SHOW = 1050;
     const loader = document.getElementById("loader");
+
+    const reveal = () => requestAnimationFrame(() => setIsReady(true));
+
     if (!loader) {
-      requestAnimationFrame(() => setIsReady(true));
+      reveal();
       return;
     }
 
     const t = setTimeout(() => {
       loader.classList.add("loader-exit");
-      // Wait for the logo fade-out (0.4s), then remove the opaque
-      // overlay instantly — no bg-animation glows leak through.
-      const onEnd = () => {
-        loader.remove();
-        requestAnimationFrame(() => setIsReady(true));
-      };
-      const logo = loader.querySelector(".loader-logo");
-      if (logo) {
-        logo.addEventListener("transitionend", onEnd, { once: true });
-      }
-      // safety fallback
-      setTimeout(onEnd, 500);
+      reveal();
+      const removeLoader = () => { if (loader.parentNode) loader.remove(); };
+      loader.addEventListener("transitionend", removeLoader, { once: true });
+      setTimeout(removeLoader, 700); // safety
     }, MINIMUM_SHOW);
 
     return () => clearTimeout(t);
@@ -114,7 +112,7 @@ function AppContent() {
 
   return (
     <>
-      <div id="bg-animation" />
+      <div id="bg-animation" className={isReady ? "visible" : ""} />
       <div className={`App ${isReady ? "visible" : ""}`}>
         {!isLanding && (
           <header className="App-header">

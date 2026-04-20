@@ -78,8 +78,8 @@ export function ContribGrid({ username = "hmohyud", className = "" }) {
       aria-hidden="true"
       tabIndex={-1}
     >
-      <div className="gh-contrib-grid" role="presentation">
-        {weeks.map((col, ci) => (
+      <div className={`gh-contrib-grid${data ? "" : " gh-contrib-loading"}`} role="presentation">
+        {(weeks.length ? weeks : Array.from({ length: 53 }, () => [])).map((col, ci) => (
           <div className="gh-col" key={ci}>
             {Array.from({ length: 7 }).map((_, ri) => {
               const cell = col[ri];

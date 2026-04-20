@@ -114,6 +114,16 @@
   border: 1px dashed rgba(255, 255, 255, 0.04);
 }
 
+/* Loading-state placeholder — preserves layout height while the API fetches,
+   so there's no layout shift when contribution data arrives. */
+.gh-contrib-grid.gh-contrib-loading .gh-cell {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  animation: none !important;
+  opacity: 0 !important;
+}
+
 .gh-cell.gh-l0 { background: rgba(255, 255, 255, 0.05); }
 .gh-cell.gh-l1 { background: rgba(160, 190, 255, 0.35); box-shadow: 0 0 4px rgba(160, 190, 255, 0.15); }
 .gh-cell.gh-l2 { background: rgba(158, 216, 255, 0.6);  box-shadow: 0 0 6px rgba(158, 216, 255, 0.25); }

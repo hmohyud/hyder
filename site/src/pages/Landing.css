@@ -35,15 +35,28 @@
 
 .landing{
   color: var(--fg);
-  background:
-    radial-gradient(900px 600px at 70% 15%, rgba(120,160,255,0.06), transparent 55%),
-    radial-gradient(1000px 700px at 20% 80%, rgba(108,255,204,0.05), transparent 60%),
-    linear-gradient(135deg, #0a0c11, #0f131b 55%, #0b0f16);
+  background: linear-gradient(135deg, #0a0c11, #0f131b 55%, #0b0f16);
   height: 100svh;
   position: relative;
   overflow: hidden;
   /* cursor: none; — disabled while tubes cursor is off */
 }
+/* Corner glows — kept on a separate layer so they can fade in *after*
+   the animated canvases have painted, preventing them from flashing
+   in ahead of the rest of the content. */
+.landing::before{
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(900px 600px at 70% 15%, rgba(120,160,255,0.06), transparent 55%),
+    radial-gradient(1000px 700px at 20% 80%, rgba(108,255,204,0.05), transparent 60%);
+  opacity: 0;
+  transition: opacity 0.9s ease 0.25s;
+}
+.App.visible .landing::before { opacity: 1; }
 
 .wrap{
   max-width: 1120px;

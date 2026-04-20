@@ -60,7 +60,7 @@ body {
 /* App fade-in only (content) */
 .App {
   opacity: 0;
-  transition: opacity .4s ease;
+  transition: opacity .3s ease;
 }
 
 .App.visible {
@@ -74,6 +74,11 @@ body {
   z-index: -2;
   pointer-events: none;
   overflow: hidden;
+  opacity: 0;
+  transition: opacity .3s ease;
+}
+#bg-animation.visible {
+  opacity: 1;
 }
 
 /* Big linear-gradient film that actually moves (via transform) */
