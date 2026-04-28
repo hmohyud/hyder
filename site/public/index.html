@@ -142,8 +142,9 @@
         if (!ctx) return;
         var logoEl = loader.querySelector('.loader-logo');
 
-        /* Palette — 4 site colors. Order matters for each color mode below. */
-        var COLORS = ['#dfe6ff', '#b7c5ff', '#9ed8ff', '#b8ffd8'];
+        /* Palette — dark ends of the four landing-page card accent bars
+           (Skills / Projects / About / Resume). Mirrors the on-page UI. */
+        var COLORS = ['#ff72a1', '#b48bff', '#7fd3ff', '#78ffa8'];
 
         /* Color modes — pick one at random per load.
            Each fn receives local coords (x, y) inside the logo bounding box
@@ -175,8 +176,13 @@
         var H_PATH = 'M8,0 L20,0 L20,28 L49,28 L49,0 L61,0 L61,68 L49,68 L49,40 L20,40 L20,68 L8,68 Z';
         var M_PATH = 'M49,0 L63,0 L75,30 L87,0 L101,0 L101,68 L89,68 L89,22 L77,50 L73,50 L61,22 L61,68 L49,68 Z';
         var LOGO_W = 120, LOGO_H = 68;
-        var SCALE = 3.8;
-        var PER_LETTER = 320;
+        // Content bounds — computed dynamically from sampled points after
+        // sampling, so any future path edits center themselves correctly.
+        var contentMinX = 0, contentMaxX = LOGO_W;
+        var contentMinY = 0, contentMaxY = LOGO_H;
+        var SCALE_MAX = 3.8;
+        var SCALE = SCALE_MAX;        // recomputed on resize so the logo fits any viewport
+        var PER_LETTER = 240;
         var ASSEMBLE_DUR = 720;
         var LERP = 0.095;            // per-frame convergence toward target (lower = slower, more visible streaming)
 
@@ -192,8 +198,31 @@
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
           cx = window.innerWidth / 2;
           cy = window.innerHeight / 2;
-          offX = cx - (LOGO_W * SCALE) / 2;
-          offY = cy - (LOGO_H * SCALE) / 2;
+          // Cap SCALE so the logo (LOGO_W * SCALE) fits within the viewport
+          // with comfortable side margins. On phones this drops the scale
+          // automatically so the logo stays fully visible and centered.
+          // Cap SCALE so the rendered content fits within the viewport with
+          // comfortable margins on both axes. Content bounds are measured
+          // from the sampled points (see below), making this fully dynamic.
+          var contentW = Math.max(1, contentMaxX - contentMinX);
+          var contentH = Math.max(1, contentMaxY - contentMinY);
+          var maxByWidth  = (window.innerWidth  - 40) / contentW;
+          var maxByHeight = (window.innerHeight - 80) / contentH;
+          SCALE = Math.max(1, Math.min(SCALE_MAX, maxByWidth, maxByHeight));
+          var contentCx = (contentMinX + contentMaxX) / 2;
+          var contentCy = (contentMinY + contentMaxY) / 2;
+          offX = cx - contentCx * SCALE;
+          offY = cy - contentCy * SCALE;
+          // Reproject existing particle targets onto the new scale/center.
+          if (typeof particles !== "undefined" && particles && particles.length) {
+            for (var i = 0; i < particles.length; i++) {
+              var p = particles[i];
+              if (p.lx != null) {
+                p.tx = offX + p.lx * SCALE;
+                p.ty = offY + p.ly * SCALE;
+              }
+            }
+          }
         }
         resize();
         window.addEventListener('resize', resize);
@@ -220,7 +249,7 @@
             var out = [];
             for (var i = 0; i < n; i++) {
               var p = filled[(Math.random() * filled.length) | 0];
-              out.push([p[0] * SCALE, p[1] * SCALE]);
+              out.push([p[0], p[1]]);   // unscaled local coords (0..LOGO_W, 0..LOGO_H)
             }
             return out;
           } catch (_) { return []; }
@@ -230,27 +259,47 @@
         var targetsM = samplePath(M_PATH, PER_LETTER);
         if (!targetsH.length || !targetsM.length) return;
 
+        // Measure the actual content bounding box from the sampled points so
+        // the logo centers itself even if the SVG paths change.
+        (function() {
+          var all = targetsH.concat(targetsM);
+          var minX =  Infinity, maxX = -Infinity;
+          var minY =  Infinity, maxY = -Infinity;
+          for (var i = 0; i < all.length; i++) {
+            var p = all[i];
+            if (p[0] < minX) minX = p[0];
+            if (p[0] > maxX) maxX = p[0];
+            if (p[1] < minY) minY = p[1];
+            if (p[1] > maxY) maxY = p[1];
+          }
+          contentMinX = minX; contentMaxX = maxX;
+          contentMinY = minY; contentMaxY = maxY;
+        })();
+        // Re-run resize now that we know the real content bounds.
+        resize();
+
         var maxD = Math.max(window.innerWidth, window.innerHeight) * 0.9;
-        var LW = LOGO_W * SCALE, LH = LOGO_H * SCALE;
         var particles = [];
         function pushPs(targets, biasAngle) {
           for (var i = 0; i < targets.length; i++) {
-            var localX = targets[i][0];                    // 0..LW
-            var localY = targets[i][1];                    // 0..LH
-            var q = colorMode(localX, localY, LW, LH);
+            var lx = targets[i][0];                       // 0..LOGO_W (unscaled)
+            var ly = targets[i][1];                       // 0..LOGO_H
+            var q = colorMode(lx, ly, LOGO_W, LOGO_H);
             var angle = biasAngle + (Math.random() - 0.5) * Math.PI * 1.2;
             var dist  = maxD * (0.55 + Math.random() * 0.55);
             var sx = cx + Math.cos(angle) * dist;
             var sy = cy + Math.sin(angle) * dist;
             particles.push({
-              tx: offX + localX,
-              ty: offY + localY,
-              sx: sx, sy: sy,            // remembered spawn — used on reset
+              lx: lx, ly: ly,                              // unscaled — re-projected on resize
+              tx: offX + lx * SCALE,
+              ty: offY + ly * SCALE,
+              sx: sx, sy: sy,                              // remembered spawn — used on reset
               x:  sx, y:  sy,
               color: COLORS[q],
               size: 1.2 + Math.random() * 1.1,
-              startDelay: 120 + Math.random() * 140, // 120–260ms: particles sit visibly at spawn before streaming in
-
+              // Stagger start times across 0–140ms so the first particles
+              // begin moving immediately — no frozen "skip" at the start.
+              startDelay: Math.random() * 140,
             });
           }
         }
@@ -258,9 +307,9 @@
         pushPs(targetsM, 0);         // M streams in from the right
 
         var phase = 'assembling';
-        var tStart = null;            // set on the first real animation frame
+        var elapsed = 0;              // accumulated real animation time
+        var lastFrameNow = null;      // for dt-based advancement
         var rafId = 0;
-        var frameCount = 0;
 
         var mo = new MutationObserver(function(){
           if (loader.classList.contains('loader-exit') && phase !== 'exiting') {
@@ -269,30 +318,35 @@
         });
         mo.observe(loader, { attributes: true, attributeFilter: ['class'] });
 
-        function frame(now) {
+        function frame(/* scheduled-paint timestamp ignored on purpose */) {
           if (phase === 'exiting') return;
 
-          // Refuse to advance the animation if the page isn't actually
-          // being seen. Catches: prerender, hidden tab, cached reload where
-          // rAFs fire during page preparation before first paint. Without
-          // this, you can land on a page where the loader is already in
-          // its finished "assembled" state.
+          // Don't advance while the page isn't actually being seen
+          // (prerender, hidden tab).
           if (document.hidden || document.prerendering) {
             rafId = requestAnimationFrame(frame);
             return;
           }
 
-          if (tStart == null) tStart = now;
-          var elapsed = now - tStart;
-
-          // If a rAF burst pushed us far ahead on the first frame (can happen
-          // on some cached reloads / instant navigations), treat that frame
-          // as the start.
-          if (elapsed > ASSEMBLE_DUR && frameCount < 2) {
-            tStart = now;
-            elapsed = 0;
+          // Use real wall-clock execution time, NOT the rAF `now` parameter.
+          // rAF passes the scheduled paint timestamp, so a burst of queued
+          // rAFs that fire in rapid succession after a blocked main thread
+          // will all report 16ms-apart `now` values and burn through the
+          // animation. performance.now() reports the actual instant the
+          // callback is running, which collapses to near-zero during a
+          // burst — the dt cap then keeps the animation honest.
+          var realNow = performance.now();
+          if (lastFrameNow != null) {
+            var dt = realNow - lastFrameNow;
+            if (dt < 3) {                    // burst: barely any time passed
+              lastFrameNow = realNow;
+              rafId = requestAnimationFrame(frame);
+              return;
+            }
+            if (dt > 50) dt = 33;            // cap unusually long gaps
+            elapsed += dt;
           }
-          frameCount++;
+          lastFrameNow = realNow;
 
           ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
@@ -329,19 +383,40 @@
           }
         }
 
+        function drawSpawnState() {
+          // Synchronous draw of all particles at their spawn positions, so
+          // whatever the very next paint commits, it shows the start of the
+          // animation — never an advanced state from rAF bursts.
+          ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+          for (var i = 0; i < particles.length; i++) {
+            var p = particles[i];
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = 0.22;
+            ctx.beginPath();
+            ctx.arc(p.sx, p.sy, p.size, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+        }
+
         function startAnim() {
           // Reset state so prerender/bfcache restore starts a fresh run
-          tStart = null;
+          elapsed = 0;
+          lastFrameNow = null;
           phase = 'assembling';
-          frameCount = 0;
           for (var i = 0; i < particles.length; i++) {
             particles[i].x = particles[i].sx;
             particles[i].y = particles[i].sy;
           }
           if (rafId) cancelAnimationFrame(rafId);
 
-          // Reset CSS animations on the loader (canvas fade-in + impact bloom)
-          // by removing .go, forcing a reflow, then re-adding .go in the next frame.
+          // Paint the spawn state synchronously. Whatever the browser
+          // commits next is guaranteed to show the start of the animation,
+          // never a half-converged state from rAF bursting.
+          drawSpawnState();
+
+          // Reset CSS animations on the loader by removing .go, forcing a
+          // reflow, then re-adding .go on the next frame.
           loader.classList.remove('go');
           // eslint-disable-next-line no-unused-expressions
           void loader.offsetWidth;
@@ -370,10 +445,29 @@
           }
         }
 
-        if (document.prerendering) {
-          document.addEventListener('prerenderingchange', kickoffWhenVisible, { once: true });
-        } else {
+        // Show spawn state on the canvas immediately so the loader isn't
+        // blank during the deferred kickoff below.
+        drawSpawnState();
+
+        // Defer the actual rAF loop until the page is fully loaded — this
+        // way React's mount has finished and the main thread is idle when
+        // the animation starts, so the browser paints every frame instead
+        // of bursting through them while the page boots.
+        var kicked = false;
+        function kickoff() {
+          if (kicked) return;
+          if (document.prerendering) {
+            document.addEventListener('prerenderingchange', kickoff, { once: true });
+            return;
+          }
+          kicked = true;
           kickoffWhenVisible();
+        }
+        if (document.readyState === 'complete') {
+          kickoff();
+        } else {
+          window.addEventListener('load', kickoff, { once: true });
+          setTimeout(kickoff, 1500); // safety
         }
 
         // Re-run on back-forward cache restore (page was kept in memory;
