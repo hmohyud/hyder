@@ -1,16 +1,45 @@
 /* LABEL (sits inline next to the title) */
 .gh-contrib-label {
-  display: inline-flex;
-  align-items: baseline;
-  gap: clamp(3px, 0.6vw, 6px);
-  font-size: clamp(0.45rem, 1.2vw, 0.78rem);
+  display: inline-block;
+  vertical-align: baseline;
+  font-size: clamp(0.4rem, 1.15vw, 0.78rem);
   color: #d9deee;
   opacity: 0.85;
   letter-spacing: 0.02em;
   text-decoration: none;
   transition: opacity 0.25s ease, filter 0.25s ease;
   user-select: none;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+.gh-contrib-label-track {
+  display: inline-flex;
+  align-items: baseline;
+  gap: clamp(2px, 0.5vw, 6px);
   white-space: nowrap;
+  will-change: transform;
+}
+/* Marquee — added by JS only when the label content actually exceeds its
+   container. Pings back and forth, distance set via --gh-overflow. Pauses
+   on hover so it's readable, and respects reduced-motion. */
+.gh-contrib-label.gh-marquee .gh-contrib-label-track {
+  animation: ghLabelMarquee 14s ease-in-out infinite alternate;
+}
+.gh-contrib-label.gh-marquee:hover .gh-contrib-label-track,
+.gh-contrib-label.gh-marquee:focus-visible .gh-contrib-label-track {
+  animation-play-state: paused;
+}
+@keyframes ghLabelMarquee {
+  0%   { transform: translateX(0); }
+  10%  { transform: translateX(0); }                                  /* hold at start */
+  90%  { transform: translateX(calc(var(--gh-overflow, 0px) * -1)); } /* hold at end   */
+  100% { transform: translateX(calc(var(--gh-overflow, 0px) * -1)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gh-contrib-label.gh-marquee .gh-contrib-label-track {
+    animation: none;
+  }
 }
 .gh-contrib-label:hover,
 .gh-contrib-label:focus-visible {
@@ -19,7 +48,7 @@
 }
 .gh-contrib-count {
   font-weight: 700;
-  font-size: clamp(0.58rem, 1.45vw, 0.95rem);
+  font-size: clamp(0.52rem, 1.4vw, 0.95rem);
   background: linear-gradient(90deg, #b7c5ff, #9ed8ff, #b8ffd8);
   -webkit-background-clip: text;
   background-clip: text;

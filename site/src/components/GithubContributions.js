@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import "./GithubContributions.css";
 
 const cache = new Map();
@@ -47,20 +47,51 @@ function computeTotals(data) {
 export function ContribLabel({ username = "hmohyud", className = "" }) {
   const { data, error } = useContribData(username);
   const { lastYearTotal, ytdTotal } = useMemo(() => computeTotals(data), [data]);
+  const labelRef = useRef(null);
+  const trackRef = useRef(null);
+
+  // If the label text would exceed the available width on a tiny viewport,
+  // measure the overflow and turn on a marquee that pongs back and forth.
+  // The static font-size still does the heavy lifting on most screens.
+  useLayoutEffect(() => {
+    const label = labelRef.current;
+    const track = trackRef.current;
+    if (!label || !track) return;
+    const measure = () => {
+      // Briefly disable the marquee class so we measure intrinsic widths.
+      label.classList.remove("gh-marquee");
+      const overflow = track.scrollWidth - label.clientWidth;
+      if (overflow > 1) {
+        label.style.setProperty("--gh-overflow", overflow + "px");
+        label.classList.add("gh-marquee");
+      } else {
+        label.style.removeProperty("--gh-overflow");
+      }
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(label);
+    ro.observe(track);
+    return () => ro.disconnect();
+  }, [data, lastYearTotal, ytdTotal]);
+
   if (error) return null;
   return (
     <a
+      ref={labelRef}
       className={`gh-contrib-label ${className}`}
       href={`https://github.com/${username}`}
       target="_blank"
       rel="noopener noreferrer"
       aria-label={`${lastYearTotal} GitHub contributions in the last year — open profile`}
     >
-      <span className="gh-contrib-count">{data ? lastYearTotal.toLocaleString() : "—"}</span>
-      <span className="gh-contrib-suffix">contributions in the last year</span>
-      {data && ytdTotal > 0 && (
-        <span className="gh-contrib-ytd">· {ytdTotal.toLocaleString()} this year</span>
-      )}
+      <span ref={trackRef} className="gh-contrib-label-track">
+        <span className="gh-contrib-count">{data ? lastYearTotal.toLocaleString() : "—"}</span>
+        <span className="gh-contrib-suffix">contributions in the last year</span>
+        {data && ytdTotal > 0 && (
+          <span className="gh-contrib-ytd">· {ytdTotal.toLocaleString()} this year</span>
+        )}
+      </span>
     </a>
   );
 }
