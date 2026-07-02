@@ -49,6 +49,17 @@ const TYPO_IMAGES = Array.from(
   { length: 3 },
   (_, i) => `${PU}/projects/TYPO_${i + 1}.jpg`
 );
+
+// Soulful Expressions — GIFs lead to showcase the interactive parts,
+// interleaved with stills that walk down the page.
+const SOUL_IMAGES = [
+  `${PU}/projects/SOUL_hero.gif`, // Vanta birds scattering from the cursor (real-time)
+  `${PU}/projects/SOUL_1.jpg`, // interactive benefit cards
+  `${PU}/projects/SOUL_draw.gif`, // free-draw canvas in the "Power of Art" section
+  `${PU}/projects/SOUL_2.jpg`, // "How Sessions Work" orbital
+  `${PU}/projects/SOUL_3.jpg`, // group workshops
+  `${PU}/projects/SOUL_4.jpg`, // therapist / about
+];
 // ---------- Category filter ----------
 const CATEGORIES = [
   { key: "all",      label: "All" },
@@ -95,6 +106,22 @@ const projects = [
       "The site handles course information, registration, scheduling, and resources for active cohorts. Thom is the Director of Education at NYCNVC, a UN Civil Society Organization.",
     ],
     links: [{ label: "Visit Site", href: "https://compassioncourse.org/" }],
+  },
+  // Soulful Expressions
+  {
+    title: "Soulful Expressions — Art Therapy",
+    color: "#c67b5c",
+    tags: ["web", "art"],
+    images: SOUL_IMAGES,
+    description: [
+      "Designed and built the site for Soulful Expressions — Fatema Qutbuddin's art-therapy practice in Thane — offering one-on-one sessions and group workshops that use creative expression to process emotion and support healing.",
+      "Built without frameworks (vanilla HTML/CSS/JS), the whole site is designed to be interactive and dynamic — from a hero of butterflies that drift and respond to the cursor to hands-on touches woven through every section — so the page itself emulates the hands-on, experiential nature of art therapy rather than only describing it.",
+      "Responsive and accessibility-minded, deployed on GitHub Pages behind a custom domain.",
+    ],
+    links: [
+      { label: "Visit Site", href: "https://soulfulexpressions.in/" },
+      { label: "GitHub", href: "https://github.com/hmohyud/soulful" },
+    ],
   },
   // 4. Aerospace Part Finder
   {

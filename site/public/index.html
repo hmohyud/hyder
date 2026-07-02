@@ -424,6 +424,10 @@
           requestAnimationFrame(function(){
             requestAnimationFrame(function(){
               loader.classList.add('go');
+              // Tell React the animation has actually begun, so MINIMUM_SHOW
+              // counts from here. Otherwise the loader could exit before the
+              // animation visibly runs (e.g. if `load` was unusually delayed).
+              try { window.dispatchEvent(new Event('loader-anim-started')); } catch (_) {}
               if (reduced) drawStatic();
               else rafId = requestAnimationFrame(frame);
             });
