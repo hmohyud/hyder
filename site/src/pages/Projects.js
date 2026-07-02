@@ -114,9 +114,8 @@ const projects = [
     tags: ["web", "art"],
     images: SOUL_IMAGES,
     description: [
-      "Designed and built the site for Soulful Expressions — Fatema Qutbuddin's art-therapy practice in Thane — offering one-on-one sessions and group workshops that use creative expression to process emotion and support healing.",
-      "Built without frameworks (vanilla HTML/CSS/JS), the whole site is designed to be interactive and dynamic — from a hero of butterflies that drift and respond to the cursor to hands-on touches woven through every section — so the page itself emulates the hands-on, experiential nature of art therapy rather than only describing it.",
-      "Responsive and accessibility-minded, deployed on GitHub Pages behind a custom domain.",
+      "Designed and built the site for Soulful Expressions — Fatema Qutbuddin's art-therapy practice in Thane, offering one-on-one sessions and group workshops.",
+      "Framework-free (vanilla HTML/CSS/JS) and fully interactive — a butterfly hero that follows the cursor, with hands-on touches throughout — so the site itself emulates the experiential nature of art therapy.",
     ],
     links: [
       { label: "Visit Site", href: "https://soulfulexpressions.in/" },
