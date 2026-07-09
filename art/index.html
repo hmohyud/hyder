@@ -286,13 +286,59 @@
             border: 1px solid var(--line);
             background: #0d0d0d;
             box-shadow: 0 20px 60px rgba(0, 0, 0, .6);
-            transition: filter .45s ease;
+            /* JS reserves the exact fitted box (width/height) from the known
+               dimensions, so the thumbnail and full-res share one size — the
+               image only sharpens, never resizes. contain guards against any
+               residual aspect mismatch. */
+            object-fit: contain;
         }
 
-        /* While the full-resolution image downloads, the cached thumbnail is
-           shown blurred; clearing this class lets it snap into focus. */
-        .hero.lb-loading {
-            filter: blur(8px);
+        /* Loading pill over the stage while the full-resolution image downloads
+           on top of the already-visible (sharp) thumbnail. Replaces the old blur,
+           which hid the low-res instead of showing it. */
+        .lb-spin {
+            position: absolute;
+            left: 50%;
+            bottom: 16px;
+            transform: translateX(-50%);
+            display: none;
+            align-items: center;
+            gap: 9px;
+            padding: 7px 13px 7px 11px;
+            border-radius: 999px;
+            background: rgba(0, 0, 0, .62);
+            border: 1px solid rgba(255, 255, 255, .12);
+            color: var(--muted);
+            font-size: 12px;
+            letter-spacing: .2px;
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        .lb-spin.show {
+            display: inline-flex;
+        }
+
+        .lb-spin::before {
+            content: "";
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, .28);
+            border-top-color: var(--accent);
+            animation: spin .7s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .lb-spin::before {
+                animation: none;
+            }
         }
 
         .nav {
@@ -352,6 +398,7 @@
         <div class="stage" id="stage">
             <button class="nav left" id="prevBtn" aria-label="Previous">‹</button>
             <img id="hero" class="hero" alt="" />
+            <div id="lbSpin" class="lb-spin" role="status" aria-live="polite">Loading full resolution…</div>
             <button class="nav right" id="nextBtn" aria-label="Next">›</button>
         </div>
         <div class="counter" id="counter"></div>
@@ -372,6 +419,7 @@
             const prevBtn = document.getElementById('prevBtn');
             const nextBtn = document.getElementById('nextBtn');
             const stage = document.getElementById('stage');
+            const lbSpin = document.getElementById('lbSpin');
 
             function colorFor(str) {
                 let h = 0; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
@@ -404,24 +452,44 @@
 
             function openLightbox(i) { idx = i; renderLb(); lb.classList.add('open'); document.body.style.overflow = 'hidden'; }
             function closeLightbox() { lb.classList.remove('open'); document.body.style.overflow = ''; }
+
+            // Reserve the exact display box from the known dimensions so the
+            // thumbnail and the full-resolution image render at the identical
+            // size — the image only sharpens, it never resizes.
+            function fitHero(it) {
+                const w = it.w || 0, h = it.h || 0;
+                const maxW = Math.min(window.innerWidth * 0.92, 1700);
+                const maxH = window.innerHeight * 0.84;
+                // Unknown dimensions or a not-yet-laid-out (0) viewport: fall back to
+                // the CSS max-width/max-height + object-fit:contain so the image is
+                // never collapsed to 0px.
+                if (!w || !h || !maxW || !maxH) { hero.style.width = ''; hero.style.height = ''; return; }
+                const scale = Math.min(maxW / w, maxH / h, 1);   // fit viewport; never upscale past native
+                hero.style.width = Math.round(w * scale) + 'px';
+                hero.style.height = Math.round(h * scale) + 'px';
+            }
+
             function renderLb() {
                 const it = view[idx]; if (!it) return;
                 titleEl.textContent = (it.group ? `[${it.group}] ` : '') + (it.title || 'Artwork');
                 counter.textContent = (idx + 1) + ' / ' + view.length;
 
-                // Show the already-cached thumbnail immediately (blurred), then load
-                // the full-resolution original and let it snap into focus on top.
+                // Lock the box first, then show the cached thumbnail immediately and
+                // load the full-resolution original on top — a loading pill signals
+                // the upgrade is in flight, and the image sharpens in place.
+                fitHero(it);
                 const placeholder = it.thumb || it.src;
                 hero.alt = it.title || 'artwork';
                 if (it.src && it.src !== placeholder) {
-                    hero.classList.add('lb-loading');
                     hero.src = placeholder;
+                    lbSpin.classList.add('show');
                     const full = new Image(); full.decoding = 'async';
-                    full.onload = () => { if (view[idx] === it) { hero.src = it.src; hero.classList.remove('lb-loading'); } };
-                    full.onerror = () => { if (view[idx] === it) hero.classList.remove('lb-loading'); };
+                    if ('fetchPriority' in full) full.fetchPriority = 'high';  // focused image jumps the queue
+                    full.onload = () => { if (view[idx] === it) { hero.src = it.src; lbSpin.classList.remove('show'); } };
+                    full.onerror = () => { if (view[idx] === it) lbSpin.classList.remove('show'); };
                     full.src = it.src;
                 } else {
-                    hero.classList.remove('lb-loading');
+                    lbSpin.classList.remove('show');
                     hero.src = it.src;
                 }
 
@@ -429,6 +497,8 @@
                 [view[(idx + 1) % view.length], view[(idx - 1 + view.length) % view.length]]
                     .forEach(n => { const s = n && n.thumb; if (!s) return; const im = new Image(); im.decoding = 'async'; im.src = s; });
             }
+            // Keep the reserved box correct as the viewport changes while open.
+            window.addEventListener('resize', () => { if (lb.classList.contains('open')) { const it = view[idx]; if (it) fitHero(it); } }, { passive: true });
             closeBtn.onclick = closeLightbox;
             prevBtn.onclick = e => { e.stopPropagation(); idx = (idx - 1 + view.length) % view.length; renderLb(); };
             nextBtn.onclick = e => { e.stopPropagation(); idx = (idx + 1) % view.length; renderLb(); };
