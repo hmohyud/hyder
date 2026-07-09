@@ -5,23 +5,43 @@
       "items": [
         {
           "src": "/art/artworks/Hands/INVHand1.jpeg",
-          "title": "INVHand1"
+          "title": "INVHand1",
+          "thumb": "/art/thumbs/Hands/INVHand1.webp",
+          "w": 2703,
+          "h": 3579,
+          "lqip": "data:image/webp;base64,UklGRgYBAABXRUJQVlA4IPoAAADwBgCdASogACoAPt1qq1AopiOiqrgIARAbiWcA0bxc2xscEcTP4QRHDMNpqvjV0H3q4PrkcRuAokvvaAF1ykdgAP77PFxK2HWWgs5JwsUkM1tnDLDOAftOhJsP3ZXI1gjDQgj/HUy2TvIi+9ruao9/GtRzX01Gqf93TAF5ZGDMlmYfvqZTa9rr02J6pdKB6wmuyS3rdqQwOu5oVX6HVG8Mwu/CmSmNlLT0WEmLFQtQ8TKjfVTV7fmhqCZXZgKQlq387ipIQvGJLdSsd+6vjQoUPH7SVTRkCu9GRipSHGgqNMYgqXfQvaWHY5cCZHvaFY7psPXHJtarR4AA"
         },
         {
           "src": "/art/artworks/Hands/INVHand5V2.jpeg",
-          "title": "INVHand5V2"
+          "title": "INVHand5V2",
+          "thumb": "/art/thumbs/Hands/INVHand5V2.webp",
+          "w": 2681,
+          "h": 3563,
+          "lqip": "data:image/webp;base64,UklGRtgAAABXRUJQVlA4IMwAAACwBgCdASogACsAPtVeokyoJaMiNVgIAQAaiWUArw2M5ctBCgGaczvdWM2wTCrwZbsNVN76kb3hJttvp5xoAAD+8cYwhxc6acA9MGQ9M1vGAqb0cAQ/deGvyrvUze0gPjd3A6T89v6ZhHlJ9jbMkgcUKrGhm9YnU/EB9uHP186pdSK/qnwkJCbaZm0TgwCkWKUgjaMFu9ve/gAWpyXi87TClGKEfQbb4l8TVCsVAhA2juvMwFq1x1DEe5K/ErHHfRha+pDPyc6NJVQAAAA="
         },
         {
           "src": "/art/artworks/Hands/INVHand2.jpeg",
-          "title": "INVHand2"
+          "title": "INVHand2",
+          "thumb": "/art/thumbs/Hands/INVHand2.webp",
+          "w": 3558,
+          "h": 2683,
+          "lqip": "data:image/webp;base64,UklGRoQAAABXRUJQVlA4IHgAAABQBACdASogABgAPt1kp04opaOmMBgIARAbiWMAA+RpBv8zRJyb+S7Grf9gAP7vs8ckeDERonosLI65njspltllxSTISqbBbtOGVAEWtmIbKqr0yO5roGESpn+/lZq+TMV3+0fnieMRuwNADhE9Vb0L54emUlJ0wAA="
         },
         {
           "src": "/art/artworks/Hands/INVHand3V1.jpeg",
-          "title": "INVHand3V1"
+          "title": "INVHand3V1",
+          "thumb": "/art/thumbs/Hands/INVHand3V1.webp",
+          "w": 3558,
+          "h": 2683,
+          "lqip": "data:image/webp;base64,UklGRowAAABXRUJQVlA4IIAAAACQBACdASogABgAPt1gp0yopaOiMAgBEBuJQBdgBDwM7Q2wQupAwkPO1RDFbsAA/u0/x7QPMvM+un8dyjSMu6oaaZrUU+jG1HrBToWdQpG00aNALHsb6Y8TSOxW3UB7/S7XUXHowEPMXHd9n+wf00z4+v8pXPyYqIWEGOvVD93cAA=="
         },
         {
           "src": "/art/artworks/Hands/INVHand4V1.jpeg",
-          "title": "INVHand4V1"
+          "title": "INVHand4V1",
+          "thumb": "/art/thumbs/Hands/INVHand4V1.webp",
+          "w": 2681,
+          "h": 3563,
+          "lqip": "data:image/webp;base64,UklGRnoAAABXRUJQVlA4IG4AAACQBACdASogABgAPtFQoUyoJKMiN/qoAQAaCWcAAFu1s2Qygi+WINJE14G3BgAA/vHHp+gx1wsFZZyv7f2MijSwM6sTV1ntUNw1VfwwutkPfxIKpx/6ez80VSrZNGXbTW9JlqRmD91r7IF6aAAAAA=="
         }
       ]
     },
@@ -30,11 +50,19 @@
       "items": [
         {
           "src": "/art/artworks/Painting/HorseV1.jpeg",
-          "title": "HorseV1"
+          "title": "HorseV1",
+          "thumb": "/art/thumbs/Painting/HorseV1.webp",
+          "w": 768,
+          "h": 856,
+          "lqip": "data:image/webp;base64,UklGRi4BAABXRUJQVlA4ICIBAAAQBwCdASogACQAPt1gp0yopiOiMBqqqRAbiWcAyJwKJaiOHcAL/MPjkgT+hCl7ujdxmrIyrNkq7Y1W/urAVND3AAD+85S88Ve0ARgt6jKJbkh5Vttc/a29imV8uTsWUYBjz/JywBBUAObnRjrCGcmexjQ77XMhxbQCHLQZGs4dDgIyYE235Fo21wCBaLRFGuyD/zT8V8gc3B22ctxSow6FEeUqoAJtuobP8hyrPZwKiyUjXjGwst4qB37tkZdzYMFXJMpiiRBueZLt9jYPdKlk5zaMWAn1qjC7AS/PV7BD/wdcSAP4HMmK5ZW91xIX5gmlpti1SQDJB3CQX11pObwr9kSwExXb/dBODGSlwc/180H6378r1kv51ToM5yqlK0PAAA=="
         },
         {
           "src": "/art/artworks/Painting/Hyder'sV1.JPG",
-          "title": "HyderEyesV1"
+          "title": "HyderEyesV1",
+          "thumb": "/art/thumbs/Painting/Hyder'sV1.webp",
+          "w": 3521,
+          "h": 2082,
+          "lqip": "data:image/webp;base64,UklGRrgAAABXRUJQVlA4IKwAAAAQBQCdASogABMAPt1kp02opiOiMBgIARAbiWMAw6KABSDe+lRgZlxOD6BdYwD4FgoAAPa3v0HCizqPx7GmgIM+MFQ69uVjRL8Gfz+MDSkhWoXtluGAaAmLOVe7hfupzQwsaMVMIyVdQS/eVbGCt1pUwDW8OWT18R3BI2/ud+VXgWIiDEmlbjbZkJl/AyxRHfo0WY4XmH8vv5bEsCnzkSdzpZZ2tcSEV8gQDgAA"
         }
       ]
     },
@@ -43,11 +71,19 @@
       "items": [
         {
           "src": "/art/artworks/ScratchBoard/CrowScratchV2.jpg",
-          "title": "CrowScratchV2"
+          "title": "CrowScratchV2",
+          "thumb": "/art/thumbs/ScratchBoard/CrowScratchV2.webp",
+          "w": 7483,
+          "h": 6323,
+          "lqip": "data:image/webp;base64,UklGRo4AAABXRUJQVlA4IIIAAADQBACdASogABsAPt1kpk4opaMiMBgIARAbiWkACBAB9IC5Z6d1Ytz6eatomTCcAAD+4rSrub6hXXBOR5QfdrQ6nqp24Hp6ntjeTtPVR+xSGKlzCk3CQIWVdu1H7+aOZjtzKRHQNNd43UrISYNG6i5sk2SqhVkAdSrpyMtLdBtyAAAA"
         },
         {
           "src": "/art/artworks/ScratchBoard/WolfScratchV2.jpg",
-          "title": "WolfScratchV2"
+          "title": "WolfScratchV2",
+          "thumb": "/art/thumbs/ScratchBoard/WolfScratchV2.webp",
+          "w": 6296,
+          "h": 5851,
+          "lqip": "data:image/webp;base64,UklGRrQAAABXRUJQVlA4IKgAAACQBQCdASogAB4APt1eqE0opSQiKA1REBuJaQAAvqO57Vcka9qY/GA9lcYjf1hgoviDLzOccAD+9pwURo2wp2ZKhrt4gg2JTQD62h8R23bEKh6/EZZfNnF9C0ShMCLc4HNvT5Ry9IVTAOS1zw405Cbx2P/lW3zViXPv+6P/ivdvCXeZgFzmfd82awUaY9wqx/9+hXqBw7KBXul/6xkcpES0GV3VLRIQoAA="
         }
       ]
     },
@@ -56,7 +92,11 @@
       "items": [
         {
           "src": "/art/artworks/Misc/Tar%26PebblesV1.JPG",
-          "title": "Tar&PebblesV1"
+          "title": "Tar&PebblesV1",
+          "thumb": "/art/thumbs/Misc/Tar%26PebblesV1.webp",
+          "w": 2800,
+          "h": 2785,
+          "lqip": "data:image/webp;base64,UklGRroBAABXRUJQVlA4IK4BAACQBwCdASogACAAPt1apUyopSOiMAgBEBuJaQAUYHSB2TNM+9nNovGh9DewMnNE7IgNqSTQZgnLZOwPHjFSWiEelBTxKAAA/vN/gznmFXt7Db9Ztp8E5laU4qQ3awV9eZmpJOHgmOD/SPl2tX+fn9gRQPi0quuydkewFu56oyz7gf3EnTuYPPoVpo7/wrNWc6CKjgiqcg2nC5Nm974dWHs9NiERryUlQOiqHr/gWxIdCreEAfTNVPplFdw77tXQF9t5ieqytxc4jcvnjRyHXfigqV4BBErw3RO26p7eARNnXg5oBq8w2OEfOGdeI+rve+XCdyJZ6A0GZM1SFFGcek2IiPT2q7Hj39+fDUADtvapbaiv77PksqnP/QE5JSR445ULY5wr0VdM56N2cj12KHnuzmZOlv6EOoL8JFyx6KzLqzu2LboVJcCjTNr/bDzoGdNuzVQ7OXOHN18+6o9YI2QrbTkzxIKu6nRq0Mmr4eCUFollBS8DLA4d/zkkbJ9o5RHSXC9unnUk8qXhaHSWbESfuqs48qrIaH12vGpna8Epcya18VJkR0SvUY1ZAAAA"
         }
       ]
     },
@@ -65,31 +105,59 @@
       "items": [
         {
           "src": "/art/artworks/Speed%20Figure%20Drawings/DSC_4153.JPG",
-          "title": "DSC 4153"
+          "title": "DSC 4153",
+          "thumb": "/art/thumbs/Speed%20Figure%20Drawings/DSC_4153.webp",
+          "w": 2567,
+          "h": 3272,
+          "lqip": "data:image/webp;base64,UklGRrAAAABXRUJQVlA4IKQAAABQBQCdASogACkAPtFUpkyoJKQiNVgMAQAaCWkAALM8rSONv2OmsYoXJ4Ox6gNf9n5SPAAA9wbCS1nKkymwfE9ZdORd3HJAT9ukCQBC40esfFfztDRCaM+d1O9gxEKqkYa0qqa3zmu/KV+hC/zT+dprt1WLBtilpzO/G96LgKJfpYikNo6nj8fdq1y2kVbhU/BmU6d8gGmzhG/aNFfLW7llIAAAAA=="
         },
         {
           "src": "/art/artworks/Speed%20Figure%20Drawings/DSC_4158.JPG",
-          "title": "DSC 4158"
+          "title": "DSC 4158",
+          "thumb": "/art/thumbs/Speed%20Figure%20Drawings/DSC_4158.webp",
+          "w": 2467,
+          "h": 3303,
+          "lqip": "data:image/webp;base64,UklGRowAAABXRUJQVlA4IIAAAAAQBQCdASogACsAPt1cpk0opSOiNVQIARAbiWkA0MwKZ3JEyfPNqme6UZsNXiuPLjAAAPxQ+TJqKaYkdV1O8DOPScEireFbfS4AR53eBrR/7zANpg6m0GJt9Qc1cAKRERjV3kqiQFRCeky5JIt+rV03nI9TAsJM7GQJTxQaEAAAAA=="
         },
         {
           "src": "/art/artworks/Speed%20Figure%20Drawings/DSC_4159.JPG",
-          "title": "DSC 4159"
+          "title": "DSC 4159",
+          "thumb": "/art/thumbs/Speed%20Figure%20Drawings/DSC_4159.webp",
+          "w": 2207,
+          "h": 3128,
+          "lqip": "data:image/webp;base64,UklGRogAAABXRUJQVlA4IHwAAABwBQCdASogAC0APt1iqUyopiQiMBVaqRAbiWcA0UQubXwgFNM/ZtuaMzyhubudlcC3efvgAP5QILE2OdFulhrfCbsO3R0br+8++MFcoejlGd6CknxscqT6jR3Ly3gUM6BzYg+brT3UvMjVcSYtY1jWg8TbxiP2pyWABqAA"
         },
         {
           "src": "/art/artworks/Speed%20Figure%20Drawings/FabricWrinklesTrio.jpg",
-          "title": "FabricWrinklesTrio"
+          "title": "FabricWrinklesTrio",
+          "thumb": "/art/thumbs/Speed%20Figure%20Drawings/FabricWrinklesTrio.webp",
+          "w": 2651,
+          "h": 3563,
+          "lqip": "data:image/webp;base64,UklGRtYAAABXRUJQVlA4IMoAAADwBQCdASogACsAPs1Sn0ynpKKiNUgA8BmJaQDRCy5aBoirzLnh1Yq53iw39Qp4cLNBnWt43YGQUAD97NcSr9T5GiqUcY8BWcT6COBVcNXCzbdPWhZgvIzNcPU2NxBkO06FmDOA0JC0F7Elii66EUPTGRu3U03A6jnkgvzyK0bpLZMpWCZGOo8NrMgpjwq7gj4lU091duZ5bWbAxR7QMHLdFQdttwlC5kPwCTTFa6ZNVRXMWtr07OFVr5tNpD8LKOW0GixKEHPGAAAA"
         },
         {
           "src": "/art/artworks/Speed%20Figure%20Drawings/Heat.jpg",
-          "title": "Heat"
+          "title": "Heat",
+          "thumb": "/art/thumbs/Speed%20Figure%20Drawings/Heat.webp",
+          "w": 2781,
+          "h": 3695,
+          "lqip": "data:image/webp;base64,UklGRrgBAABXRUJQVlA4IKwBAABwCACdASogACsAPt1cpEyopSOiNVQIARAbiWkAyzLyNWN1aNnlgaSBnkHynTouelRB+i7+0/0ehCqgE2FV/wsR0iqyfupYKrv2dTAAAP6Y6gce5kYxRyCKHAXh3Qzc+jP1LZpvXQWSbJx4SwSHkocNFFbrB6lx2mRz6sddF12lZXzmdmnvd0xZrfI1Cp44qxJz9aQ1eNc5/DFaplNA7ewx2wAurVZrCEqB+/1HX1GHi4dBM/9I9haDibyLKviw4Cpusapz/ZreUB/WWuEiDIrkvJyKDaynLIyHOEkExVTuxcjJf5hTE8Rt/vVlrMSmcPEmkx5t7nX2hOWCiuhe11YFVwFHNFFUcrqIoUBBKqyMGKCIsmfWVs5rKnbFcjr4qbkPwqGrAobmNBMZdEZ4SWzOoV5glUyL0lOY/DH6daL/h6QwLDCgtY2bbUPEIwK8JKTn8P3almvyNBPf90PeXgwKlThovSdsurkZoX74ZKuBLjAWSv9g0WG8GfHuI9mwugpvuNPasO6ArdgY49dATzypmnPQs71847LasKUhlCGp4piX7GZgn7avC2AAAA=="
         },
         {
           "src": "/art/artworks/Speed%20Figure%20Drawings/TrioV1.jpg",
-          "title": "TrioV1"
+          "title": "TrioV1",
+          "thumb": "/art/thumbs/Speed%20Figure%20Drawings/TrioV1.webp",
+          "w": 3475,
+          "h": 2290,
+          "lqip": "data:image/webp;base64,UklGRoYAAABXRUJQVlA4IHoAAACwBACdASogABUAPt1apEyopSOiMAgBEBuJZwAAW4ekPvhvTc7e8IA+wukcqp0gAP5RY4U0uD/IawWzRaI1CQYN2vy9UG6ErLS+HGYX+mW4KNs60pSZgZAf/GLevH7m4uQdPCl6/njFvHQCDB1AbwUA9Y6KlTp6e/AAAA=="
         },
         {
           "src": "/art/artworks/Speed%20Figure%20Drawings/TwoPieceV3.JPG",
-          "title": "TwoPieceV3"
+          "title": "TwoPieceV3",
+          "thumb": "/art/thumbs/Speed%20Figure%20Drawings/TwoPieceV3.webp",
+          "w": 2813,
+          "h": 3826,
+          "lqip": "data:image/webp;base64,UklGRooAAABXRUJQVlA4IH4AAACQBACdASogACwAPt1mqlCopSOipWsxEBuJaQDOOFTrZ0ckGran8C+ZpGIeuOAA9wQP6U1DWHEmgA5hmDN8IpMNtDugQ24TmdnRgldRu8TtBd5s9pmcGRB8Dala1pzTfp6MTNjAkzYSexowYkOYxYowUCNNeaeAOa0rnlSAAAA="
         }
       ]
     }
