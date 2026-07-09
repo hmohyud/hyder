@@ -166,14 +166,6 @@
             overflow: hidden;
             border-radius: 0;
             cursor: zoom-in;
-            opacity: 0;
-            transform: translateY(6px);
-            transition: opacity .25s ease, transform .25s ease;
-        }
-
-        .card.ready {
-            opacity: 1;
-            transform: none
         }
 
         .card:hover {
@@ -181,11 +173,58 @@
             box-shadow: 0 16px 40px rgba(0, 0, 0, .55), 0 0 0 1px rgba(159, 180, 255, .18) inset
         }
 
-        .ph {
+        /* Progressive image: blurred LQIP underneath, sharp thumb fades in on top.
+           The wrapper reserves exact aspect-ratio space so nothing reflows. */
+        .thumbwrap {
+            position: relative;
             display: block;
             width: 100%;
-            height: auto;
+            aspect-ratio: 3 / 4;
+            /* overridden inline per-card */
+            background: #0d0d0d;
+            overflow: hidden;
+        }
+
+        .thumbwrap img {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .thumbwrap .lqip {
+            filter: blur(14px) saturate(1.06);
+            transform: scale(1.12);
+        }
+
+        .thumbwrap .full {
+            opacity: 0;
             filter: saturate(1.02) contrast(1.03);
+            transition: opacity .55s ease;
+        }
+
+        .thumbwrap .full.loaded {
+            opacity: 1;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+
+            .thumbwrap .full,
+            .hero {
+                transition: none;
+            }
+        }
+
+        /* Fallback for browsers without CSS aspect-ratio (e.g. Safari < 15):
+           renderGrid sets an explicit padding-bottom per card so tiles still
+           reserve height instead of collapsing to zero. */
+        @supports not (aspect-ratio: 1 / 1) {
+            .thumbwrap {
+                height: 0;
+                padding-bottom: 133.33%;
+            }
         }
 
         .badge {
@@ -246,7 +285,14 @@
             max-height: min(84vh, 92vh);
             border: 1px solid var(--line);
             background: #0d0d0d;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, .6)
+            box-shadow: 0 20px 60px rgba(0, 0, 0, .6);
+            transition: filter .45s ease;
+        }
+
+        /* While the full-resolution image downloads, the cached thumbnail is
+           shown blurred; clearing this class lets it snap into focus. */
+        .hero.lb-loading {
+            filter: blur(8px);
         }
 
         .nav {
@@ -333,10 +379,26 @@
             }
             function resolveSrc(s) {
                 if (!s) return s;
+                if (/^(data|blob):/i.test(s)) return s;   // inline LQIP / object URLs pass through
                 if (/^https?:\/\//i.test(s)) return s;
                 if (s.startsWith('/')) return s;
                 return '/' + s.replace(/^\.?\//, '');
             }
+
+            // Lazily load each thumbnail only as it nears the viewport — per-image,
+            // never all at once. rootMargin preloads a screen ahead for smoothness.
+            const io = ('IntersectionObserver' in window)
+                ? new IntersectionObserver((entries) => {
+                    for (const entry of entries) {
+                        if (!entry.isIntersecting) continue;
+                        const img = entry.target;
+                        io.unobserve(img);
+                        if (img.dataset.src) { img.src = img.dataset.src; img.removeAttribute('data-src'); }
+                    }
+                }, { rootMargin: '600px 0px', threshold: 0.01 })
+                : null;
+
+            const SUPPORTS_AR = !!(window.CSS && CSS.supports && CSS.supports('aspect-ratio', '1 / 1'));
 
             let flat = []; let view = []; let idx = 0;
 
@@ -344,11 +406,28 @@
             function closeLightbox() { lb.classList.remove('open'); document.body.style.overflow = ''; }
             function renderLb() {
                 const it = view[idx]; if (!it) return;
-                hero.src = it.src; hero.alt = it.title || 'artwork';
                 titleEl.textContent = (it.group ? `[${it.group}] ` : '') + (it.title || 'Artwork');
                 counter.textContent = (idx + 1) + ' / ' + view.length;
-                [view[(idx + 1) % view.length]?.src, view[(idx - 1 + view.length) % view.length]?.src]
-                    .forEach(s => { if (!s) return; const im = new Image(); im.decoding = 'async'; im.src = s; });
+
+                // Show the already-cached thumbnail immediately (blurred), then load
+                // the full-resolution original and let it snap into focus on top.
+                const placeholder = it.thumb || it.src;
+                hero.alt = it.title || 'artwork';
+                if (it.src && it.src !== placeholder) {
+                    hero.classList.add('lb-loading');
+                    hero.src = placeholder;
+                    const full = new Image(); full.decoding = 'async';
+                    full.onload = () => { if (view[idx] === it) { hero.src = it.src; hero.classList.remove('lb-loading'); } };
+                    full.onerror = () => { if (view[idx] === it) hero.classList.remove('lb-loading'); };
+                    full.src = it.src;
+                } else {
+                    hero.classList.remove('lb-loading');
+                    hero.src = it.src;
+                }
+
+                // Preheat neighbour thumbnails (cheap) so left/right nav is instant.
+                [view[(idx + 1) % view.length], view[(idx - 1 + view.length) % view.length]]
+                    .forEach(n => { const s = n && n.thumb; if (!s) return; const im = new Image(); im.decoding = 'async'; im.src = s; });
             }
             closeBtn.onclick = closeLightbox;
             prevBtn.onclick = e => { e.stopPropagation(); idx = (idx - 1 + view.length) % view.length; renderLb(); };
@@ -374,21 +453,46 @@
             }
 
             function renderGrid() {
+                if (io) io.disconnect();
                 msn.innerHTML = '';
                 const frag = document.createDocumentFragment();
                 view.forEach((it, i) => {
                     const fig = document.createElement('figure'); fig.className = 'card'; fig.tabIndex = 0; fig.dataset.index = String(i);
-                    const img = document.createElement('img'); img.className = 'ph'; img.src = it.src; img.alt = it.title || 'artwork';
-                    img.loading = 'lazy'; img.decoding = 'async';
+
+                    const wrap = document.createElement('div'); wrap.className = 'thumbwrap';
+                    if (it.w && it.h) {
+                        wrap.style.aspectRatio = it.w + ' / ' + it.h;
+                        if (!SUPPORTS_AR) { wrap.style.height = '0'; wrap.style.paddingBottom = (it.h / it.w * 100) + '%'; }
+                    }
+
+                    // Blurred low-res placeholder — inline data URI, appears instantly, zero network.
+                    if (it.lqip) {
+                        const lq = document.createElement('img'); lq.className = 'lqip';
+                        lq.src = it.lqip; lq.alt = ''; lq.setAttribute('aria-hidden', 'true');
+                        wrap.appendChild(lq);
+                    }
+
+                    // Sharp thumbnail — loaded per-image by the IntersectionObserver, fades in on load.
+                    const img = document.createElement('img'); img.className = 'full';
+                    img.alt = it.title || 'artwork'; img.decoding = 'async';
+                    img.dataset.src = it.thumb || it.src;
+                    img.addEventListener('load', () => img.classList.add('loaded'), { once: true });
+                    // On failure, drop the broken img so the blurred LQIP stays visible
+                    // instead of fading in a broken-image icon.
+                    img.addEventListener('error', () => img.remove(), { once: true });
+                    wrap.appendChild(img);
+
                     const badge = document.createElement('div'); badge.className = 'badge';
                     badge.textContent = it.group || 'misc';
                     badge.style.color = colorFor(it.group || 'misc');
-                    const onDone = () => { fig.classList.add('ready'); };
-                    if (img.complete && img.naturalWidth > 0) onDone(); else { img.addEventListener('load', onDone, { once: true }); img.addEventListener('error', onDone, { once: true }); }
-                    fig.appendChild(img); fig.appendChild(badge);
+
+                    fig.appendChild(wrap); fig.appendChild(badge);
                     fig.addEventListener('click', () => openLightbox(i));
                     fig.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLightbox(i); } });
                     frag.appendChild(fig);
+
+                    if (io) io.observe(img);
+                    else { img.src = img.dataset.src; img.removeAttribute('data-src'); }  // no IO: load immediately
                 });
                 msn.appendChild(frag);
             }
@@ -405,21 +509,18 @@
                 const groups = await loadManifest();
                 if (!groups.length) { status.textContent = 'No artworks yet.'; return; }
 
-                const raw = [];
+                // Dimensions, thumbnail, and blurred placeholder all come from the
+                // manifest — no need to download full images just to measure them.
+                const meta = [];
                 groups.forEach(g => {
                     const name = g.name || '';
                     (g.items || []).forEach(it => {
                         const src = resolveSrc(it.src);
+                        const thumb = it.thumb ? resolveSrc(it.thumb) : src;
                         const title = it.title || (it.src ? decodeURIComponent((it.src.split('/').pop() || '').replace(/\.[^.]+$/, '')) : '');
-                        raw.push({ group: name, src, title });
+                        meta.push({ group: name, src, thumb, title, w: it.w || 0, h: it.h || 0, lqip: it.lqip || '' });
                     });
                 });
-
-                const meta = await Promise.all(raw.map(x => new Promise(res => {
-                    const im = new Image(); im.decoding = 'async'; im.src = x.src;
-                    const done = () => { const w = im.naturalWidth || 1200, h = im.naturalHeight || 800; res({ ...x, w, h }); };
-                    if (im.complete && im.naturalWidth > 0) done(); else { im.onload = done; im.onerror = done; }
-                })));
 
                 const map = new Map();
                 meta.forEach(m => { const k = m.group || 'misc'; if (!map.has(k)) map.set(k, []); map.get(k).push(m); });
