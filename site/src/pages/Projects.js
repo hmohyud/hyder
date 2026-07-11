@@ -68,6 +68,19 @@ const SOUL_IMAGES = [
   `${PU}/projects/SOUL_3.jpg`, // group workshops
   `${PU}/projects/SOUL_4.jpg`, // therapist / about
 ];
+
+// Lavoët — GIFs lead (the interactive engraved trunk, then the pattern studio
+// in motion), followed by stills. LAVOET_pattern.gif is regenerable/replaceable
+// via record-demo.mjs (record your own demo, same filename, no code change).
+const LAVOET_IMAGES = [
+  `${PU}/projects/LAVOET_trunk.gif`, // engraved trunk plate: clasps open, lid lifts
+  `${PU}/projects/LAVOET_1.jpg`, // frontispiece / wordmark
+  `${PU}/projects/LAVOET_pattern.gif`, // parametric pattern studio in motion
+  `${PU}/projects/LAVOET_2.jpg`, // pattern studio — full editor UI
+  `${PU}/projects/LAVOET_3.jpg`, // the house monogram canvas (toile)
+  `${PU}/projects/LAVOET_4.jpg`, // trunk interior, opened
+  `${PU}/projects/LAVOET_5.jpg`, // brass signature plaque
+];
 // ---------- Category filter ----------
 const CATEGORIES = [
   { key: "all",      label: "All" },
@@ -114,6 +127,39 @@ const projects = [
       "The site handles course information, registration, scheduling, and resources for active cohorts. Thom is the Director of Education at NYCNVC, a UN Civil Society Organization.",
     ],
     links: [{ label: "Visit Site", href: "https://compassioncourse.org/" }],
+  },
+  // Lavoët
+  {
+    title: "Lavoët — Brand Revival & Pattern Studio",
+    color: "#b8925a",
+    tags: ["web", "software", "art"],
+    images: LAVOET_IMAGES,
+    description: [
+      "Brand development for Lavoët, a dormant Parisian trunk-maker founded 1869, being revived as a working brand: a catalogue-raisonné site plus production design software — each a single zero-dependency HTML file.",
+      {
+        summary:
+          "An engraved catalogue you can open — every trunk is interactive inline SVG.",
+        details:
+          "Ivory paper, copperplate-engraving line work, zero image assets: every plate is drawn as inline SVG. Undo the brass clasps, buckles and locks on the four trunk plates and the lid lifts to reveal a packed interior — alongside working single-prong buckles, draggable wardrobe drawers, swaying hangers and a cursor-tilting brass plaque.",
+      },
+      {
+        summary:
+          "The house monogram was recovered from a photo of a real c.1930 trunk with computer vision.",
+        details:
+          "Template registration across ~24 motif instances, averaging, C4 symmetrization, Richardson–Lucy deconvolution and contour tracing rebuilt the original toile motif from a single photograph — then made it fully editable in the studio.",
+      },
+      {
+        summary:
+          "A parametric pattern studio designs the house canvas and exports production-ready, re-editable files.",
+        details:
+          "Drag-the-points shape editing with per-point roundness, swirl warps, 2–8-fold symmetry, two-tone 3D relief and lattice-aware logo placement — the repeating field renders as one SVG <pattern> (~190 DOM nodes at any canvas size, ~1 ms refresh, live while dragging). Exports seamless tiles and swatches as SVG/PNG with the full design config embedded, so any exported file re-opens to resume editing.",
+      },
+    ],
+    links: [
+      { label: "Brand Site", href: "https://hmohyud.github.io/lavoet/" },
+      { label: "Pattern Studio", href: "https://hmohyud.github.io/lavoet/pattern-studio.html" },
+      { label: "GitHub", href: "https://github.com/hmohyud/lavoet" },
+    ],
   },
   // Soulful Expressions
   {
@@ -582,6 +628,76 @@ function RotatingImage({
   );
 }
 
+// --------- AspectRow: collapsible per-aspect detail ---------
+// Collapsed: a one-line summary of the aspect. Expanded: the summary is
+// replaced by the full details. Used for description entries shaped as
+// { summary, details } — plain strings still render as ordinary <p>s.
+function AspectRow({ summary, details, color }) {
+  const [open, setOpen] = useState(false);
+  const paras = Array.isArray(details) ? details : [details];
+  return (
+    <div
+      style={{
+        border: "1px solid #2e2e2e",
+        borderLeft: `3px solid ${color}66`,
+        borderRadius: 6,
+        marginBottom: "0.6rem",
+        background: open ? "rgba(255,255,255,0.02)" : "transparent",
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          gap: 10,
+          width: "100%",
+          textAlign: "left",
+          background: "transparent",
+          border: "none",
+          color: "#eaeaea",
+          fontFamily: "monospace",
+          fontSize: "0.95rem",
+          lineHeight: 1.5,
+          padding: "8px 12px",
+          cursor: "pointer",
+        }}
+      >
+        <span
+          aria-hidden="true"
+          style={{
+            color,
+            flex: "0 0 auto",
+            display: "inline-block",
+            transform: open ? "rotate(90deg)" : "none",
+            transition: "transform 0.15s ease",
+          }}
+        >
+          ▸
+        </span>
+        {open ? (
+          <span style={{ color: "#888", fontSize: "0.8rem", fontStyle: "italic" }}>
+            hide details
+          </span>
+        ) : (
+          <span>{summary}</span>
+        )}
+      </button>
+      {open && (
+        <div style={{ padding: "0 12px 10px 30px" }}>
+          {paras.map((d, i) => (
+            <p key={i} style={{ margin: i ? "0.6rem 0 0 0" : 0, color: "#ccc" }}>
+              {d}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Projects() {
   const [activeFilter, setActiveFilter] = useState("all");
   const [qrOpen, setQrOpen] = useState(null); // { title, data, color } | null
@@ -782,11 +898,20 @@ export default function Projects() {
               >
                 {proj.title}
               </h2>
-              {proj.description?.map((line, j) => (
-                <p key={j} style={{ margin: "0 0 0.75rem 0" }}>
-                  {line}
-                </p>
-              ))}
+              {proj.description?.map((line, j) =>
+                typeof line === "object" && line !== null ? (
+                  <AspectRow
+                    key={j}
+                    summary={line.summary}
+                    details={line.details}
+                    color={proj.color}
+                  />
+                ) : (
+                  <p key={j} style={{ margin: "0 0 0.75rem 0" }}>
+                    {line}
+                  </p>
+                )
+              )}
 
               {proj.links?.length ? (
                 <div
