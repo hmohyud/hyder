@@ -42,6 +42,13 @@ const ART_FULL = [
   `${PU}/art/artworks/Hands/INVHand3V1.jpeg`,
 ];
 
+// Corporate Footprints brand board (quadrants of the identity sheet) — the
+// globe itself predates any surviving screenshots.
+const GLOBE_IMAGES = Array.from(
+  { length: 2 },
+  (_, i) => `${PU}/projects/GLOBE_${i + 1}.jpg`
+);
+
 const DOT_IMAGES = Array.from(
   { length: 5 },
   (_, i) => `${PU}/projects/DOT_${i + 1}.png`
@@ -74,12 +81,9 @@ const SOUL_IMAGES = [
 // via record-demo.mjs (record your own demo, same filename, no code change).
 const LAVOET_IMAGES = [
   `${PU}/projects/LAVOET_trunk.gif`, // engraved trunk plate: clasps open, lid lifts
-  `${PU}/projects/LAVOET_1.jpg`, // frontispiece / wordmark
+  `${PU}/projects/LAVOET_1.jpg`, // the house monogram canvas (toile)
+  `${PU}/projects/LAVOET_2.jpg`, // brass signature plaque
   `${PU}/projects/LAVOET_pattern.gif`, // parametric pattern studio in motion
-  `${PU}/projects/LAVOET_2.jpg`, // pattern studio — full editor UI
-  `${PU}/projects/LAVOET_3.jpg`, // the house monogram canvas (toile)
-  `${PU}/projects/LAVOET_4.jpg`, // trunk interior, opened
-  `${PU}/projects/LAVOET_5.jpg`, // brass signature plaque
 ];
 // ---------- Category filter ----------
 const CATEGORIES = [
@@ -99,21 +103,64 @@ const projects = [
     tags: ["web", "software"],
     images: SPIM_IMAGES,
     description: [
-      `An experimental platform that lets users manipulate the internal layers of diffusion models to generate off-manifold, dreamlike imagery.`,
-      `I built the full-stack system: secure Python backend, custom memory management, tensor manipulation pipelines, and a React-based interface.`,
-      `Also implemented filtering tools for statistical novelty, interpolation modules, and Voronoi-based ultra-high-res generation techniques.`,
+      "A research platform for understanding diffusion models from the inside: modify a model's internal tensors mid-generation and study how its output — and human perception of it — changes. Off-manifold, dreamlike imagery is the observable result, not the goal.",
+      "I built effectively all of it: 800+ commits of Python and React in about a year, from the browser UI down to the GPU servers it runs on.",
+      {
+        summary: "Live model surgery — tensors edited mid-generation, no restarts.",
+        details: [
+          "Modified Automatic1111's internals (sd_models.py, networks.py, processing.py) so experiments hot-edit model tensors while the pipeline is running.",
+          {
+            summary: "The tensor-“bleed” fix.",
+            details:
+              "Edits from one experiment persisted into the next — PyTorch tensors are shared references into the loaded model, so mutations stuck. Cloning the touched sub-portions isolated each run.",
+          },
+          {
+            summary: "Safe-output masking.",
+            details:
+              "The platform deliberately destabilizes models, so filtering unsafe results is built into the pipeline rather than bolted on.",
+          },
+        ],
+      },
+      {
+        summary: "A formula language expresses the experiments.",
+        details: [
+          "A randomized-formula engine rewrites layer weights — weighted-probability generation with automatic simplification — alongside pixel-level perturbation tools. Experiments interpolate in both formula space and weight space.",
+          {
+            summary: "A formula keyboard with its own parser.",
+            details:
+              "The React UI ships a purpose-built formula keyboard; entries parse into the engine's grammar, and statistical-novelty filters plus logging quantify what large runs produce.",
+          },
+        ],
+      },
+      {
+        summary: "A distributed GPU backend I built, provisioned, and ran.",
+        details: [
+          "An auth gatekeeper farms generation jobs out to standby render servers — a design that grew from a single box, with custom memory management. The Ubuntu GPU machines are ones I built and tuned myself.",
+          {
+            summary: "Preview-then-commit rendering.",
+            details:
+              "Cheap low-res previews pass a statistical quality check before anything earns full-resolution GPU time.",
+          },
+        ],
+      },
+      {
+        summary: "Museum-shown work came out of it.",
+        details: [
+          "The platform became the production tool of Jason Salavon's studio: his 2024 solo show “History Painting” (TAI Modern, Santa Fe) — four monumental panels and looping animations — was made with it. “A tool that forces the AI out of that universe,” as Salavon puts it.",
+          {
+            summary: "Print-scale and motion output.",
+            details:
+              "AnimateDiff, ControlNet and LoRA run simultaneously for the animations; Voronoi-based tiling assembles ultra-high-res stills; finished pieces can mint as NFTs via IPFS.",
+          },
+        ],
+      },
     ],
-    links: [{ label: "Visit Site", href: "https://latentculture.com/spim/" }],
-  },
-  // 2. Globe
-  {
-    title: "Environmental Data Globe (Booth School of Business)",
-    color: "#00d1ff",
-    tags: ["software"],
-    image: `${PU}/projects/GLOBE_1.jpg`,
-    description: [
-      `Built an interactive globe for visualizing over 200GB of environmental data using JavaScript and Three.js.`,
-      `Developed dynamic cluster filtering, palette switching, and automated SQL data preprocessing in Python to support visual clarity and performance.`,
+    links: [
+      { label: "Visit Site", href: "https://latentculture.com/spim/" },
+      {
+        label: "Museum Show",
+        href: "https://taimodern.com/exhibit/history-painting-jason-salavon/",
+      },
     ],
   },
   // 3. Compassion Course
@@ -123,8 +170,27 @@ const projects = [
     tags: ["web", "software", "art"],
     images: CC_IMAGES,
     description: [
-      "Built the website for Thom Bond's Compassion Course — a year-long online program teaching Nonviolent Communication that has reached over 50,000 participants across 120+ countries in 20 languages.",
-      "The site handles course information, registration, scheduling, and resources for active cohorts. Thom is the Director of Education at NYCNVC, a UN Civil Society Organization.",
+      "Built and run the platform for Thom Bond's Compassion Course — a year-long Nonviolent Communication program with 50,000+ participants across 120+ countries in 20 languages. Thom is the Director of Education at NYCNVC, a UN Civil Society Organization.",
+      {
+        summary: "React + Firebase platform with scheduled lessons and a 3D globe.",
+        details:
+          "React/TypeScript on Firebase (Auth, Firestore, Storage, Functions) with statically prerendered marketing pages, CI deploys, and passwordless email-link sign-in. The 52 weekly lessons unlock on a DST-correct schedule (noon New York, computed to exact UTC), and the home page carries an interactive Three.js globe of ~3,900 community locations.",
+      },
+      {
+        summary: "A custom CMS — the team edits and publishes lessons themselves.",
+        details:
+          "A full-screen lesson editor with four modes — visual WYSIWYG (the real lesson rendered in an iframe, prose editable in place, edits written back structure-preserving), raw HTML, member preview, and audio — plus live safety checks with one-click revert, autosave recovery, and named checkpoints. Publishing pushes the HTML to Cloud Storage with metadata in Firestore, all gated by role-based security rules; members read it through a sandboxed viewer on signed URLs.",
+      },
+      {
+        summary: "Push-button TTS narration for every lesson section.",
+        details:
+          "Publishing queues ElevenLabs narration jobs through a Firestore-triggered Cloud Function that streams progress back into the editor live. Clips are content-addressed (hashed from the section text), so identical sections share one file and only edited sections regenerate — the team edits a lesson and its narration rebuilds itself.",
+      },
+      {
+        summary: "Team dashboard: Kanban, tasks, @mentions, shared whiteboards.",
+        details:
+          "A role-gated leadership area with teams, a drag-and-drop Kanban board with backlog and work items, @mention notifications, and Excalidraw whiteboards persisted to Firestore — the course staff's project-management home, inside the same site.",
+      },
     ],
     links: [{ label: "Visit Site", href: "https://compassioncourse.org/" }],
   },
@@ -144,19 +210,19 @@ const projects = [
       },
       {
         summary:
-          "The house monogram was recovered from a photo of a real c.1930 trunk with computer vision.",
+          "The monogram was rebuilt from a c.1930 trunk photo with computer vision.",
         details:
           "Template registration across ~24 motif instances, averaging, C4 symmetrization, Richardson–Lucy deconvolution and contour tracing rebuilt the original toile motif from a single photograph — then made it fully editable in the studio.",
       },
       {
         summary:
-          "A parametric pattern studio designs the house canvas and exports production-ready, re-editable files.",
+          "A parametric pattern studio designs and exports the house canvas.",
         details:
           "Drag-the-points shape editing with per-point roundness, swirl warps, 2–8-fold symmetry, two-tone 3D relief and lattice-aware logo placement — the repeating field renders as one SVG <pattern> (~190 DOM nodes at any canvas size, ~1 ms refresh, live while dragging). Exports seamless tiles and swatches as SVG/PNG with the full design config embedded, so any exported file re-opens to resume editing.",
       },
     ],
     links: [
-      { label: "Brand Site", href: "https://hmohyud.github.io/lavoet/" },
+      { label: "Visit Site", href: "https://hmohyud.github.io/lavoet/" },
       { label: "Pattern Studio", href: "https://hmohyud.github.io/lavoet/pattern-studio.html" },
       { label: "GitHub", href: "https://github.com/hmohyud/lavoet" },
     ],
@@ -174,6 +240,26 @@ const projects = [
     links: [
       { label: "Visit Site", href: "https://soulfulexpressions.in/" },
       { label: "GitHub", href: "https://github.com/hmohyud/soulful" },
+    ],
+  },
+  // Environmental Data Globe
+  {
+    title: "Environmental Data Globe (Booth School of Business)",
+    color: "#00d1ff",
+    tags: ["software"],
+    images: GLOBE_IMAGES,
+    description: [
+      "Built the interactive globe behind Booth's “Corporate Footprints” research — 200GB+ of environmental readings explorable in the browser with JavaScript + Three.js, dynamic cluster filtering, and switchable palettes.",
+      {
+        summary: "A recursive lat/long index makes 200GB browsable in the browser.",
+        details:
+          "The dataset is subdivided into nested latitude/longitude cells, and every cell stores a summary of everything beneath it — the same pattern repeating at each depth. Any view reads a handful of small summaries instead of raw data, so zooming stays fast at every scale.",
+      },
+      {
+        summary: "Geocoding and SQL wrangling on legacy university servers.",
+        details:
+          "Automated Python pipelines geocoded records and processed the compiled SQL data — partitioning, averaging, and subdividing clusters — against aging university database servers that predated modern tooling.",
+      },
     ],
   },
   // 4. Aerospace Part Finder
@@ -199,8 +285,43 @@ const projects = [
     tags: ["web", "software", "art"],
     images: TYPO_IMAGES,
     description: [
-      'Made purely for fun. Typing analysis that goes beyond WPM—keyboard heatmaps, bigram timing, behavioral profiling, and a "typing archetype" system.',
-      "React + Vite, all client-side. Dark theme inspired by MonkeyType.",
+      "Made purely for fun. Typing analysis that goes absurdly past WPM — every keystroke timed at sub-millisecond precision, then ranked against every other player. React + Vite, dark theme inspired by MonkeyType.",
+      {
+        summary: "Absurdly deep analysis — every keystroke becomes thirty-odd metrics.",
+        details: [
+          "performance.now() timing on every keystroke, backspaces included, computed into per-session and lifetime stats:",
+          {
+            summary: "Speed, rhythm, and fatigue metrics.",
+            details:
+              "Burst WPM over a sliding window, flow ratio, rhythm regularity, fatigue curves, post-error recovery penalty, capital- and punctuation-penalties, and a composite confidence score.",
+          },
+          {
+            summary: "Distance-normalized bigram analysis.",
+            details:
+              "Every two-key sequence is timed and weighed against the physical key-travel distance on a coordinate model of the keyboard — surfacing “impressive” bigrams: long reaches typed unusually fast.",
+          },
+          {
+            summary: "Hand-rolled SVG visualizations — no chart library.",
+            details:
+              "Keyboard heatmaps (speed or accuracy, comparable against global averages), a flow map with curved arrows tracing slow and fast key transitions, anatomical hand diagrams with nine-finger transition timings, per-row speed breakdowns, and a skill radar normalized to the global record.",
+          },
+          {
+            summary: "13 typing archetypes + behavioral profiling.",
+            details:
+              "A metric cascade assigns archetypes — The Metronome, The Surgeon, The Steamroller, The Rattled, The Flow State… — alongside behavioral labels: momentum after errors (perfectionist → bulldozer), backspace efficiency (over-corrector, incomplete fixes), error clustering, even time-of-day performance patterns.",
+          },
+          {
+            summary: "Global percentiles derived by database triggers, not app code.",
+            details:
+              "Clients submit raw keystroke streams under an anonymous, resettable UUID; Postgres triggers compute everything with incremental running statistics and histograms, exposed through ~17 read-only views for percentiles and records. A Cloudflare cron worker keeps the free-tier database awake.",
+          },
+        ],
+      },
+      {
+        summary: "Realtime multiplayer racing over WebSockets.",
+        details:
+          "Live races run on broadcast + presence with zero database writes mid-race — ghost cursors, spectator mode, ready states, win streaks, and a strict mode that blocks wrong characters.",
+      },
     ],
     links: [
       { label: "Visit Site", href: "https://hmohyud.github.io/typometry/" },
@@ -232,37 +353,14 @@ const projects = [
     title: "Jar Jar Quote Bot (Twitter/X)",
     color: "#ff6b9d",
     tags: ["software"],
+    minor: true,
     images: JARJAR_IMAGES,
     description: [
-      `Daily pipeline that scrapes a random historical quote, translates it into Jar Jar Binks (Gungan) speech, and posts the result.`,
-      `To bypass character limits, the text is rendered onto an AI-generated background image before posting.`,
-      `Includes basic scheduling, retries/rate-limit handling, and content moderation checks.`,
+      "Daily automation that scrapes a historical quote, translates it into Jar Jar Binks' Gungan speech, and posts it to X rendered over an AI-generated background (dodging the character limit) — with scheduling, retries, rate-limit handling, and moderation checks.",
     ],
     links: [{ label: "View on X", href: "https://x.com/JarJarbinksays" }],
   },
-  // 8. ComfyUI Character Pipeline
-  {
-    title: "ComfyUI Character Pipeline — Consistent Kids' Book Art",
-    color: "#b48bff",
-    tags: ["software"],
-    image: `${PU}/projects/COMFY_STANDIN.png`,
-    description: [
-      "A reproducible ComfyUI workflow to keep a main character consistent across a whole picture book: poses, outfits, angles, scenes.",
-      "Techniques: identity conditioning (IP-Adapter / LoRA) blending, ControlNet pose, prompt/seed scheduling, palette locks, and layout templates.",
-      "Exports print-ready spreads (bleed & safe margins) and auto-generates a 'character bible' sheet from the same graph.",
-    ],
-  },
-  // 9. AI Research & Model Tools
-  {
-    title: "AI Research & Model Tools",
-    color: "#ffaa00",
-    tags: ["software"],
-    image: `${PU}/projects/AI_STANDIN.png`,
-    description: [
-      `Created tooling for structured experimentation with diffusion models: formula generators, pixel-level perturbations, and statistical logging systems.`,
-      `These tools were used to explore model interpretability, generative tuning, and output consistency.`,
-    ],
-  },
+  // (AI Research & Model Tools was folded into SPIM above)
   // 10. Humrahe Khair
   {
     title: "Humrahe Khair — Together for Good",
@@ -287,7 +385,9 @@ const projects = [
       `Designed and built a quiet website to present my grandmother's poetry collection across the years.`,
       `Typography-focused, accessible, and easy to maintain.`,
     ],
-    links: [{ label: "Visit Site", href: "https://hmohyud.github.io/motam/" }],
+    links: [
+      { label: "Visit Site", href: "https://fromearthtoeternity.com/" },
+    ],
   },
   // 12. Join the Dots
   {
@@ -321,10 +421,10 @@ const projects = [
     title: "The Echoes of the Colorful Shadows",
     color: "#4b7f96ff",
     tags: ["art"],
+    minor: true,
     images: COMIC_IMAGES,
     description: [
-      "A timeboxed comic made near the start of AI image generation for a college project: a burned-out artist stumbles into four linked realms—Colorful Shadows, Whispers, Mirrored Realities, Fragmented Time—guided by spirits, books, and sound to rekindle his spark and steady a world in decay.",
-      "Built fast with early AI tools: outline → beat-by-beat prompt runs → tight curation (~2k gens → 244 workable → 130 used) → light cleanups/upscales → lettering & print layout (~28 hours end-to-end).",
+      "Final project for UChicago's Art & Machine Intelligence course — a comic made in ~28 hours at the dawn of AI image tools: ~2,000 generations curated down to 130 panels, cleaned up, lettered, and laid out for print.",
     ],
     links: [
       // { label: 'pdf', href: 'https://flowcode.com/p/2c3S4xwGF' }
@@ -374,8 +474,40 @@ const projects = [
     tags: ["other"],
     images: TEACH_IMAGES,
     description: [
-      `Taught programming through nonprofits (Code Platoon, Code Your Dreams) and private tutoring.`,
-      `Built MIT App Inventor examples, interactive modules, and developed beginner-friendly teaching content for both students and veterans.`,
+      "Nearly a decade of teaching programming and STEM — bootcamps, nonprofits, and 1,000+ hours of one-on-one tutoring.",
+      {
+        summary: "Code Platoon — coding bootcamp for veterans.",
+        details: [
+          "Assisted evenings-and-weekends bootcamp instruction for 30 veterans and active-duty service members transitioning into software careers.",
+          {
+            quote:
+              "working with instructors and students to provide high-impact training to the underserved veteran community",
+            by: "Chad Mowbray, Lead Instructor, Code Platoon",
+          },
+        ],
+      },
+      {
+        summary: "Code Your Dreams — intro coding for inner-city students.",
+        details: [
+          "Taught a 7-week introductory coding course to 40 inner-city high-schoolers, and trained students in Youth-Initiated Mentoring — building relationships with supportive non-parental adults.",
+          {
+            summary: "Beginner-first curriculum built on MIT App Inventor.",
+            details:
+              "Developed block-based App Inventor examples and interactive modules so complete beginners could ship a working app before syntax ever got in the way.",
+          },
+        ],
+      },
+      {
+        summary: "1,000+ hours of private tutoring since 2016.",
+        details: [
+          "Individualized instruction for 50+ middle-school, high-school, and college students across math, physics, chemistry, and essay writing.",
+          {
+            quote:
+              "We have seen [our son] change from a child that disliked this subject to loving math and mastering math skills… I really can not say enough good things about him.",
+            by: "parent of a three-year tutoring student",
+          },
+        ],
+      },
     ],
   },
   // 17. IT Support & Deployment Automation
@@ -397,11 +529,29 @@ const qrSrc = (data, size = 520) =>
     data
   )}`;
 
+// Small webp preview for a full-res image URL, or null when none exists.
+// /projects/<f>.<ext> -> /projects/thumbs/<f>.webp  (build-project-thumbs.mjs)
+// /art/artworks/...   -> /art/thumbs/...webp        (build-art-assets.mjs)
+const projThumbFor = (src) => {
+  if (typeof src !== "string") return null;
+  const m = src.match(/^(.*)\/projects\/([^/]+)\.(jpe?g|png|gif)$/i);
+  if (m) return `${m[1]}/projects/thumbs/${m[2]}.webp`;
+  if (src.includes("/art/artworks/"))
+    return src
+      .replace("/art/artworks/", "/art/thumbs/")
+      .replace(/\.[^./]+$/, ".webp");
+  return null;
+};
+
 /** Preload a list of URLs and return { ok, w, h } per src */
 function usePreloaded(srcs) {
   const [meta, setMeta] = useState(() =>
     srcs.map(() => ({ ok: false, w: 0, h: 0 }))
   );
+
+  // Key on the joined URLs, not array identity — inline arrays otherwise reset
+  // the preload state (and reflash the spinner) on every parent re-render.
+  const srcsKey = srcs.join("|");
 
   useEffect(() => {
     let alive = true;
@@ -437,12 +587,16 @@ function usePreloaded(srcs) {
     return () => {
       alive = false;
     };
-  }, [srcs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [srcsKey]);
 
   return meta; // [{ ok, w, h }]
 }
 
 // --------- RotatingImage (no overflow; uses <img> + object-fit: contain) ---------
+// Progressive loading: the tiny webp thumb renders immediately; the full-res
+// file is fetched only for the active slide (and the one on deck), then
+// swapped in silently. Entries may be URL strings or { src, thumb } objects.
 function RotatingImage({
   images = [],
   width = 280,
@@ -452,18 +606,59 @@ function RotatingImage({
   intervalMs = 5000,
   onClick,
   isVisible = true,
+  compact = false, // minor-tier thumbnails: stay small beside the text on mobile
 }) {
-  const meta = usePreloaded(images);
+  const imagesKey = JSON.stringify(images);
+  const slides = useMemo(
+    () =>
+      images.map((e) =>
+        typeof e === "object" && e !== null
+          ? { full: e.src, thumb: e.thumb || projThumbFor(e.src) }
+          : { full: e, thumb: projThumbFor(e) }
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [imagesKey]
+  );
+
+  // Probe the cheapest available rendition to decide which slides exist.
+  const probeSrcs = useMemo(
+    () => slides.map((s) => s.thumb || s.full),
+    [slides]
+  );
+  const meta = usePreloaded(probeSrcs);
   const ok = meta.map((m) => m.ok);
 
   const visibleIdxs = useMemo(
-    () => images.map((_, i) => (ok[i] ? i : -1)).filter((i) => i >= 0),
-    [images, ok]
+    () => slides.map((_, i) => (ok[i] ? i : -1)).filter((i) => i >= 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [imagesKey, ok.join(",")]
   );
 
   const [idx, setIdx] = useState(0);
   const [hovered, setHovered] = useState(false);
   const timerRef = useRef(null);
+
+  // Which thumb-backed slides have their full-res file ready.
+  const [fullLoaded, setFullLoaded] = useState({});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => setFullLoaded({}), [imagesKey]);
+
+  // Fetch full resolution only for the active slide and the one on deck;
+  // everything else stays on its lightweight thumb until its turn comes.
+  useEffect(() => {
+    if (!isVisible || !visibleIdxs.length) return;
+    const n = visibleIdxs.length;
+    [visibleIdxs[idx % n], visibleIdxs[(idx + 1) % n]].forEach((real) => {
+      const s = slides[real];
+      if (!s?.thumb || fullLoaded[real]) return; // thumbless slides already render full
+      const img = new Image();
+      img.decoding = "async";
+      img.onload = () =>
+        setFullLoaded((f) => (f[real] ? f : { ...f, [real]: true }));
+      img.src = s.full;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx, visibleIdxs, isVisible, slides]);
 
   // Keep idx in range if visible images change
   useEffect(() => {
@@ -509,11 +704,11 @@ function RotatingImage({
       onClick={() => {
         if (usable) onClick?.(idx);
       }}
+      className={`rot-img${compact ? " rot-img-sm" : ""}`}
       style={{
         position: "relative",
-        width,
-        height,
-        flex: `0 0 ${width}px`,
+        "--w": `${width}px`,
+        "--h": `${height}px`,
         cursor: usable ? "zoom-in" : "default",
         overflow: "hidden",
         backgroundColor: "#1a1a1a",
@@ -522,13 +717,13 @@ function RotatingImage({
         boxShadow: "0 0 10px rgba(255,255,255,0.04)",
       }}
     >
-      {/* Images */}
-      {images.map((src, i) => {
+      {/* Images — thumb first, silently upgraded to full-res when fetched */}
+      {slides.map((s, i) => {
         if (!ok[i]) return null;
         return (
           <img
-            key={src + i}
-            src={src}
+            key={s.full + i}
+            src={fullLoaded[i] || !s.thumb ? s.full : s.thumb}
             alt={`${altBase} ${i + 1}`}
             aria-hidden={activeReal !== i}
             style={{
@@ -632,17 +827,18 @@ function RotatingImage({
 // Collapsed: a one-line summary of the aspect. Expanded: the summary is
 // replaced by the full details. Used for description entries shaped as
 // { summary, details } — plain strings still render as ordinary <p>s.
-function AspectRow({ summary, details, color }) {
+function AspectRow({ summary, details, color, nested = false, style }) {
   const [open, setOpen] = useState(false);
   const paras = Array.isArray(details) ? details : [details];
   return (
     <div
       style={{
         border: "1px solid #2e2e2e",
-        borderLeft: `3px solid ${color}66`,
-        borderRadius: 6,
-        marginBottom: "0.6rem",
+        borderLeft: `${nested ? 2 : 3}px solid ${color}${nested ? "44" : "66"}`,
+        borderRadius: 5,
+        marginBottom: "0.35rem",
         background: open ? "rgba(255,255,255,0.02)" : "transparent",
+        ...style,
       }}
     >
       <button
@@ -652,16 +848,16 @@ function AspectRow({ summary, details, color }) {
         style={{
           display: "flex",
           alignItems: "baseline",
-          gap: 10,
+          gap: 7,
           width: "100%",
           textAlign: "left",
           background: "transparent",
           border: "none",
-          color: "#eaeaea",
+          color: "#ddd",
           fontFamily: "monospace",
-          fontSize: "0.95rem",
-          lineHeight: 1.5,
-          padding: "8px 12px",
+          fontSize: "0.82rem",
+          lineHeight: 1.4,
+          padding: "4px 8px",
           cursor: "pointer",
         }}
       >
@@ -678,7 +874,7 @@ function AspectRow({ summary, details, color }) {
           ▸
         </span>
         {open ? (
-          <span style={{ color: "#888", fontSize: "0.8rem", fontStyle: "italic" }}>
+          <span style={{ color: "#888", fontSize: "0.75rem", fontStyle: "italic" }}>
             hide details
           </span>
         ) : (
@@ -686,12 +882,51 @@ function AspectRow({ summary, details, color }) {
         )}
       </button>
       {open && (
-        <div style={{ padding: "0 12px 10px 30px" }}>
-          {paras.map((d, i) => (
-            <p key={i} style={{ margin: i ? "0.6rem 0 0 0" : 0, color: "#ccc" }}>
-              {d}
-            </p>
-          ))}
+        <div style={{ padding: "0 8px 6px 22px" }}>
+          {paras.map((d, i) =>
+            d && typeof d === "object" && d.quote ? (
+              // attributed pull-quote inside an aspect's details
+              <blockquote
+                key={i}
+                style={{
+                  margin: i ? "0.45rem 0 0 0" : 0,
+                  padding: "3px 10px",
+                  borderLeft: `2px solid ${color}55`,
+                  color: "#a9a9a9",
+                  fontStyle: "italic",
+                  fontSize: "0.8rem",
+                  lineHeight: 1.5,
+                }}
+              >
+                “{d.quote}”{" "}
+                <span style={{ color: "#777", fontStyle: "normal" }}>
+                  — {d.by}
+                </span>
+              </blockquote>
+            ) : typeof d === "object" && d !== null ? (
+              // nested accordion — a sub-aspect inside this aspect's details
+              <AspectRow
+                key={i}
+                summary={d.summary}
+                details={d.details}
+                color={color}
+                nested
+                style={{ marginTop: i ? "0.4rem" : 0 }}
+              />
+            ) : (
+              <p
+                key={i}
+                style={{
+                  margin: i ? "0.4rem 0 0 0" : 0,
+                  color: "#bbb",
+                  fontSize: "0.82rem",
+                  lineHeight: 1.5,
+                }}
+              >
+                {d}
+              </p>
+            )
+          )}
         </div>
       )}
     </div>
@@ -777,6 +1012,16 @@ export default function Projects() {
         lineHeight: 1.6,
       }}
     >
+      {/* image boxes: fixed width on desktop, full row width on small screens */}
+      <style>{`
+        .rot-img { width: var(--w); height: var(--h); flex: 0 0 var(--w); }
+        @media (max-width: 640px) {
+          .rot-img { width: 100%; flex: 1 1 100%; }
+          /* minor-tier thumbs stay small and sit beside the text */
+          .rot-img.rot-img-sm { width: 118px; flex: 0 0 118px; height: 80px; }
+        }
+      `}</style>
+
       <h1
         style={{
           fontSize: "2rem",
@@ -838,7 +1083,7 @@ export default function Projects() {
         })}
       </div>
 
-      {projects.map((proj, i) => {
+      {projects.filter((p) => !p.minor).map((proj, i) => {
         const images = proj.images || (proj.image ? [proj.image] : []);
 
         const isVisible =
@@ -850,7 +1095,8 @@ export default function Projects() {
             style={{
               overflow: "hidden",
               opacity: isVisible ? 1 : 0,
-              maxHeight: isVisible ? 1200 : 0,
+              // generous cap — cards grow when aspect accordions expand
+              maxHeight: isVisible ? 2400 : 0,
               marginBottom: isVisible ? "3rem" : 0,
               transform: isVisible ? "scale(1)" : "scale(0.97)",
               pointerEvents: isVisible ? "auto" : "none",
@@ -998,6 +1244,141 @@ export default function Projects() {
           </div>
         );
       })}
+
+      {/* ---- Smaller Pieces: compact tier for minor works ---- */}
+      {(() => {
+        const minors = projects.filter((p) => p.minor);
+        const anyVisible = minors.some(
+          (p) => activeFilter === "all" || p.tags?.includes(activeFilter)
+        );
+        if (!minors.length) return null;
+        return (
+          <div
+            style={{
+              overflow: "hidden",
+              opacity: anyVisible ? 1 : 0,
+              maxHeight: anyVisible ? 900 : 0,
+              transition: "opacity 0.35s ease, max-height 0.35s ease",
+            }}
+          >
+            <h2
+              style={{
+                fontSize: "1.15rem",
+                color: "#9aa3ad",
+                borderBottom: "1px solid #333",
+                paddingBottom: "0.4rem",
+                margin: "0 0 1.4rem 0",
+              }}
+            >
+              Smaller Pieces
+            </h2>
+            {minors.map((proj) => {
+              const images = proj.images || (proj.image ? [proj.image] : []);
+              const isVisible =
+                activeFilter === "all" || proj.tags?.includes(activeFilter);
+              if (!isVisible) return null;
+              return (
+                <div
+                  key={proj.title}
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "1rem",
+                    alignItems: "flex-start",
+                    marginBottom: "1.6rem",
+                  }}
+                >
+                  <RotatingImage
+                    images={images}
+                    width={170}
+                    height={110}
+                    compact
+                    borderColor={proj.color}
+                    altBase={`${proj.title} preview`}
+                    isVisible={isVisible}
+                    onClick={(index) => {
+                      if (!images.length) return;
+                      setLightbox({
+                        title: proj.title,
+                        color: proj.color,
+                        images: proj.lightboxImages || images,
+                        index: Math.min(index, images.length - 1),
+                      });
+                    }}
+                  />
+                  <div style={{ flex: "1 1 150px" }}>
+                    <h3
+                      style={{
+                        color: proj.color,
+                        margin: "0 0 0.35rem 0",
+                        fontSize: "1.02rem",
+                      }}
+                    >
+                      {proj.title}
+                    </h3>
+                    {proj.description?.map((line, j) => (
+                      <p
+                        key={j}
+                        style={{
+                          margin: "0 0 0.5rem 0",
+                          fontSize: "0.85rem",
+                          lineHeight: 1.55,
+                          color: "#c9c9c9",
+                        }}
+                      >
+                        {line}
+                      </p>
+                    ))}
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {proj.links?.map((l, k) => (
+                        <a
+                          key={k}
+                          href={l.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            padding: "4px 9px",
+                            borderRadius: 999,
+                            border: `1px solid ${proj.color}`,
+                            color: proj.color,
+                            textDecoration: "none",
+                            fontSize: "0.8rem",
+                          }}
+                        >
+                          {l.label}
+                        </a>
+                      ))}
+                      {proj.qrData ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setQrOpen({
+                              title: proj.title,
+                              data: proj.qrData,
+                              color: proj.color,
+                            })
+                          }
+                          style={{
+                            padding: "4px 10px",
+                            borderRadius: 999,
+                            border: `1px solid ${proj.color}`,
+                            background: "transparent",
+                            color: proj.color,
+                            fontSize: "0.8rem",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Show QR
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       <p style={{ fontStyle: "italic", marginTop: "2rem" }}>
         More projects — including visual experiments, creative tools, and
