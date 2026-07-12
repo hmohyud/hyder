@@ -239,31 +239,135 @@
   box-sizing: border-box;
 }
 
-/* Physics interaction disabled (touch / small screens) — plain reading page */
-.about-physics-container.no-physics .physics-block,
-.about-physics-container.no-physics .physics-heading,
-.about-physics-container.no-physics .physics-word,
-.about-physics-container.no-physics .physics-letter {
-  cursor: default;
+/* ─── Static mobile article (physics disabled on touch/small screens) ─── */
+.about-static {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 1.5rem 1.4rem 5.5rem;
+  font-family: monospace;
+  color: #d6d6d6;
+}
+.about-static h1 {
+  font-size: 1.9rem;
+  color: #fff;
+  margin: 0.4rem 0 1.8rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid #3a3a3a;
+  letter-spacing: 0.02em;
+}
+.about-static section {
+  margin-bottom: 2.1rem;
+}
+.about-static h2 {
+  font-size: 1.15rem;
+  margin: 0 0 0.7rem;
+  letter-spacing: 0.03em;
+}
+.about-static p {
+  margin: 0 0 0.9rem;
+  font-size: 0.92rem;
+  line-height: 1.75;
+  color: #c4c4c4;
 }
 
-/* Info pill shown on touch/small screens where the break mechanic is disabled */
+/* Info toast shown on touch/small screens where the break mechanic is disabled */
 .about-physics-note {
   position: fixed;
-  bottom: 18px;
+  bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 9999;
-  max-width: calc(100vw - 48px);
-  background: rgba(20, 20, 30, 0.88);
-  border: 1px solid rgba(127, 211, 255, 0.25);
-  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  max-width: calc(100vw - 28px);
+  background: rgba(16, 20, 30, 0.94);
+  border: 1px solid rgba(127, 211, 255, 0.28);
+  border-radius: 14px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5);
+  color: #b6cfdf;
+  font-family: monospace;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  padding: 10px 10px 10px 14px;
+  backdrop-filter: blur(6px);
+  animation: about-note-in 0.45s ease 0.4s both;
+}
+.about-physics-note svg {
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
+  color: #7fd3ff;
+}
+.about-physics-note span {
+  flex: 1 1 auto;
+  max-width: 25ch; /* hug the balanced two-line text */
+  text-wrap: balance; /* even out the two lines where supported */
+}
+.about-note-close {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  margin-left: 2px;
+  background: rgba(127, 211, 255, 0.08);
+  border: none;
+  color: #8fa6b8;
+  font-family: monospace;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+}
+.about-note-close:active,
+.about-note-close:hover {
+  color: #eaf4fb;
+  background: rgba(127, 211, 255, 0.18);
+}
+@keyframes about-note-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* ─── "regenerating physics" overlay (window resize) ─── */
+.about-regen-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  background: rgba(8, 10, 16, 0.6);
+  backdrop-filter: blur(3px);
+  animation: about-regen-in 0.2s ease both;
+}
+.about-regen-card {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  background: rgba(16, 20, 30, 0.95);
+  border: 1px solid rgba(127, 211, 255, 0.3);
+  border-radius: 12px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.5);
   color: #aaccdd;
   font-family: monospace;
-  font-size: 0.72rem;
-  line-height: 1.35;
-  padding: 6px 14px;
-  text-align: center;
-  pointer-events: none;
-  backdrop-filter: blur(4px);
+  font-size: 0.85rem;
+  padding: 12px 18px;
+}
+.about-regen-spinner {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 2px solid rgba(127, 211, 255, 0.2);
+  border-top-color: #7fd3ff;
+  animation: about-regen-spin 0.7s linear infinite;
+}
+@keyframes about-regen-spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes about-regen-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

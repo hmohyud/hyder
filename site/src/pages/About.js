@@ -376,6 +376,23 @@ export default function About() {
   const [, forceRender] = useState(0);
   const bump = useCallback(() => forceRender((n) => n + 1), []);
 
+  const wallsRef = useRef([]);
+  // resize breaks the once-built world — we rebuild it behind a brief overlay
+  const [regenerating, setRegenerating] = useState(false);
+
+  // "physics on desktop" note (static mobile layout) — dismissable per session
+  const [noteDismissed, setNoteDismissed] = useState(
+    () =>
+      typeof window !== "undefined" &&
+      window.sessionStorage?.getItem("aboutPhysicsNoteDismissed") === "1"
+  );
+  const dismissNote = () => {
+    try {
+      window.sessionStorage.setItem("aboutPhysicsNoteDismissed", "1");
+    } catch { /* private mode — dismiss for this render only */ }
+    setNoteDismissed(true);
+  };
+
   /* ─── add a wake region instead of creating a new setInterval ─── */
   const addWakeRegion = useCallback((left, right, bottom) => {
     wakeRegionsRef.current.push({
@@ -528,6 +545,7 @@ export default function About() {
   /* ─── init engine + rAF — runs exactly once ─── */
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
+    if (noPhysics) return; // static mobile layout — no engine at all
     const container = containerRef.current;
     const mDiv = measRef.current;
     if (!container || !mDiv) return;
@@ -548,7 +566,7 @@ export default function About() {
     // set container height to fit all content, walls at content edges
     const ch = Math.max(totalHeight, container.clientHeight);
     container.style.height = ch + "px";
-    createWalls(engine, cw, ch);
+    wallsRef.current = createWalls(engine, cw, ch);
 
     // collision handler — shatters paragraphs and words on wall impact
     const collisionHandler = (event) => {
@@ -732,7 +750,6 @@ export default function About() {
   };
 
   const handlePointerDown = (e) => {
-    if (noPhysics) return;
     if (e.target.closest(".about-reset-btn")) return;
     const pos = getPos(e);
     const block = findBlock(pos);
@@ -799,7 +816,6 @@ export default function About() {
   };
 
   const handleDoubleClick = (e) => {
-    if (noPhysics) return;
     if (e.target.closest(".about-reset-btn")) return;
     const pos = getPos(e);
     const block = findBlock(pos);
@@ -876,6 +892,99 @@ export default function About() {
     bump();
   };
 
+  /* ─── full world rebuild at the current size (used after window resize) ─── */
+  const rebuildWorld = () => {
+    const engine = engineRef.current;
+    const container = containerRef.current;
+    if (!engine || !container) return;
+
+    // cancel any in-flight drag — its body is about to be removed
+    if (dragRef.current) {
+      Composite.remove(engine.world, dragRef.current.constraint);
+      dragRef.current = null;
+    }
+
+    handleReset(); // rebuilds all blocks at the new width + sets container height
+
+    // walls must follow the new bounds or blocks escape / bounce mid-page
+    for (const w of wallsRef.current) Composite.remove(engine.world, w);
+    wallsRef.current = createWalls(
+      engine,
+      container.clientWidth,
+      container.clientHeight
+    );
+  };
+
+  /* ─── debounced resize -> "regenerating physics" overlay -> rebuild ─── */
+  useEffect(() => {
+    if (noPhysics) return;
+    let timer = null;
+    let lastW = window.innerWidth;
+    const onResize = () => {
+      if (window.innerWidth === lastW) return; // height-only changes are harmless
+      setRegenerating(true);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        lastW = window.innerWidth;
+        rebuildWorld();
+        // hold the overlay a beat so it reads, then reveal the fresh layout
+        setTimeout(() => setRegenerating(false), 400);
+      }, 450);
+    };
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+      if (timer) clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ─── static mobile render: clean typographic article, no physics boxes ─── */
+  if (noPhysics) {
+    return (
+      <article className="about-static">
+        <h1>About Me</h1>
+        {SECTIONS.map((sec) => (
+          <section key={sec.id}>
+            <h2 style={{ color: sec.color === "#ffffff" ? "#eaeaea" : sec.color }}>
+              {sec.heading}
+            </h2>
+            {sec.paragraphs.map((para, i) => (
+              <p key={i}>{para}</p>
+            ))}
+          </section>
+        ))}
+        {!noteDismissed && (
+          <div className="about-physics-note" role="note">
+            <svg
+              viewBox="0 0 24 24"
+              width="16"
+              height="16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="2" y="4" width="20" height="13" rx="2" />
+              <path d="M8 21h8M12 17v4" />
+            </svg>
+            <span>on desktop you can grab &amp; shatter this page</span>
+            <button
+              type="button"
+              className="about-note-close"
+              aria-label="dismiss note"
+              onClick={dismissNote}
+            >
+              ×
+            </button>
+          </div>
+        )}
+      </article>
+    );
+  }
+
   /* ─── render ─── */
   const allBlocks = blocksRef.current;
   const allWords = wordsRef.current;
@@ -884,7 +993,7 @@ export default function About() {
   return (
     <div
       ref={containerRef}
-      className={`about-physics-container${noPhysics ? " no-physics" : ""}`}
+      className="about-physics-container"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -950,17 +1059,18 @@ export default function About() {
         </div>
       ))}
 
-      {/* reset button — pointless when physics interaction is disabled */}
-      {!noPhysics && (
-        <button ref={resetBtnRef} className="about-reset-btn" onClick={handleReset}>
-          reset
-        </button>
-      )}
+      {/* reset button */}
+      <button ref={resetBtnRef} className="about-reset-btn" onClick={handleReset}>
+        reset
+      </button>
 
-      {/* on touch/small screens the mechanic is off — say so */}
-      {noPhysics && (
-        <div className="about-physics-note" role="note">
-          ✦ on desktop this page has physics — grab &amp; shatter the text
+      {/* resize in progress — world is being rebuilt for the new size */}
+      {regenerating && (
+        <div className="about-regen-overlay" role="status" aria-live="polite">
+          <div className="about-regen-card">
+            <div className="about-regen-spinner" aria-hidden="true" />
+            regenerating physics…
+          </div>
         </div>
       )}
     </div>
