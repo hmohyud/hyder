@@ -354,6 +354,12 @@ export default function About() {
   const wordsRef = useRef([]);
   const lettersRef = useRef([]);
   const dragRef = useRef(null);
+  // Touch/small screens: grab-and-shatter fights scrolling (a tap wakes a
+  // paragraph and drops it) — keep the physics layout but disable interaction.
+  const noPhysics =
+    typeof window !== "undefined" &&
+    (window.matchMedia?.("(pointer: coarse)")?.matches ||
+      window.innerWidth <= 640);
   const measRef = useRef(null);
   const elMapRef = useRef({});
   const resetBtnRef = useRef(null);
@@ -708,7 +714,8 @@ export default function About() {
       Events.off(engine, "collisionStart", collisionHandler);
       Engine.clear(engine);
     };
-  }, []); // empty deps — init runs once
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // empty deps — init runs once (re-running would kill the rAF loop)
 
   /* ─── pointer handlers ─── */
   const getPos = (e) => {
@@ -725,6 +732,7 @@ export default function About() {
   };
 
   const handlePointerDown = (e) => {
+    if (noPhysics) return;
     if (e.target.closest(".about-reset-btn")) return;
     const pos = getPos(e);
     const block = findBlock(pos);
@@ -791,6 +799,7 @@ export default function About() {
   };
 
   const handleDoubleClick = (e) => {
+    if (noPhysics) return;
     if (e.target.closest(".about-reset-btn")) return;
     const pos = getPos(e);
     const block = findBlock(pos);
@@ -875,7 +884,7 @@ export default function About() {
   return (
     <div
       ref={containerRef}
-      className="about-physics-container"
+      className={`about-physics-container${noPhysics ? " no-physics" : ""}`}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -941,10 +950,19 @@ export default function About() {
         </div>
       ))}
 
-      {/* reset button */}
-      <button ref={resetBtnRef} className="about-reset-btn" onClick={handleReset}>
-        reset
-      </button>
+      {/* reset button — pointless when physics interaction is disabled */}
+      {!noPhysics && (
+        <button ref={resetBtnRef} className="about-reset-btn" onClick={handleReset}>
+          reset
+        </button>
+      )}
+
+      {/* on touch/small screens the mechanic is off — say so */}
+      {noPhysics && (
+        <div className="about-physics-note" role="note">
+          ✦ on desktop this page has physics — grab &amp; shatter the text
+        </div>
+      )}
     </div>
   );
 }

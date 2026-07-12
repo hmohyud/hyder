@@ -65,6 +65,14 @@ const TYPO_IMAGES = Array.from(
   (_, i) => `${PU}/projects/TYPO_${i + 1}.jpg`
 );
 
+const GLOWPOP_IMAGES = [
+  `${PU}/projects/GLOWPOP_1.jpg`, // hero
+  `${PU}/projects/GLOWPOP_2.jpg`, // ingredient flip cards
+  `${PU}/projects/GLOWPOP_3.jpg`, // benefits / product section
+  `${PU}/projects/GLOWPOP_4.jpg`, // comparison table + 3D lollipop
+  `${PU}/projects/GLOWPOP_5.jpg`, // the Real Sugar Difference
+];
+
 // Soulful Expressions — GIFs lead to showcase the interactive parts,
 // interleaved with stills that walk down the page.
 const SOUL_IMAGES = [
@@ -104,7 +112,7 @@ const projects = [
     images: SPIM_IMAGES,
     description: [
       "A research platform for understanding diffusion models from the inside: modify a model's internal tensors mid-generation and study how its output — and human perception of it — changes. Off-manifold, dreamlike imagery is the observable result, not the goal.",
-      "I built effectively all of it: 800+ commits of Python and React in about a year, from the browser UI down to the GPU servers it runs on.",
+      "I built effectively all of it: 800+ commits of Python and React over a year of 20–50-hour weeks (alongside my degree), from the browser UI down to the GPU servers it runs on.",
       {
         summary: "Live model surgery — tensors edited mid-generation, no restarts.",
         details: [
@@ -178,13 +186,14 @@ const projects = [
       },
       {
         summary: "A custom CMS — the team edits and publishes lessons themselves.",
-        details:
+        details: [
           "A full-screen lesson editor with four modes — visual WYSIWYG (the real lesson rendered in an iframe, prose editable in place, edits written back structure-preserving), raw HTML, member preview, and audio — plus live safety checks with one-click revert, autosave recovery, and named checkpoints. Publishing pushes the HTML to Cloud Storage with metadata in Firestore, all gated by role-based security rules; members read it through a sandboxed viewer on signed URLs.",
-      },
-      {
-        summary: "Push-button TTS narration for every lesson section.",
-        details:
-          "Publishing queues ElevenLabs narration jobs through a Firestore-triggered Cloud Function that streams progress back into the editor live. Clips are content-addressed (hashed from the section text), so identical sections share one file and only edited sections regenerate — the team edits a lesson and its narration rebuilds itself.",
+          {
+            summary: "TTS narration is built into the CMS — one button, no engineer needed.",
+            details:
+              "Generating voiceovers is part of the editor itself, so the course team narrates lessons without any technical help: publishing auto-queues ElevenLabs jobs through a Firestore-triggered Cloud Function that streams progress back into the editor live. Clips are content-addressed (hashed from the section text), so identical sections share one file and only edited sections regenerate — they edit a lesson and its narration rebuilds itself.",
+          },
+        ],
       },
       {
         summary: "Team dashboard: Kanban, tasks, @mentions, shared whiteboards.",
@@ -250,6 +259,7 @@ const projects = [
     images: GLOBE_IMAGES,
     description: [
       "Built the interactive globe behind Booth's “Corporate Footprints” research — 200GB+ of environmental readings explorable in the browser with JavaScript + Three.js, dynamic cluster filtering, and switchable palettes.",
+      "Lost to the ages: it was an internal research tool and its deployment is no longer online — no screenshots survive, only the brand identity above and this write-up.",
       {
         summary: "A recursive lat/long index makes 200GB browsable in the browser.",
         details:
@@ -403,6 +413,19 @@ const projects = [
       { label: "Visit Site", href: "https://jointhedots.info/" },
     ],
   },
+  // Glow Pop
+  {
+    title: "Glow Pop — Product Landing Site",
+    color: "#ff1493",
+    tags: ["web", "art"],
+    images: GLOWPOP_IMAGES,
+    description: [
+      "Contracted to design and build the landing site for Glow Pop, a collagen-lollipop brand marketed to a young female audience — the hot-pink, high-energy identity is built for exactly that demographic. Ingredient flip cards, a supplement comparison table, FAQ, and full social link-preview cards; vanilla HTML/CSS/JS, no framework, no build step.",
+    ],
+    links: [
+      { label: "Visit Site", href: "https://hmohyud.github.io/glow-pop/" },
+    ],
+  },
   // 13. High School Art Portfolio
   {
     title: "High School Art Portfolio",
@@ -517,8 +540,17 @@ const projects = [
     tags: ["other"],
     image: `${PU}/projects/IT_STANDIN.png`,
     description: [
-      `Provided in-person IT support and automated OS/application setup for 100+ machines at the University of Chicago.`,
-      `This early experience taught me about system maintenance, scripting, and hands-on problem-solving.`,
+      "Three years part-time as a Technology Support Assistant at the University of Chicago's Humanities Computing (2018–2021) — my first sysadmin work.",
+      {
+        summary: "Kept 100+ Humanities Division machines imaged and healthy.",
+        details:
+          "OS imaging, security setup, and software maintenance across the division's fleet, plus in-person configuration and troubleshooting for faculty and staff.",
+      },
+      {
+        summary: "Automated OS + mandatory-application deployment.",
+        details:
+          "Scripted the university's required stack so a fresh machine came up configured without hand-installation — early, hands-on exposure to system maintenance and scripting that stuck.",
+      },
     ],
   },
 ];

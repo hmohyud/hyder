@@ -238,3 +238,32 @@
   margin: 0;
   box-sizing: border-box;
 }
+
+/* Physics interaction disabled (touch / small screens) — plain reading page */
+.about-physics-container.no-physics .physics-block,
+.about-physics-container.no-physics .physics-heading,
+.about-physics-container.no-physics .physics-word,
+.about-physics-container.no-physics .physics-letter {
+  cursor: default;
+}
+
+/* Info pill shown on touch/small screens where the break mechanic is disabled */
+.about-physics-note {
+  position: fixed;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  max-width: calc(100vw - 48px);
+  background: rgba(20, 20, 30, 0.88);
+  border: 1px solid rgba(127, 211, 255, 0.25);
+  border-radius: 999px;
+  color: #aaccdd;
+  font-family: monospace;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  padding: 6px 14px;
+  text-align: center;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}
