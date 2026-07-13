@@ -8,6 +8,7 @@ import {
 } from "react-router-dom";
 import "./App.css";
 
+import DotTransitionProvider from "./components/DotTransition";
 import Landing from "./pages/Landing";
 import SkillsMap from "./pages/SkillsMap";
 import Projects from "./pages/Projects";
@@ -139,7 +140,9 @@ function AppContent() {
 export default function App() {
   return (
     <Router>
-      <AppContent />
+      <DotTransitionProvider>
+        <AppContent />
+      </DotTransitionProvider>
     </Router>
   );
 }
