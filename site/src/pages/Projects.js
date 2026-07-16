@@ -422,7 +422,7 @@ const projects = [
   },
   // Glow Pop
   {
-    title: "Glow Pop — Product Landing Site",
+    title: "Glow Pop",
     color: "#ff1493",
     tags: ["web", "art"],
     images: GLOWPOP_IMAGES,
@@ -435,13 +435,12 @@ const projects = [
   },
   // Gorilla Greens (same client as Glow Pop)
   {
-    title: "Gorilla Greens — Super Greens Landing Site",
+    title: "Gorilla Greens",
     color: "#3FA75C",
     tags: ["web", "art"],
     images: GG_IMAGES,
     description: [
-      "A second brand build for the client behind Glow Pop — this time a dark, high-intensity identity for Gorilla Greens, a super-greens gummy pitched at men who train. Same framework-free approach (vanilla HTML/CSS/JS, no build step), tuned for a completely different demographic than its hot-pink sibling.",
-      "Includes an IN / CUT FROM THE FORMULA comparison, a three-step protocol, a full 15-ingredient breakdown with a Supplement Facts panel, FAQ, and pricing.",
+      "A second brand build for the client behind Glow Pop — this time a dark, high-intensity identity for Gorilla Greens, a super-greens gummy pitched at men who train. Same framework-free approach (vanilla HTML/CSS/JS, no build step), tuned for a completely different demographic than its hot-pink sibling."
     ],
     links: [
       { label: "Visit Site", href: "https://hmohyud.github.io/greengummies/" },
