@@ -73,6 +73,13 @@ const GLOWPOP_IMAGES = [
   `${PU}/projects/GLOWPOP_5.jpg`, // the Real Sugar Difference
 ];
 
+const GG_IMAGES = [
+  `${PU}/projects/GG_1.jpg`, // hero — STRENGTH RUNS ON GREENS
+  `${PU}/projects/GG_2.jpg`, // why + IN/CUT FROM THE FORMULA comparison
+  `${PU}/projects/GG_3.jpg`, // the protocol — two gummies
+  `${PU}/projects/GG_4.jpg`, // 15 organic superfoods + Supplement Facts
+];
+
 // Soulful Expressions — GIFs lead to showcase the interactive parts,
 // interleaved with stills that walk down the page.
 const SOUL_IMAGES = [
@@ -424,6 +431,20 @@ const projects = [
     ],
     links: [
       { label: "Visit Site", href: "https://hmohyud.github.io/glow-pop/" },
+    ],
+  },
+  // Gorilla Greens (same client as Glow Pop)
+  {
+    title: "Gorilla Greens — Super Greens Landing Site",
+    color: "#3FA75C",
+    tags: ["web", "art"],
+    images: GG_IMAGES,
+    description: [
+      "A second brand build for the client behind Glow Pop — this time a dark, high-intensity identity for Gorilla Greens, a super-greens gummy pitched at men who train. Same framework-free approach (vanilla HTML/CSS/JS, no build step), tuned for a completely different demographic than its hot-pink sibling.",
+      "Includes an IN / CUT FROM THE FORMULA comparison, a three-step protocol, a full 15-ingredient breakdown with a Supplement Facts panel, FAQ, and pricing.",
+    ],
+    links: [
+      { label: "Visit Site", href: "https://hmohyud.github.io/greengummies/" },
     ],
   },
   // 13. High School Art Portfolio
