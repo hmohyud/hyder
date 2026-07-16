@@ -422,7 +422,7 @@ const projects = [
   },
   // Glow Pop
   {
-    title: "Glow Pop",
+    title: "Glow Pop — Product Landing Site",
     color: "#ff1493",
     tags: ["web", "art"],
     images: GLOWPOP_IMAGES,
@@ -435,7 +435,7 @@ const projects = [
   },
   // Gorilla Greens (same client as Glow Pop)
   {
-    title: "Gorilla Greens",
+    title: "Gorilla Greens — Super Greens Landing Site",
     color: "#3FA75C",
     tags: ["web", "art"],
     images: GG_IMAGES,
