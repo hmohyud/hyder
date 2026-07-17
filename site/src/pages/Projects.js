@@ -420,27 +420,27 @@ const projects = [
       { label: "Visit Site", href: "https://jointhedots.info/" },
     ],
   },
-  // Glow Pop
+  // Glo Pop
   {
-    title: "Glow Pop — Product Landing Site",
+    title: "Glo Pop — Product Landing Site",
     color: "#ff1493",
     tags: ["web", "art"],
     images: GLOWPOP_IMAGES,
     description: [
-      "Contracted to design and build the landing site for Glow Pop, a collagen-lollipop brand marketed to a young female audience — the hot-pink, high-energy identity is built for exactly that demographic. Ingredient flip cards, a supplement comparison table, FAQ, and full social link-preview cards; vanilla HTML/CSS/JS, no framework, no build step.",
+      "Contracted to design and build the landing site for Glo Pop, a collagen-lollipop brand marketed to a young female audience — the hot-pink, high-energy identity is built for exactly that demographic. Ingredient flip cards, a supplement comparison table, FAQ, and full social link-preview cards; vanilla HTML/CSS/JS, no framework, no build step.",
     ],
     links: [
       { label: "Visit Site", href: "https://hmohyud.github.io/glow-pop/" },
     ],
   },
-  // Gorilla Greens (same client as Glow Pop)
+  // Gorilla Greens (same client as Glo Pop)
   {
     title: "Gorilla Greens — Super Greens Landing Site",
     color: "#3FA75C",
     tags: ["web", "art"],
     images: GG_IMAGES,
     description: [
-      "A second brand build for the client behind Glow Pop — this time a dark, high-intensity identity for Gorilla Greens, a super-greens gummy pitched at men who train. Same framework-free approach (vanilla HTML/CSS/JS, no build step), tuned for a completely different demographic than its hot-pink sibling."
+      "A second brand build for the client behind Glo Pop — this time a dark, high-intensity identity for Gorilla Greens, a super-greens gummy pitched at men who train. Same framework-free approach (vanilla HTML/CSS/JS, no build step), tuned for a completely different demographic than its hot-pink sibling."
     ],
     links: [
       { label: "Visit Site", href: "https://hmohyud.github.io/greengummies/" },
