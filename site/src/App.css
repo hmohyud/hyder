@@ -443,6 +443,7 @@ body.motion-test #bg-animation::after {
   justify-content: center;
   flex-wrap: wrap;
   gap: 10px;
+  margin-top: 36px;
   padding: 14px 16px 18px;
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   font-size: 0.72rem;
@@ -462,4 +463,7 @@ body.motion-test #bg-animation::after {
 .site-footer-sep {
   color: #3d4356;
   user-select: none;
+}
+.site-footer--flush {
+  margin-top: 0;
 }

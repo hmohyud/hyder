@@ -1461,42 +1461,10 @@ export default function Projects() {
         );
       })()}
 
-      <div style={{ marginTop: "2rem" }}>
-        <p style={{ fontStyle: "italic", marginBottom: "0.6rem" }}>
-          More is always in the works. Curious about any of this — or want
-          something built?
-        </p>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <a
-            href="mailto:hyder.mohyuddin@gmail.com"
-            style={{
-              padding: "4px 9px",
-              borderRadius: 999,
-              border: "1px solid #9ed8ff",
-              color: "#9ed8ff",
-              textDecoration: "none",
-              fontSize: "0.8rem",
-            }}
-          >
-            hyder.mohyuddin@gmail.com
-          </a>
-          <a
-            href="https://www.linkedin.com/in/hyder-mohyuddin"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              padding: "4px 9px",
-              borderRadius: 999,
-              border: "1px solid #9ed8ff",
-              color: "#9ed8ff",
-              textDecoration: "none",
-              fontSize: "0.8rem",
-            }}
-          >
-            LinkedIn
-          </a>
-        </div>
-      </div>
+      <p style={{ fontStyle: "italic", marginTop: "2rem" }}>
+        More is always in the works — visual experiments, creative tools, and
+        exploratory AI included.
+      </p>
 
       {/* Fullscreen QR overlay */}
       {qrOpen && (

@@ -85,20 +85,15 @@ function NavBar() {
 const CONTACT = {
   email: "hyder.mohyuddin@gmail.com",
   github: "https://github.com/hmohyud",
-  linkedin: "https://www.linkedin.com/in/hyder-mohyuddin",
 };
 
-function SiteFooter() {
+function SiteFooter({ flush = false }) {
   return (
-    <footer className="site-footer">
+    <footer className={`site-footer${flush ? " site-footer--flush" : ""}`}>
       <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>
       <span className="site-footer-sep" aria-hidden="true">·</span>
       <a href={CONTACT.github} target="_blank" rel="noopener noreferrer">
         github
-      </a>
-      <span className="site-footer-sep" aria-hidden="true">·</span>
-      <a href={CONTACT.linkedin} target="_blank" rel="noopener noreferrer">
-        linkedin
       </a>
     </footer>
   );
@@ -180,7 +175,11 @@ function AppContent() {
             ))}
           </Routes>
         </main>
-        {!isLanding && <SiteFooter />}
+        {/* About's physics floor sits at its container bottom — keep the
+            footer flush there so no dead band appears under the blocks */}
+        {!isLanding && (
+          <SiteFooter flush={location.pathname.startsWith("/about")} />
+        )}
       </div>
     </>
   );
