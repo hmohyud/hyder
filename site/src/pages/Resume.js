@@ -49,6 +49,47 @@ export default function Resume() {
   // Reset pages when switching docs (phone mode viewer)
   useEffect(() => { setNumPages(0); }, [doc]);
 
+  // Open/download icon buttons for the CURRENT doc. Phone mode floats them
+  // over the viewer; desktop puts them in the toggle row so they never
+  // overlap the PDF plugin's own chrome (e.g. Firefox's pdf.js toolbar).
+  const docActions = (bar) => (
+    <div
+      className={`pdf-actions${bar ? " pdf-actions--bar" : ""}`}
+      role="group"
+      aria-label="Current document actions"
+    >
+      <a
+        className="icon-btn"
+        href={active.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`Open ${active.label} in a new tab`}
+        title={`Open ${active.label} in a new tab`}
+      >
+        {/* External-link icon (SVG, crisp on all screens) */}
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3z"></path>
+          <path d="M19 21H5a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h7v2H5v14h14v-7h2v7a2 2 0 0 1-2 2z"></path>
+        </svg>
+        <span className="sr-only">Open</span>
+      </a>
+      <a
+        className="icon-btn"
+        href={active.url}
+        download
+        aria-label={`Download ${active.label} PDF`}
+        title={`Download ${active.label} PDF`}
+      >
+        {/* Download icon */}
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3v10.59l3.3-3.3 1.4 1.42-5 5-5-5 1.4-1.42 3.3 3.3V3h2z"></path>
+          <path d="M5 19h14v2H5z"></path>
+        </svg>
+        <span className="sr-only">Download</span>
+      </a>
+    </div>
+  );
+
   return (
     <div className="resume-pdf-wrapper">
       {/* Segmented control */}
@@ -65,44 +106,14 @@ export default function Resume() {
             {files[key].label}
           </button>
         ))}
+        {!isPhone && docActions(true)}
       </div>
 
       {/* Viewer */}
       {isPhone ? (
         // PHONE MODE: react-pdf (multi-page, mobile-safe)
         <div className="pdf-viewport">
-          {/* Floating top-right actions for CURRENT doc */}
-          <div className="pdf-actions" role="group" aria-label="Current document actions">
-            <a
-              className="icon-btn"
-              href={active.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={`Open ${active.label} in a new tab`}
-              title={`Open ${active.label} in a new tab`}
-            >
-              {/* External-link icon (SVG, crisp on all screens) */}
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3z"></path>
-                <path d="M19 21H5a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h7v2H5v14h14v-7h2v7a2 2 0 0 1-2 2z"></path>
-              </svg>
-              <span className="sr-only">Open</span>
-            </a>
-            <a
-              className="icon-btn"
-              href={active.url}
-              download
-              aria-label={`Download ${active.label} PDF`}
-              title={`Download ${active.label} PDF`}
-            >
-              {/* Download icon */}
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 3v10.59l3.3-3.3 1.4 1.42-5 5-5-5 1.4-1.42 3.3 3.3V3h2z"></path>
-                <path d="M5 19h14v2H5z"></path>
-              </svg>
-              <span className="sr-only">Download</span>
-            </a>
-          </div>
+          {docActions(false)}
 
           <div id="pdf-viewer" className="pdf-scroll" ref={wrapRef}>
             <Document
@@ -129,7 +140,7 @@ export default function Resume() {
           </div>
         </div>
       ) : (
-        // NORMAL MODE: your original <object> embed
+        // NORMAL MODE: original <object> embed (actions live in the toggle row)
         <object
           id="pdf-viewer"
           data={`${active.url}#toolbar=0&navpanes=0&scrollbar=1`}

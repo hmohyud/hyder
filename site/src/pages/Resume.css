@@ -15,6 +15,7 @@
 
 /* Toggle */
 .doc-toggle {
+  position: relative; /* anchors the desktop .pdf-actions--bar */
   width: 100%;
   display: flex;
   align-items: center;
@@ -54,6 +55,14 @@
   display: flex;
   gap: 8px;
   z-index: 5;
+}
+/* Desktop variant: icons sit at the right end of the toggle row, never
+   overlapping the PDF plugin's own chrome (Firefox pdf.js toolbar etc.) */
+.pdf-actions--bar {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
 }
 
 .icon-btn {

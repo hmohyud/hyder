@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 
 // ---------- Helper: build an array of images in /public/projects ----------
 const PU = process.env.PUBLIC_URL;
@@ -119,11 +120,21 @@ const projects = [
     images: SPIM_IMAGES,
     description: [
       "A research platform for understanding diffusion models from the inside: modify a model's internal tensors mid-generation and study how its output — and human perception of it — changes. Off-manifold, dreamlike imagery is the observable result, not the goal.",
-      "I built effectively all of it: 800+ commits of Python and React over a year of 20–50-hour weeks (alongside my degree), from the browser UI down to the GPU servers it runs on.",
+      "I built effectively all of it: 800+ commits (~96% of the codebase) of Python and React over a year of 20–50-hour weeks (alongside my degree), from the browser UI down to the GPU servers it runs on.",
+      {
+        summary: "The questions: which layers hold style, structure, coherence?",
+        details:
+          "Experiments probe what individual layers contribute — which hold style, which hold structure, where coherence lives — and what humans make of images from just outside the training manifold. Intervention replaces observation: change the tensor, watch what changes.",
+      },
       {
         summary: "Live model surgery — tensors edited mid-generation, no restarts.",
         details: [
           "Modified Automatic1111's internals (sd_models.py, networks.py, processing.py) so experiments hot-edit model tensors while the pipeline is running.",
+          {
+            summary: "Wildcard layer targeting.",
+            details:
+              "Transforms address the model by pattern — a layer mask like diffusion_model.*.1.norm selects every matching layer at once, so a single weight/bias formula can rewrite dozens of tensors across the U-Net or text encoder in one experiment.",
+          },
           {
             summary: "The tensor-“bleed” fix.",
             details:
@@ -1220,39 +1231,50 @@ export default function Projects() {
                     flexWrap: "wrap",
                   }}
                 >
-                  {proj.links.map((l, k) => (
-                    <a
-                      key={k}
-                      href={l.href}
-                      {...(!/\/art\/?$/.test(l.href) && {
-                        target: "_blank",
-                        rel: "noopener noreferrer",
-                      })}
-                      {...(/\/art\/?$/.test(l.href) && {
-                        onClick: () => {
-                          sessionStorage.setItem("projects-scroll", window.scrollY);
-                        },
-                      })}
-                      style={{
-                        display: "inline-block",
-                        padding: "6px 10px",
-                        borderRadius: "999px",
-                        border: `1px solid ${proj.color}`,
-                        color: proj.color,
-                        textDecoration: "none",
-                        fontSize: "0.9rem",
-                        transition: "all .2s ease",
-                      }}
-                      onMouseEnter={(e) => {
+                  {proj.links.map((l, k) => {
+                    const pillStyle = {
+                      display: "inline-block",
+                      padding: "6px 10px",
+                      borderRadius: "999px",
+                      border: `1px solid ${proj.color}`,
+                      color: proj.color,
+                      textDecoration: "none",
+                      fontSize: "0.9rem",
+                      transition: "all .2s ease",
+                    };
+                    const hoverProps = {
+                      onMouseEnter: (e) => {
                         e.currentTarget.style.backgroundColor = `${proj.color}22`;
-                      }}
-                      onMouseLeave={(e) => {
+                      },
+                      onMouseLeave: (e) => {
                         e.currentTarget.style.backgroundColor = "transparent";
-                      }}
-                    >
-                      {l.label}
-                    </a>
-                  ))}
+                      },
+                    };
+                    // In-site pages navigate client-side, same tab
+                    return l.internal ? (
+                      <Link key={k} to={l.href} style={pillStyle} {...hoverProps}>
+                        {l.label}
+                      </Link>
+                    ) : (
+                      <a
+                        key={k}
+                        href={l.href}
+                        {...(!/\/art\/?$/.test(l.href) && {
+                          target: "_blank",
+                          rel: "noopener noreferrer",
+                        })}
+                        {...(/\/art\/?$/.test(l.href) && {
+                          onClick: () => {
+                            sessionStorage.setItem("projects-scroll", window.scrollY);
+                          },
+                        })}
+                        style={pillStyle}
+                        {...hoverProps}
+                      >
+                        {l.label}
+                      </a>
+                    );
+                  })}
 
                   {/* Fullscreen QR overlay trigger (only for items with qrData) */}
                   {proj.qrData ? (
@@ -1382,24 +1404,31 @@ export default function Projects() {
                       </p>
                     ))}
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      {proj.links?.map((l, k) => (
-                        <a
-                          key={k}
-                          href={l.href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            padding: "4px 9px",
-                            borderRadius: 999,
-                            border: `1px solid ${proj.color}`,
-                            color: proj.color,
-                            textDecoration: "none",
-                            fontSize: "0.8rem",
-                          }}
-                        >
-                          {l.label}
-                        </a>
-                      ))}
+                      {proj.links?.map((l, k) => {
+                        const pillStyle = {
+                          padding: "4px 9px",
+                          borderRadius: 999,
+                          border: `1px solid ${proj.color}`,
+                          color: proj.color,
+                          textDecoration: "none",
+                          fontSize: "0.8rem",
+                        };
+                        return l.internal ? (
+                          <Link key={k} to={l.href} style={pillStyle}>
+                            {l.label}
+                          </Link>
+                        ) : (
+                          <a
+                            key={k}
+                            href={l.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={pillStyle}
+                          >
+                            {l.label}
+                          </a>
+                        );
+                      })}
                       {proj.qrData ? (
                         <button
                           type="button"
@@ -1432,10 +1461,42 @@ export default function Projects() {
         );
       })()}
 
-      <p style={{ fontStyle: "italic", marginTop: "2rem" }}>
-        More projects — including visual experiments, creative tools, and
-        exploratory AI work — coming soon.
-      </p>
+      <div style={{ marginTop: "2rem" }}>
+        <p style={{ fontStyle: "italic", marginBottom: "0.6rem" }}>
+          More is always in the works. Curious about any of this — or want
+          something built?
+        </p>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <a
+            href="mailto:hyder.mohyuddin@gmail.com"
+            style={{
+              padding: "4px 9px",
+              borderRadius: 999,
+              border: "1px solid #9ed8ff",
+              color: "#9ed8ff",
+              textDecoration: "none",
+              fontSize: "0.8rem",
+            }}
+          >
+            hyder.mohyuddin@gmail.com
+          </a>
+          <a
+            href="https://www.linkedin.com/in/hyder-mohyuddin"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              padding: "4px 9px",
+              borderRadius: 999,
+              border: "1px solid #9ed8ff",
+              color: "#9ed8ff",
+              textDecoration: "none",
+              fontSize: "0.8rem",
+            }}
+          >
+            LinkedIn
+          </a>
+        </div>
+      </div>
 
       {/* Fullscreen QR overlay */}
       {qrOpen && (

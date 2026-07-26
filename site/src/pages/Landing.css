@@ -165,7 +165,26 @@
   width: 100%;
 }
 .hero > .subtitle        { grid-area: sub; }
-.hero > .hero-gh-link    { grid-area: gh; justify-self: end; align-self: center; }
+.hero > .hero-contact    { grid-area: gh; justify-self: end; align-self: center; }
+.hero-contact {
+  display: flex;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 14px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
+}
+.hero-contact-sep {
+  color: #3d4356;
+  font-size: clamp(0.7rem, 1.5vw, 0.72rem);
+  user-select: none;
+}
+/* Comfortable tap targets without shifting layout */
+.hero-contact .hero-gh-link {
+  padding: 8px 4px;
+  margin: -8px -4px;
+}
 .hero > .mission         { grid-area: mission; }
 
 /* Mid + full mobile: title + small label on row 1, grid full-width row 2 */
@@ -221,8 +240,8 @@
 }
 
 .hero-gh-link{
-  font-size: clamp(0.5rem, 1.5vw, 0.72rem);
-  color: #6f788f;
+  font-size: clamp(0.7rem, 1.5vw, 0.72rem);
+  color: #7d879f;
   letter-spacing: 0.04em;
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   text-decoration: none;
@@ -235,10 +254,10 @@
   color: #9ed8ff;
 }
 /* When the user hovers the grid or label, light up the github handle too */
-.hero:has(.gh-contrib-grid-wrap:hover) .hero-gh-link,
-.hero:has(.gh-contrib-grid-wrap:focus-visible) .hero-gh-link,
-.hero:has(.gh-contrib-label:hover) .hero-gh-link,
-.hero:has(.gh-contrib-label:focus-visible) .hero-gh-link{
+.hero:has(.gh-contrib-grid-wrap:hover) .hero-gh-link.gh,
+.hero:has(.gh-contrib-grid-wrap:focus-visible) .hero-gh-link.gh,
+.hero:has(.gh-contrib-label:hover) .hero-gh-link.gh,
+.hero:has(.gh-contrib-label:focus-visible) .hero-gh-link.gh{
   color: #9ed8ff;
 }
 .mission{

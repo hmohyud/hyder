@@ -5,6 +5,7 @@ import {
   Route,
   Link,
   useLocation,
+  useNavigationType,
 } from "react-router-dom";
 import "./App.css";
 
@@ -55,14 +56,17 @@ const pages = {
 
 function NavBar() {
   const location = useLocation();
+  // A subpage (e.g. /projects/spim) keeps its section's nav link active
+  const isActive = (path) =>
+    location.pathname === path || location.pathname.startsWith(path + "/");
   return (
     <nav className="nav-bar" role="navigation" aria-label="Main Navigation">
       {Object.entries(pages).map(([key, { path, label, accentA, accentB }]) => (
         <Link
           key={key}
           to={path}
-          className={`nav-link ${location.pathname === path ? "active" : ""}`}
-          aria-current={location.pathname === path ? "page" : undefined}
+          className={`nav-link ${isActive(path) ? "active" : ""}`}
+          aria-current={isActive(path) ? "page" : undefined}
           /* expose per-link accent colors to CSS */
           style={{
             // consumed by CSS for underline/hover/active
@@ -76,6 +80,40 @@ function NavBar() {
       ))}
     </nav>
   );
+}
+
+const CONTACT = {
+  email: "hyder.mohyuddin@gmail.com",
+  github: "https://github.com/hmohyud",
+  linkedin: "https://www.linkedin.com/in/hyder-mohyuddin",
+};
+
+function SiteFooter() {
+  return (
+    <footer className="site-footer">
+      <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>
+      <span className="site-footer-sep" aria-hidden="true">·</span>
+      <a href={CONTACT.github} target="_blank" rel="noopener noreferrer">
+        github
+      </a>
+      <span className="site-footer-sep" aria-hidden="true">·</span>
+      <a href={CONTACT.linkedin} target="_blank" rel="noopener noreferrer">
+        linkedin
+      </a>
+    </footer>
+  );
+}
+
+/* Start each page at the top — without this, deep pages hand their scroll
+   position to the next route. Skipped on POP (back/forward) so the browser's
+   own scroll restoration still works. */
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  const navType = useNavigationType();
+  useEffect(() => {
+    if (navType !== "POP") window.scrollTo(0, 0);
+  }, [pathname, navType]);
+  return null;
 }
 
 function AppContent() {
@@ -110,6 +148,16 @@ function AppContent() {
 
   const isLanding = location.pathname === "/";
 
+  /* Keep the tab title in sync on client-side navigation (mirrors the
+     per-route titles the build-route-shells script bakes into the shells). */
+  useEffect(() => {
+    const seg = location.pathname.match(/^\/[^/]*/)?.[0] || "/";
+    const page = Object.values(pages).find((p) => p.path === seg);
+    document.title = page
+      ? `${page.label} | Hyder Mohyuddin`
+      : "Hyder Mohyuddin | Portfolio";
+  }, [location.pathname]);
+
   return (
     <>
       <div id="bg-animation" className={isReady ? "visible" : ""} />
@@ -123,6 +171,7 @@ function AppContent() {
           </header>
         )}
         <main className="App-main">
+          <ScrollToTop />
           <Routes>
             <Route path="/" element={<Landing />} />
             <Route path="/bg-demo" element={<BgDemo />} />
@@ -131,6 +180,7 @@ function AppContent() {
             ))}
           </Routes>
         </main>
+        {!isLanding && <SiteFooter />}
       </div>
     </>
   );

@@ -57,10 +57,27 @@ const SECTIONS = [
     color: "#ffffff",
     paragraphs: [
       "I\u2019m not trying to do everything. I\u2019m trying to do a few strange, sharp, and well-constructed things really well. I care deeply about the details, about unexpected edges, and about software that earns your attention\u2014not just demands it.",
-      "If you\u2019ve made it this far, thanks for reading. I hope something here resonated.",
+      "If you\u2019ve made it this far, thanks for reading. I hope something here resonated\u2014and if it did, my inbox is open: hyder.mohyuddin@gmail.com",
     ],
   },
 ];
+
+/* Static (no-physics) mode renders email addresses as mailto links; physics
+   mode keeps them as plain shatterable text. */
+const EMAIL_SPLIT = /([\w.+-]+@[\w-]+\.[\w.]*\w)/;
+function linkifyEmail(text) {
+  const parts = text.split(EMAIL_SPLIT);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) =>
+    EMAIL_SPLIT.test(part) ? (
+      <a key={i} href={`mailto:${part}`} style={{ color: "#9ed8ff" }}>
+        {part}
+      </a>
+    ) : (
+      part
+    )
+  );
+}
 
 /* ───── physics constants ───── */
 const SHATTER_SPEED = 32;
@@ -950,7 +967,7 @@ export default function About() {
               {sec.heading}
             </h2>
             {sec.paragraphs.map((para, i) => (
-              <p key={i}>{para}</p>
+              <p key={i}>{linkifyEmail(para)}</p>
             ))}
           </section>
         ))}

@@ -159,15 +159,21 @@ export default function Landing() {
           <ContribLabel username="hmohyud" />
           <ContribGrid username="hmohyud" />
           <p className="subtitle">AI &amp; Software • Systems • Interfaces</p>
-          <a
-            className="hero-gh-link"
-            href="https://github.com/hmohyud"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Open GitHub profile"
-          >
-            github.com/hmohyud
-          </a>
+          <div className="hero-contact" role="group" aria-label="Contact links">
+            <a className="hero-gh-link" href="mailto:hyder.mohyuddin@gmail.com">
+              hyder.mohyuddin@gmail.com
+            </a>
+            <span className="hero-contact-sep" aria-hidden="true">·</span>
+            <a
+              className="hero-gh-link gh"
+              href="https://github.com/hmohyud"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open GitHub profile"
+            >
+              github.com/hmohyud
+            </a>
+          </div>
 
           {/* <p className="mission">
             I build dependable AI tools and interfaces. Recent work: real-time tensor
