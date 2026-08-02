@@ -8,6 +8,15 @@ const SPIM_IMAGES = Array.from(
   { length: 5 },
   (_, i) => `${PU}/projects/SPIM_${i + 1}.jpg`
 );
+const POKE_IMAGES = [
+  `${PU}/projects/POKE_1.jpg`, // card page — raw market index, full history
+  `${PU}/projects/POKE_2.jpg`, // graded view — PSA 10 comps
+  `${PU}/projects/POKE_holo.gif`, // rarity-aware 3D holo viewer in motion
+  `${PU}/projects/POKE_3.jpg`, // demo collection slab wall
+  `${PU}/projects/POKE_4.jpg`, // portfolio dashboard
+  `${PU}/projects/POKE_5.jpg`, // market premiums
+  `${PU}/projects/POKE_6.jpg`, // sealed products
+];
 const JARJAR_IMAGES = Array.from(
   { length: 4 },
   (_, i) => `${PU}/projects/JARJAR_${i + 1}.jpg`
@@ -187,6 +196,142 @@ const projects = [
         label: "Museum Show",
         href: "https://taimodern.com/exhibit/history-painting-jason-salavon/",
       },
+    ],
+  },
+  // 2. PokeCompare
+  {
+    title: "PokeCompare — Pokémon TCG Price Aggregator",
+    color: "#ffcb05",
+    tags: ["web", "software"],
+    images: POKE_IMAGES,
+    description: [
+      "A solo-built answer to a deceptively messy question: what is this Pokémon card actually worth? It resolves ~151,000 per-language printings into ~65,600 canonical cards and blends six disagreeing price sources into one market index per card — preserved as a live, browsable read-only archive.",
+      "Next.js 15 + TypeScript on Turso (libSQL) and Cloudflare R2: 787 sets, 4.2M price snapshots, ~96,000 self-hosted images, 1,900+ sealed products — kept alive for $0/month.",
+      {
+        summary: "The data engine: identity, valuation, prediction.",
+        details: [
+          {
+            summary:
+              "One catalog from 151k printings — identity was the hard part.",
+        details: [
+          "No two sources name a card the same way, and the primary feeds don't cross-reference at all — naive name+set+number merging was ambiguous for over half of English cards. The canonicalizer layers evidence: naming grammar, set-cohort corroboration, and perceptual image hashing as tiebreaker, with a don't-guess policy below confidence thresholds.",
+          {
+            summary: "15,000+ Japanese cards matched to English identities.",
+            details:
+              "No shared IDs exist, so a twin-matcher fingerprints what survives translation: National Dex number + HP + attack signature (per-attack energy cost and damage) + illustrator. Powers the EN↔JP toggle on card pages.",
+          },
+          {
+            summary: "Editions are first-class price series.",
+            details:
+              "1st Edition, Shadowless and Unlimited each carry their own history and images — values differ up to 40×. Valuation is edition-locked after a $15,000 1st-Edition pack was caught borrowing Unlimited prices; the fix moved its expected contents from $218 to $637.",
+          },
+          {
+            summary: "Data hygiene as a permanent process.",
+            details:
+              "Rarity fields polluted with set fragments, a Mew named after its set, sealed boxes leaking into the card catalog, Near Mint priced under Moderately Played — each became a detection-and-repair script with validation gates, tested on a local replica before touching production.",
+          },
+        ],
+      },
+      {
+        summary: "Every displayed price is a credibility-weighted market index.",
+        details: [
+          "Sources blend by trust — TCGplayer market above per-edition aggregates above depth-scaled eBay comps above PriceCharting — with sentinel scrubbing, a disagreement band, and a chorus override where independent sources outvote an outlier.",
+          {
+            summary: "Graded slabs valued per (company, grade).",
+            details:
+              "A PSA 10 isn't raw-price-times-a-multiplier: each grade is valued from its own sold comps through a four-level fallback ending in a population-calibrated curve for the card's era. Estimates are visibly labeled, and a monotonic smoother guarantees a PSA 9 never displays above a PSA 10.",
+          },
+          {
+            summary: "Sealed expected value for 1,900+ products.",
+            details:
+              "EV = pack odds × the set's per-rarity card values, on pull rates researched from large community opening samples — measured for ~25 modern sets, era tables back to 1999, quirk handling for god packs, stamped promos and World Championship decks. Finding: modern English boxes “rip” at 28–46% of their sealed price.",
+          },
+          {
+            summary: "The Charizard tax, measured.",
+            details:
+              "A residual model quantifies how much a character's cards systematically outprice comparable cards of the same set, rarity and type — a real, ranked premium across 1,015 species.",
+          },
+        ],
+      },
+      {
+        summary: "Price-prediction research over 4.2M snapshots.",
+        details: [
+          "A local mirror (serverless SQL can't survive the aggregates), a weekly panel of ~15k series, and walk-forward evaluation with purged folds and always-up baselines. Honest results: naive momentum barely beats noise, set co-movement is 3× better, and a small ridge model on cohort features wins consistently.",
+          {
+            summary: "The audit that killed my best result.",
+            details:
+              "An adversarial pass over my own harness caught a condition-mixing bug manufacturing phantom ±50% moves behind an early “amazing” number. The evaluation was rebuilt leak-free and the claims shrank to what clean data supports.",
+          },
+        ],
+          },
+        ],
+      },
+      {
+        summary: "A UI with collector-grade care.",
+        details: [
+          "The polish people remember, sitting on a pile of small correctness decisions:",
+          {
+            summary: "Rarity-aware 3D holo viewer.",
+            details:
+              "Cards tilt toward the cursor under stacked foil, sparkle and glare layers — CSS custom properties written in requestAnimationFrame, zero React re-renders. Eleven foil treatments mapped from the messy rarity vocabulary: Secret Rares shimmer rainbow, golds glow metallic, Commons just catch light. Touch and reduced-motion users get a clean static render.",
+          },
+          {
+            summary: "Photorealistic graded-slab renders.",
+            details:
+              "Holdings display inside CSS recreations of PSA, BGS, CGC, SGC, TAG and ACE slabs — per-grader label typography, BGS subgrades, a genuinely scannable QR on TAG labels, and hash-seeded cert numbers (the barcode is a Rickroll).",
+          },
+          {
+            summary: "A price chart that stays honest at 50 series per card.",
+            details:
+              "Raw and graded modes, per-edition series each with its own image, a range brush, multi-currency. Modeled values render blurred with low–high bands, and the trend chip sits behind evidence gates — minimum real observations, step-shape vetoes, staleness cutoffs — because one source ships reconstructed “histories” that produced confident nonsense until the gates existed.",
+          },
+          {
+            summary: "Search that never disagrees with itself.",
+            details:
+              "The nav dropdown and search page share one engine — server FTS5 bm25 with trigram/Levenshtein fuzzy fallback — while species and illustrator suggestions come from a client-side static index. “4/102” finds the card.",
+          },
+          {
+            summary: "A hundred collector-correct details.",
+            details:
+              "Language-correct card backs on flip, a lightbox that auto-uprights sideways BREAK cards, a hover magnifier, per-tile prices tinted by 7-day movement, species pages with evolution chains, ~440 illustrator galleries, a PSA cert lookup, and an editions field guide teaching Shadowless identification.",
+          },
+        ],
+      },
+      {
+        summary: "Running it — and retiring it — were engineering problems too.",
+        details: [
+          {
+            summary: "3GB of serverless SQL and a CI fleet that budgets itself.",
+        details: [
+          "libSQL decodes each response as one V8 string, so big reads are keyset-paginated; moving JSON filtering server-side into json_extract turned a 16-minute read into seconds; an overlapping writer once erased 10.5k rows mid-write and a silent timeout killed a nightly job for a week — every pipeline gained verification gates and single-writer discipline.",
+          {
+            summary: "Eight scheduled workflows under a self-written budget gate.",
+            details:
+              "Daily prices, premium recomputes, 3×/day eBay refresh prioritized by demand × staleness — all sharing a 2,000-minute monthly GitHub Actions budget behind a gate that measures month-to-date usage and refuses to start jobs past a ceiling.",
+          },
+          {
+            summary: "A 96k-file image pipeline.",
+            details:
+              "Full-size and thumbnail WebP for the entire catalog, mirrored to Cloudflare R2 over the S3 API — resumable via manifest, immutable cache headers, served through a same-origin CDN proxy.",
+          },
+        ],
+      },
+      {
+        summary: "Archived as a $0-forever site, on purpose.",
+        details: [
+          "The sunset became its own engineering task: accounts and every runtime write retired in code, scheduled jobs disabled, the stack refitted to verified free tiers — every failure mode is “stops working,” never “sends a bill.” Multi-currency runs off an ECB snapshot frozen at archive time, and the ops dashboard is public at /data as a transparency page.",
+          {
+            summary: "The Demo Trainer.",
+            details:
+              "The retired collection feature lives on as a built-in demo account: a sample portfolio valued once through the real pipeline and baked to static JSON — slab wall, P&L, and a portfolio chart whose acquisition dates were placed inside each card's real price history, so it shows genuine market movement.",
+          },
+        ],
+          },
+        ],
+      },
+    ],
+    links: [
+      { label: "Visit Archive", href: "https://poke-card-aggregate.netlify.app" },
     ],
   },
   // 3. Compassion Course
@@ -1158,8 +1303,9 @@ export default function Projects() {
             style={{
               overflow: "hidden",
               opacity: isVisible ? 1 : 0,
-              // generous cap — cards grow when aspect accordions expand
-              maxHeight: isVisible ? 2400 : 0,
+              // generous cap — must exceed any card with every nested
+              // accordion expanded (PokeCompare fully open passes 2400)
+              maxHeight: isVisible ? 20000 : 0,
               marginBottom: isVisible ? "3rem" : 0,
               transform: isVisible ? "scale(1)" : "scale(0.97)",
               pointerEvents: isVisible ? "auto" : "none",
