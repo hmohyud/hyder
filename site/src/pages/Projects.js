@@ -129,11 +129,11 @@ const projects = [
     images: SPIM_IMAGES,
     description: [
       "A research platform for understanding diffusion models from the inside: modify a model's internal tensors mid-generation and study how its output — and human perception of it — changes. Off-manifold, dreamlike imagery is the observable result, not the goal.",
-      "I built effectively all of it: 800+ commits (~96% of the codebase) of Python and React over a year of 20–50-hour weeks (alongside my degree), from the browser UI down to the GPU servers it runs on.",
+      "I built effectively all of it: 800+ commits (~96% of the codebase) of Python and React over a year of 20–50-hour weeks (alongside my degree), from the browser UI down to the GPU servers it ran on. The interface is still live to explore, but the GPU fleet behind it has since spun down — generation is offline.",
       {
         summary: "The questions: which layers hold style, structure, coherence?",
         details:
-          "Experiments probe what individual layers contribute — which hold style, which hold structure, where coherence lives — and what humans make of images from just outside the training manifold. Intervention replaces observation: change the tensor, watch what changes.",
+          "Which layers hold style, which hold structure, where does coherence live? Experiments intervene layer-by-layer to find out — change the tensor, watch what changes.",
       },
       {
         summary: "Live model surgery — tensors edited mid-generation, no restarts.",
@@ -143,6 +143,11 @@ const projects = [
             summary: "Wildcard layer targeting.",
             details:
               "Transforms address the model by pattern — a layer mask like diffusion_model.*.1.norm selects every matching layer at once, so a single weight/bias formula can rewrite dozens of tensors across the U-Net or text encoder in one experiment.",
+          },
+          {
+            summary: "Making LoRA coexist with edited weights.",
+            details:
+              "A1111's LoRA path restores pristine cached weights before applying deltas — silently erasing live edits. Rewriting the apply path to compose onto the current tensors (with a zero-strength trick to un-apply) lets AnimateDiff, ControlNet and LoRA run on a modified model at once.",
           },
           {
             summary: "The tensor-“bleed” fix.",
@@ -159,11 +164,16 @@ const projects = [
       {
         summary: "A formula language expresses the experiments.",
         details: [
-          "A randomized-formula engine rewrites layer weights — weighted-probability generation with automatic simplification — alongside pixel-level perturbation tools. Experiments interpolate in both formula space and weight space.",
+          "A randomized-formula engine rewrites layer weights — weighted-probability generation with automatic simplification — alongside pixel-level perturbation tools.",
           {
             summary: "A formula keyboard with its own parser.",
             details:
               "The React UI ships a purpose-built formula keyboard; entries parse into the engine's grammar, and statistical-novelty filters plus logging quantify what large runs produce.",
+          },
+          {
+            summary: "ML prunes the search space.",
+            details:
+              "Lightweight text classifiers — separate models for weight and bias formulas, trained on curated good/bad corpora — predict whether a randomly generated formula is worth GPU time before it ever runs.",
           },
         ],
       },
@@ -176,6 +186,11 @@ const projects = [
             details:
               "Cheap low-res previews pass a statistical quality check before anything earns full-resolution GPU time.",
           },
+          {
+            summary: "Unattended runs police themselves.",
+            details:
+              "Noise, monochrome, black-frame and perceptual-similarity classifiers auto-discard failed generations — stills and video — quarantine their configs, and stream a live rejection tally while batches run overnight.",
+          },
         ],
       },
       {
@@ -186,6 +201,11 @@ const projects = [
             summary: "Print-scale and motion output.",
             details:
               "AnimateDiff, ControlNet and LoRA run simultaneously for the animations; Voronoi-based tiling assembles ultra-high-res stills; finished pieces can mint as NFTs via IPFS.",
+          },
+          {
+            summary: "The animations interpolate the model itself.",
+            details:
+              "Motion comes from weight space: formula-to-formula interpolation in n steps, up to blends between two entire model states, with wildcard layer-matching keeping the keyframe configs compact.",
           },
         ],
       },
