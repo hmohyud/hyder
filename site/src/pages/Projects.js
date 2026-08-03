@@ -129,7 +129,7 @@ const projects = [
     images: SPIM_IMAGES,
     description: [
       "A research platform for understanding diffusion models from the inside: modify a model's internal tensors mid-generation and study how its output — and human perception of it — changes. Off-manifold, dreamlike imagery is the observable result, not the goal.",
-      "I built effectively all of it: 800+ commits (~96% of the codebase) of Python and React over a year of 20–50-hour weeks (alongside my degree), from the browser UI down to the GPU servers it ran on. The interface is still live to explore, but the GPU fleet behind it has since spun down — generation is offline.",
+      "I built effectively all of it: 800+ commits (~96% of the codebase) of Python and React over a year of 20–50-hour weeks (alongside my degree), from the browser UI down to the GPU servers it ran on. The interface is still live to explore; the original GPU fleet has spun down, but I run the system locally — **happy to arrange a live demo of the investor-facing front end on request** (the in-house research tooling I built for the studio is under NDA).",
       {
         summary: "The questions: which layers hold style, structure, coherence?",
         details:
@@ -211,7 +211,12 @@ const projects = [
       },
     ],
     links: [
-      { label: "Visit Site", href: "https://latentculture.com/spim/" },
+      {
+        label: "Visit Site (UI only)",
+        href: "https://latentculture.com/spim/",
+        note:
+          "You're seeing the real front end, fully explorable — but its GPU servers are retired, so generations won't run from the site. Happy to arrange a live demo of the working system.",
+      },
       {
         label: "Museum Show",
         href: "https://taimodern.com/exhibit/history-painting-jason-salavon/",
@@ -465,9 +470,15 @@ const projects = [
       `Personal convenience tool to search suppliers for exact aerospace part numbers and officially documented equivalents.`,
       `Stack: async DuckDuckGo fallback, trafilatura (static) + Playwright (JS) scraping, concurrency, deduping, and a local llama.cpp model for structured JSON review.`,
       `Streams progress and tallies results; resilient to blocks with multiple fetch strategies and timeouts.`,
+      `Since obsoleted by Google's AI search and Claude Cowork — effectively the same thing, done better.`,
     ],
     links: [
-      { label: "Visit Site", href: "https://hmohyud.github.io/azizproj/" },
+      {
+        label: "Visit Site (UI only)",
+        href: "https://hmohyud.github.io/azizproj/",
+        note:
+          "The hosted version is the front end only — the scraper and local LLM backend don't run on GitHub Pages.",
+      },
       { label: "GitHub", href: "https://github.com/hmohyud/azizproj" },
     ],
   },
@@ -1051,6 +1062,21 @@ function RotatingImage({
   );
 }
 
+// --------- emphasize: render **spans** in description strings ---------
+// Card copy can wrap a phrase in ** ** to tint it with the project's accent.
+function emphasize(text, color) {
+  if (typeof text !== "string" || !text.includes("**")) return text;
+  return text.split("**").map((seg, i) =>
+    i % 2 ? (
+      <span key={i} style={{ color, fontWeight: 600 }}>
+        {seg}
+      </span>
+    ) : (
+      seg
+    )
+  );
+}
+
 // --------- AspectRow: collapsible per-aspect detail ---------
 // Collapsed: a one-line summary of the aspect. Expanded: the summary is
 // replaced by the full details. Used for description entries shaped as
@@ -1248,6 +1274,32 @@ export default function Projects() {
           /* minor-tier thumbs stay small and sit beside the text */
           .rot-img.rot-img-sm { width: 118px; flex: 0 0 118px; height: 80px; }
         }
+        /* hover note on link pills (links with a note field) */
+        .pill-tipwrap { position: relative; display: inline-block; }
+        .pill-tip {
+          position: absolute;
+          bottom: calc(100% + 9px);
+          left: 0;
+          width: max-content;
+          max-width: 270px;
+          padding: 7px 10px;
+          border: 1px solid #555;
+          border-radius: 8px;
+          background: rgba(12, 15, 21, 0.97);
+          color: #cfd4e0;
+          font-size: 0.72rem;
+          line-height: 1.5;
+          opacity: 0;
+          transform: translateY(3px);
+          pointer-events: none;
+          transition: opacity 0.15s ease, transform 0.15s ease;
+          z-index: 30;
+        }
+        .pill-tipwrap:hover .pill-tip,
+        .pill-tipwrap:focus-within .pill-tip {
+          opacity: 1;
+          transform: translateY(0);
+        }
       `}</style>
 
       <h1
@@ -1383,7 +1435,7 @@ export default function Projects() {
                   />
                 ) : (
                   <p key={j} style={{ margin: "0 0 0.75rem 0" }}>
-                    {line}
+                    {emphasize(line, proj.color)}
                   </p>
                 )
               )}
@@ -1417,13 +1469,12 @@ export default function Projects() {
                       },
                     };
                     // In-site pages navigate client-side, same tab
-                    return l.internal ? (
-                      <Link key={k} to={l.href} style={pillStyle} {...hoverProps}>
+                    const pill = l.internal ? (
+                      <Link to={l.href} style={pillStyle} {...hoverProps}>
                         {l.label}
                       </Link>
                     ) : (
                       <a
-                        key={k}
                         href={l.href}
                         {...(!/\/art\/?$/.test(l.href) && {
                           target: "_blank",
@@ -1439,6 +1490,21 @@ export default function Projects() {
                       >
                         {l.label}
                       </a>
+                    );
+                    // links with a note get a hover/focus tooltip
+                    return l.note ? (
+                      <span key={k} className="pill-tipwrap">
+                        <div
+                          className="pill-tip"
+                          role="tooltip"
+                          style={{ borderColor: `${proj.color}66` }}
+                        >
+                          {l.note}
+                        </div>
+                        {pill}
+                      </span>
+                    ) : (
+                      <React.Fragment key={k}>{pill}</React.Fragment>
                     );
                   })}
 
