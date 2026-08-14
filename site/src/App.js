@@ -107,7 +107,15 @@ function ScrollToTop() {
   const { pathname } = useLocation();
   const navType = useNavigationType();
   useEffect(() => {
-    if (navType !== "POP") window.scrollTo(0, 0);
+    if (navType === "POP") return;
+    /* The window is not always what scrolled. On small screens .App-main is a
+       scroll box of its own, so window.scrollTo left it exactly where the last
+       page ended and the new route opened halfway down. Reset both, plus the
+       document element, since which one owns the scroll depends on viewport. */
+    window.scrollTo(0, 0);
+    if (document.scrollingElement) document.scrollingElement.scrollTop = 0;
+    const main = document.querySelector(".App-main");
+    if (main) main.scrollTop = 0;
   }, [pathname, navType]);
   return null;
 }

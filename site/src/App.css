@@ -472,3 +472,44 @@ body.motion-test #bg-animation::after {
 .App-main--landing {
   padding-bottom: 0;
 }
+
+/* The four nav links needed 270px next to the title on a phone, so About and
+   Resume were simply cut off the right edge - half the navigation unreachable,
+   and the page scrolling sideways under everything else, which is what made
+   cards and accordions look shifted and broken.
+   Two steps rather than one compromise: comfortable at ordinary phone widths,
+   tighter only where it genuinely has to be. The title truncates before the
+   links do, since a shortened name still reads and a missing link does not. */
+@media (max-width: 500px) {
+  .App-header {
+    padding-left: 10px;
+    padding-right: 10px;
+    gap: 6px;
+  }
+
+  .site-title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .nav-bar {
+    gap: 0;
+    min-width: 0;
+    flex-shrink: 0;
+  }
+
+  .nav-link {
+    font-size: 0.78rem;
+    padding: 0.3rem 0.32rem;
+    letter-spacing: 0;
+  }
+}
+
+@media (max-width: 340px) {
+  .nav-link {
+    font-size: 0.6rem;
+    padding: 0.3rem 0.25rem;
+  }
+}

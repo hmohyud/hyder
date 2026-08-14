@@ -306,9 +306,33 @@
     flex: 0;
   }
 
+  /* height:auto, not 84vh. The outlined box is a fixed height on desktop, which
+     is what forces the panels inside it to scroll within themselves - the white
+     outline looks like it bounds the content but it is really a window onto a
+     much taller column. On a phone that meant scrolling a list inside a page
+     that also scrolled, and neither knowing which one your finger meant. Letting
+     the box grow to its content leaves one thing scrolling: the page. */
   .skills-container {
     width: 95vw;
+    height: auto;
+  }
 
+  .list-container,
+  .tooltip-container {
+    overflow-y: visible;
+  }
+
+  /* With the graph collapsed, the two remaining panels split the row. The
+     inherited ratio (1.2 against 2.5) was written for a screen with the graph
+     in it and left the skills list on about a third of an already narrow phone
+     - 86px, which wraps almost every label. Even shares read better and neither
+     panel is more important than the other here. */
+  .list-container {
+    flex: 1 1 0;
+  }
+
+  .tooltip-container {
+    flex: 1 1 0;
   }
 }
 
