@@ -413,11 +413,15 @@ body.motion-test #bg-animation::after {
     padding: .3rem .55rem;
   }
 
-   .App-main {
+  .App-main {
     padding-bottom: 30px;
-    overflow-y: auto !important;
-    /* min-height: 95dvh;
-    justify-content: flex-start; */
+    /* Deliberately NOT a scroll box. It used to be overflow-y:auto, which made
+       it a second scroll context nested inside the page's own - so a page with
+       its own bounded panel ended up three deep. Nothing scrolled wrong
+       exactly, but touch momentum dies at each boundary and the browser has to
+       guess which surface a swipe belongs to, which is what read as jank.
+       One scroll surface now: the document. */
+    overflow-y: visible;
   }
 /*
   .App-main > * {
