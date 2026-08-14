@@ -724,21 +724,28 @@ export default function FloatingHead({
 
   return (
     <>
-      {mode === "phone" && !open && (
-        <button
-          type="button"
-          className="fh-fab"
-          onClick={() => setOpen(true)}
-          aria-label="Ask my site anything"
-          title="Ask my site anything"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 2.5l1.8 5.2 5.2 1.8-5.2 1.8L12 16.5l-1.8-5.2L5 9.5l5.2-1.8z" />
-            <circle cx="18.5" cy="17.5" r="1.6" />
-            <circle cx="6" cy="17" r="1.1" />
-          </svg>
-        </button>
-      )}
+      {/* Portalled to the body because it is position:fixed. Rendered in place
+          it sits inside .hero > .landing, and an ancestor that clips (or that
+          carries a transform) makes a fixed element resolve against that
+          ancestor instead of the viewport - the button ends up cropped at the
+          hero's edge rather than pinned to the corner of the screen. */}
+      {mode === "phone" && !open &&
+        createPortal(
+          <button
+            type="button"
+            className="fh-fab"
+            onClick={() => setOpen(true)}
+            aria-label="Ask my site anything"
+            title="Ask my site anything"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2.5l1.8 5.2 5.2 1.8-5.2 1.8L12 16.5l-1.8-5.2L5 9.5l5.2-1.8z" />
+              <circle cx="18.5" cy="17.5" r="1.6" />
+              <circle cx="6" cy="17" r="1.1" />
+            </svg>
+          </button>,
+          document.body
+        )}
 
       {mode === "phone" ? null : missionEl ? createPortal(portrait, missionEl) : portrait}
 

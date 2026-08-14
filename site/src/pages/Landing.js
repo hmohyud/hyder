@@ -136,21 +136,33 @@ export default function Landing() {
           <h1 className="title">Hyder Mohyuddin</h1>
           <ContribLabel username="hmohyud" />
           <ContribGrid username="hmohyud" />
-          <p className="subtitle">AI &amp; Software • Systems • Interfaces</p>
-          <div className="hero-contact" role="group" aria-label="Contact links">
-            <a className="hero-gh-link" href="mailto:hyder.mohyuddin@gmail.com">
-              hyder.mohyuddin@gmail.com
-            </a>
-            <span className="hero-contact-sep" aria-hidden="true">·</span>
-            <a
-              className="hero-gh-link gh"
-              href="https://github.com/hmohyud"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Open GitHub profile"
-            >
-              github.com/hmohyud
-            </a>
+          {/* Wrapper is display:contents by default, so on desktop these two
+              still land in their own grid areas exactly as before. On a phone
+              it becomes a flex row spanning the full width, which keeps the
+              tagline and the contacts on one line WITHOUT squeezing the name -
+              the title shares a grid column with the tagline, so narrowing that
+              column to fit the contacts was clipping "Hyder Mohyuddin". */}
+          <div className="hero-meta">
+            <p className="subtitle">AI &amp; Software • Systems • Interfaces</p>
+            <div className="hero-contact" role="group" aria-label="Contact links">
+              <a className="hero-gh-link" href="mailto:hyder.mohyuddin@gmail.com">
+                hyder.mohyuddin@gmail.com
+              </a>
+              <span className="hero-contact-sep" aria-hidden="true">·</span>
+              <a
+                className="hero-gh-link gh"
+                href="https://github.com/hmohyud"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Open GitHub profile"
+              >
+                {/* The full URL will not share a line with the email and the
+                    tagline on a phone, so the domain is dropped there. The href
+                    and the aria-label are unchanged either way. */}
+                <span className="gh-url-long">github.com/hmohyud</span>
+                <span className="gh-url-short">github</span>
+              </a>
+            </div>
           </div>
 
           {/* <p className="mission">

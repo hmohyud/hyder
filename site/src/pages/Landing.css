@@ -441,3 +441,65 @@
   pointer-events: auto;
   position: relative;
 }
+
+/* Above the phone breakpoint the full URL shows; the short label is swapped in
+   inside the phone media query below. Declared first on purpose - at equal
+   specificity the later rule wins, and a default written after the media query
+   silently hides both. */
+.gh-url-short { display: none; }
+
+/* The tagline and the contact links share one grid row. Their column widths are
+   inherited from the row above (the name and the contributions label), so on a
+   phone the contacts were left with about 40px and wrapped onto two lines,
+   staggering against the tagline instead of sitting beside it.
+   Here the contacts take the width they need and the tagline gives way: it is
+   decorative, the email is functional, so if something has to be clipped it is
+   the tagline. Both link font sizes have a clamp floor of 0.7rem that stops
+   them shrinking, which is why the floor is lowered rather than the size set. */
+/* display:contents makes this wrapper vanish for layout purposes, so the
+   tagline and the contacts keep their own grid areas on desktop and nothing
+   above the phone breakpoint changes. */
+.hero-meta { display: contents; }
+
+@media (max-width: 640px) {
+  /* On a phone the two become one flex row spanning the grid. The title stays
+     in an auto column of its own, so making room for the contacts no longer
+     shortens the name. */
+  .hero-meta {
+    display: flex;
+    grid-column: 1 / -1;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+  }
+  .hero-contact {
+    flex-wrap: nowrap;
+    column-gap: 5px;
+  }
+  .hero-gh-link,
+  .hero-contact-sep {
+    font-size: clamp(0.46rem, 2.4vw, 0.66rem);
+  }
+  /* The contacts are functional and never shrink; the tagline is decorative and
+     absorbs whatever is left over. */
+  .hero-contact { flex: 0 0 auto; }
+  .subtitle {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    font-size: clamp(0.34rem, 1.9vw, 0.6rem);
+    letter-spacing: 0.05em;
+  }
+}
+
+/* Below about 284px the tagline cannot fit beside the email at any font size it
+   is allowed to take, and a half-rendered tagline looks like a bug rather than
+   a design. Dropped entirely instead - it says nothing the page does not say
+   better a paragraph later. Narrower than any current phone, so in practice
+   this only fires on very large accessibility font settings. */
+@media (max-width: 300px) {
+  .subtitle { display: none; }
+  .gh-url-long { display: none; }
+  .gh-url-short { display: inline; }
+}

@@ -371,3 +371,47 @@
     animation: none;
   }
 }
+
+/* ── phone lightbox ──
+   On a big screen the portrait is full-bleed and the chat floats over it, which
+   works because there is room to spare. On a phone there is not: the transcript
+   ends up sitting on the lower third of the head, and because both layers are
+   absolutely positioned, nothing gives way to anything else.
+   Here they share the screen instead of stacking on it. The overlay becomes a
+   column, the portrait takes whatever is left after the chat has what it needs,
+   and a growing conversation shrinks the head rather than covering it. */
+@media (max-width: 640px) {
+  .fh-overlay {
+    display: flex;
+    flex-direction: column;
+    place-items: stretch;
+    padding: 60px 12px 14px;
+    gap: 10px;
+  }
+  .fh-stage {
+    position: relative;
+    inset: auto;
+    flex: 1 1 auto;
+    min-height: 130px;
+    width: 100%;
+    height: auto;
+  }
+  .fh-chat {
+    position: relative;
+    left: auto;
+    bottom: auto;
+    transform: none;
+    width: 100%;
+    flex: 0 0 auto;
+  }
+  /* Bounded so a long conversation cannot squeeze the portrait out entirely. */
+  .fh-log {
+    max-height: 38vh;
+  }
+  /* "drag to rotate - esc to close" is desktop advice: there is no Esc key on a
+     phone and dragging is a mouse idiom. It was spending a line of scarce
+     vertical space to say something untrue. */
+  .fh-hint {
+    display: none;
+  }
+}
