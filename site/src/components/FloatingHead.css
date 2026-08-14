@@ -1,0 +1,360 @@
+/* src/components/FloatingHead.css — floating ember-point portrait + lightbox */
+
+.fh-mini {
+  grid-area: head;
+  position: relative;
+  align-self: center;
+  justify-self: center;
+  width: 100px;
+  height: 100px;
+  margin: 0 14px;
+  overflow: visible;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 4;
+  opacity: 0.9;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+.fh-mini:hover,
+.fh-mini:focus-visible {
+  opacity: 1;
+  transform: scale(1.05);
+}
+.fh-mini:focus-visible {
+  outline: 1px solid rgba(158, 216, 255, 0.6);
+  outline-offset: 4px;
+}
+.fh-mini-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.fh-canvas {
+  display: block;
+}
+/* Parked: the canvas is bigger than its button and centred on it, so the head
+   never clips. It ignores the pointer so the cards behind stay clickable. */
+.fh-mini .fh-canvas {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.fh-stage .fh-canvas {
+  position: static;
+  transform: none;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── lightbox ── */
+.fh-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: grid;
+  place-items: center;
+  background: rgba(6, 8, 12, 0.82);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+  animation: fh-fade 0.22s ease;
+}
+@keyframes fh-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Full-bleed: the head is free to overflow visually instead of being
+   clipped by a box, and the whole surface is grabbable. */
+.fh-stage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none;
+}
+.fh-stage:active {
+  cursor: grabbing;
+}
+
+.fh-close {
+  position: absolute;
+  z-index: 2;
+  top: 18px;
+  right: 22px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(120, 130, 150, 0.35);
+  background: rgba(15, 20, 28, 0.7);
+  color: #cfd4e0;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+.fh-close:hover,
+.fh-close:focus-visible {
+  color: #9ed8ff;
+  border-color: rgba(158, 216, 255, 0.55);
+}
+
+.fh-hint {
+  position: absolute;
+  z-index: 2;
+  bottom: 28px;
+  margin: 0;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  color: #6f788f;
+  pointer-events: none;
+}
+
+/* The corner portrait needs margin space to live in; below that the hero
+   content fills the viewport, so it only appears in the lightbox-free
+   layouts that can host it. */
+/* Smaller layouts keep the portrait, just scaled down — the canvas and the
+   gaze radius follow the button size, so nothing else needs adjusting. */
+@media (max-width: 1050px) {
+  .fh-mini {
+    width: 76px;
+    height: 76px;
+    margin: 0 10px 0 0;
+  }
+}
+@media (max-width: 640px) {
+  .fh-mini {
+    width: 54px;
+    height: 54px;
+    margin: 0 8px 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fh-overlay {
+    animation: none;
+  }
+  .fh-mini {
+    transition: none;
+  }
+}
+
+/* ── chat ── */
+.fh-chat {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  width: min(680px, calc(100vw - 40px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+
+.fh-log {
+  max-height: 34vh;
+  overflow-y: auto;
+  padding: 12px 14px;
+  border: 1px solid rgba(70, 78, 96, 0.5);
+  border-radius: 10px;
+  background: rgba(8, 11, 16, 0.82);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  scrollbar-width: thin;
+}
+.fh-msg {
+  margin: 0 0 8px 0;
+  color: #c9cfdd;
+  white-space: pre-wrap;
+}
+.fh-msg:last-child {
+  margin-bottom: 0;
+}
+.fh-who {
+  display: inline-block;
+  min-width: 3.6em;
+  color: #6f788f;
+  user-select: none;
+}
+.fh-user .fh-who {
+  color: #9ed8ff;
+}
+.fh-assistant .fh-who {
+  color: #78ffa8;
+}
+
+.fh-ask {
+  display: flex;
+  gap: 8px;
+}
+.fh-ask input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 130, 150, 0.4);
+  background: rgba(12, 16, 22, 0.9);
+  color: #e6e6e6;
+  font: inherit;
+  font-size: 0.85rem;
+}
+.fh-ask input::placeholder {
+  color: #6f788f;
+}
+.fh-ask input:focus {
+  outline: none;
+  border-color: rgba(158, 216, 255, 0.6);
+}
+.fh-ask button {
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 255, 168, 0.55);
+  background: rgba(12, 16, 22, 0.9);
+  color: #78ffa8;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.fh-ask button:hover:not(:disabled) {
+  background: rgba(120, 255, 168, 0.12);
+}
+.fh-ask button:disabled,
+.fh-ask input:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.fh-chat .fh-hint {
+  position: static;
+  text-align: center;
+}
+
+.fh-more {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 10px 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #6f788f;
+  font: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+.fh-more:hover {
+  color: #9ed8ff;
+}
+.fh-caret {
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+.fh-caret.open {
+  transform: rotate(90deg);
+}
+
+/* Tablet: the portrait sits inside the description and the copy wraps round it */
+.fh-slot {
+  float: left;
+  display: block;
+  margin: 2px 16px 6px 0;
+  shape-outside: circle(50%);
+}
+.fh-mini-inline {
+  grid-area: auto;
+  align-self: auto;
+  justify-self: auto;
+  margin: 0;
+}
+
+/* The AI button. Sits above page content (cards, headers) but below the
+   lightbox overlays, which run at 9998+. */
+.fh-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 500;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: #f2f4f8;
+  color: #10141c;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+}
+.fh-fab svg {
+  width: 21px;
+  height: 21px;
+  fill: currentColor;
+  position: relative;
+  z-index: 1;
+}
+
+/* Hover: the button gathers a ring of embers — the same four accents, and the
+   same dot vocabulary, as the landing particles and the portrait's point cloud.
+   Two counter-rotating rings, drawn entirely with box-shadows on a pair of
+   pseudo-elements, so it costs one composited transform and nothing else. */
+.fh-fab::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2.5px;
+  height: 2.5px;
+  margin: -1.25px 0 0 -1.25px;
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  pointer-events: none;
+}
+
+.fh-fab::before {
+  box-shadow:
+    29.0px 0.0px 0 0px rgba(255,114,161, 0.95),
+    20.5px 20.5px 0 0px rgba(180,139,255, 0.95),
+    0.0px 29.0px 0 0px rgba(127,211,255, 0.95),
+    -20.5px 20.5px 0 0px rgba(120,255,168, 0.95),
+    -29.0px 0.0px 0 0px rgba(255,114,161, 0.95),
+    -20.5px -20.5px 0 0px rgba(180,139,255, 0.95),
+    -0.0px -29.0px 0 0px rgba(127,211,255, 0.95),
+    20.5px -20.5px 0 0px rgba(120,255,168, 0.95);
+  animation: fh-orbit 14s linear infinite;
+}
+
+.fh-fab:hover::before,
+.fh-fab:focus-visible::before {
+  opacity: 1;
+}
+@keyframes fh-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.fh-fab:hover,
+.fh-fab:focus-visible {
+  outline: none;
+}
+.fh-fab:active {
+  transform: scale(0.94);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fh-fab::before {
+    animation: none;
+  }
+}

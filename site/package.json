@@ -27,7 +27,13 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d build"
+    "deploy": "gh-pages -d build",
+    "chat:deploy": "node build-chat-knowledge.mjs && npx --yes wrangler@4 deploy",
+    "chat:secret": "npx --yes wrangler@4 secret put GEMINI_KEY",
+    "chat:kv": "npx --yes wrangler@4 kv namespace create CHAT_KV",
+    "chat:tail": "npx --yes wrangler@4 tail",
+    "chat:local": "node chat-dev-server.mjs",
+    "chat:login": "npx --yes wrangler@4 login"
   },
   "eslintConfig": {
     "extends": [

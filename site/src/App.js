@@ -15,6 +15,7 @@ import Projects from "./pages/Projects";
 import About from "./pages/About";
 import Resume from "./pages/Resume";
 import BgDemo from "./pages/BgDemo";
+import FloatingHead from "./components/FloatingHead";
 
 /**
  * Map each page to its accent pair (matches your card-1..4 colors)
@@ -180,6 +181,7 @@ function AppContent() {
         {!isLanding && (
           <SiteFooter flush={location.pathname.startsWith("/about")} />
         )}
+        {!isLanding && <FloatingHead fabOnly />}
       </div>
     </>
   );

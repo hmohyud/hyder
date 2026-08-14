@@ -7,6 +7,16 @@
       // so index.html can restore it on load.
       var pathSegmentsToKeep = 0;
       var l = window.location;
+
+      // Loop guard: if we have already been through this redirect once (the
+      // query begins "?/" ) or the URL is carrying encoded separators, then
+      // index.html is not being served and re-encoding would just grow the URL
+      // forever. Bail out to the site root instead.
+      if (l.search.indexOf('?/') === 0 || l.href.indexOf('~and~') !== -1) {
+        l.replace(
+          l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') + '/'
+        );
+      } else {
       l.replace(
         l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
         l.pathname.split('/').slice(0, 1 + pathSegmentsToKeep).join('/') + '/?/' +
@@ -14,6 +24,7 @@
         (l.search ? '&' + l.search.slice(1).replace(/&/g, '~and~') : '') +
         l.hash
       );
+      }
     </script>
   </head>
   <body></body>

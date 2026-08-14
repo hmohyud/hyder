@@ -182,17 +182,21 @@
 
 /* Reset button */
 .about-reset-btn {
+  /* Stacked directly above the AI button, same column, same size, and a lower
+     z-index so it can never cover it. */
   position: fixed;
-  bottom: 24px;
-  right: 24px;
-  z-index: 9999;
+  bottom: 78px;
+  right: 18px;
+  z-index: 499;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
   background: rgba(20, 20, 30, 0.85);
   border: 1px solid rgba(127, 211, 255, 0.25);
-  border-radius: 6px;
+  border-radius: 50%;
   color: #aaccdd;
-  font-family: monospace;
-  font-size: 0.8rem;
-  padding: 6px 14px;
+  padding: 0;
   cursor: pointer;
   pointer-events: auto;
   backdrop-filter: blur(6px);
@@ -203,6 +207,11 @@
   backface-visibility: hidden;
 }
 
+.about-reset-btn svg {
+  width: 19px;
+  height: 19px;
+  fill: currentColor;
+}
 .about-reset-btn:hover {
   background: rgba(30, 20, 20, 0.95);
 }

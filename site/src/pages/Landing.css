@@ -145,12 +145,14 @@
 /* HERO — CSS Grid layout, swaps areas at mobile breakpoints */
 .hero{
   display: grid;
-  grid-template-columns: auto 1fr;
+  /* second track is a reserved slot for the portrait so the name and the
+     contributions grid never shift as it resizes */
+  grid-template-columns: auto 132px 1fr;
   grid-template-areas:
-    "title  label"
-    "title  grid"
-    "sub    gh"
-    "mission mission";
+    "title   head  label"
+    "title   head  grid"
+    "sub     head  gh"
+    "mission mission mission";
   column-gap: 12px;
   row-gap: 10px;
   text-align: left;
@@ -190,6 +192,7 @@
 /* Mid + full mobile: title + small label on row 1, grid full-width row 2 */
 @media (max-width: 1050px){
   .hero{
+    grid-template-columns: auto 1fr;
     grid-template-areas:
       "title  label"
       "grid   grid"

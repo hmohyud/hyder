@@ -1077,8 +1077,16 @@ export default function About() {
       ))}
 
       {/* reset button */}
-      <button ref={resetBtnRef} className="about-reset-btn" onClick={handleReset}>
-        reset
+      <button
+        ref={resetBtnRef}
+        className="about-reset-btn"
+        onClick={handleReset}
+        aria-label="Reset the page"
+        title="Reset the page"
+      >
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 5V2L8 6l4 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z" />
+        </svg>
       </button>
 
       {/* resize in progress — world is being rebuilt for the new size */}

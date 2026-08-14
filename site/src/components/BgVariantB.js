@@ -13,16 +13,18 @@ import { useEffect, useRef } from "react";
  * Props:
  *   magnetTarget — ref to the DOM element particles should magnetize toward (or null)
  */
-export default function BgVariantB({ magnetTarget, magnetCardId }) {
+export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget }) {
   const canvasRef = useRef(null);
   const magnetTargetRef = useRef(null);
   const magnetCardIdRef = useRef(null);
+  const vortexTargetRef = useRef(null);
 
   // Keep magnetTarget in a ref so the rAF loop can read it without re-running useEffect
   useEffect(() => {
     magnetTargetRef.current = magnetTarget;
     magnetCardIdRef.current = magnetCardId;
-  }, [magnetTarget, magnetCardId]);
+    vortexTargetRef.current = vortexTarget;
+  }, [magnetTarget, magnetCardId, vortexTarget]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -181,6 +183,15 @@ export default function BgVariantB({ magnetTarget, magnetCardId }) {
         magnetRect = target.getBoundingClientRect();
       }
 
+      // Vortex: while the portrait is hovered, embers near it fall inward and
+      // swirl, the way an accretion disk collapses.
+      let vortex = null;
+      const vt = vortexTargetRef.current;
+      if (vt && vt.getBoundingClientRect) {
+        const r = vt.getBoundingClientRect();
+        vortex = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      }
+
       // Gravity well strength ramps up the longer you hold
       let wellStrength = 0;
       if (wellActive) {
@@ -227,6 +238,32 @@ export default function BgVariantB({ magnetTarget, magnetCardId }) {
             const f = (1 - gdist / WELL_RADIUS) * wellStrength;
             p.baseX += (gdx / gdist) * f * 1.2;
             p.y += (gdy / gdist) * f * 1.2;
+          }
+        }
+
+        // Portrait orbit. Uses exactly the card magnets' force profile and
+        // falloff, so embers drift in at the same pace you already know, with
+        // a tangential component that turns the approach into an orbit and a
+        // clear radius the head always keeps to itself.
+        if (vortex) {
+          const vdx = drawX - vortex.x;
+          const vdy = p.y - vortex.y;
+          const vdist = Math.sqrt(vdx * vdx + vdy * vdy) || 0.001;
+          const CAPTURE = 420;
+          const RING = 90;
+          if (vdist < CAPTURE) {
+            const ux = vdx / vdist; // points away from the portrait
+            const uy = vdy / vdist;
+            const f = (1 - vdist / CAPTURE) * MAGNET_FORCE;
+            if (vdist > RING) {
+              p.baseX -= ux * f; // inward, same strength as a card magnet
+              p.y -= uy * f;
+            } else {
+              p.baseX += ux * f * 0.6; // ease back out, keeping the circle clear
+              p.y += uy * f * 0.6;
+            }
+            p.baseX += -uy * f * 0.8; // tangential: circle rather than collide
+            p.y += ux * f * 0.8;
           }
         }
 

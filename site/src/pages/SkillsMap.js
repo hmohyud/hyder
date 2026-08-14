@@ -20,6 +20,14 @@ function useDotLottieScript() {
   }, []);
 }
 
+/* Graph selections must be scoped to this map's <svg>. A document-wide
+   mapCircles(svgRef.current) also picks up icon SVGs elsewhere on the page, whose
+   circles carry no bound datum, and any `d.id` on those throws. */
+const mapCircles = (svgEl) =>
+  svgEl ? d3.select(svgEl).selectAll('g > circle') : d3.selectAll(null);
+const mapLabels = (svgEl) =>
+  svgEl ? d3.select(svgEl).selectAll('g > text') : d3.selectAll(null);
+
 export default function SkillsMap() {
   useDotLottieScript();
 
@@ -340,7 +348,7 @@ export default function SkillsMap() {
       .attr('stroke', '#000')
       .attr('stroke-width', 2);
 
-    d3.selectAll('circle').attr('stroke', d => expandedNodesRef.current.has(d.id) ? d.ringColor : '#000');
+    mapCircles(svgRef.current).attr('stroke', d => (d && expandedNodesRef.current.has(d.id) ? d.ringColor : '#000'));
 
     Object.entries(nodeListRefs.current).forEach(([id, el]) => {
       const nodeObj = data.skillNodes.find(n => n.id === id);
@@ -451,8 +459,8 @@ export default function SkillsMap() {
         }
         forceRerender(x => x + 1);
 
-        d3.selectAll('circle').attr('stroke', c => set.has(c.id) ? c.ringColor : '#000');
-        d3.selectAll('text').style('display', 'block');
+        mapCircles(svgRef.current).attr('stroke', c => (c && set.has(c.id) ? c.ringColor : '#000'));
+        mapLabels(svgRef.current).style('display', 'block');
 
         if (tooltipInfoRef.current) {
           if (set.has(nodeData.id)) {
@@ -791,8 +799,8 @@ export default function SkillsMap() {
                   }
                   forceRerender(x => x + 1);
 
-                  d3.selectAll('circle').attr('stroke', c => set.has(c.id) ? c.ringColor : '#000');
-                  d3.selectAll('text').style('display', 'block');
+                  mapCircles(svgRef.current).attr('stroke', c => (c && set.has(c.id) ? c.ringColor : '#000'));
+                  mapLabels(svgRef.current).style('display', 'block');
 
                   if (tooltipInfoRef.current) {
                     if (set.has(node.id)) {
@@ -948,7 +956,7 @@ export default function SkillsMap() {
             onClick={() => {
               expandedNodesRef.current.clear();
               setOpenLearnedFromIds(new Set());
-              d3.selectAll('circle').attr('stroke', '#000');
+              mapCircles(svgRef.current).attr('stroke', '#000');
               Object.entries(nodeListRefs.current).forEach(([id, el]) => {
                 if (!el) return;
                 el.style.background = '#222';
@@ -1047,7 +1055,7 @@ export default function SkillsMap() {
                       next.delete(id);
                       return next;
                     });
-                    d3.selectAll('circle').attr('stroke', c => expandedNodesRef.current.has(c.id) ? c.ringColor : '#000');
+                    mapCircles(svgRef.current).attr('stroke', c => (c && expandedNodesRef.current.has(c.id) ? c.ringColor : '#000'));
                     Object.entries(nodeListRefs.current).forEach(([nid, el]) => {
                       const n = data.skillNodes.find(n => n.id === nid);
                       if (!n || !el) return;

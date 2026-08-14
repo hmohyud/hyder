@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import BgVariantB from "../components/BgVariantB";
 import TubesCursorOverlay from "../components/TubesCursorOverlay";
 import { ContribLabel, ContribGrid } from "../components/GithubContributions";
+import FloatingHead from "../components/FloatingHead";
 import "./Landing.css";
 
 /* Inline icons (no emojis) */
@@ -84,6 +85,7 @@ export default function Landing() {
   const particlesRef = useRef(null);
   const wrapRef = useRef(null);
   const [hoveredCard, setHoveredCard] = useState(null);
+  const [vortexTarget, setVortexTarget] = useState(null);
 
   // Card refs for magnet targeting
   const cardRefs = useRef({});
@@ -145,16 +147,18 @@ export default function Landing() {
   return (
     <div className={`landing${hoveredCard ? " card-focus" : ""}`}>
       {/* Background */}
-      <BgVariantB magnetTarget={magnetTarget} magnetCardId={hoveredCard} />
+      <BgVariantB
+        magnetTarget={magnetTarget}
+        magnetCardId={hoveredCard}
+        vortexTarget={vortexTarget}
+      />
       {/* Tubes cursor */}
       <TubesCursorOverlay hoveredCard={hoveredCard} />
-      <div className="magic-circle" aria-hidden="true" />
-      <div className="magic-circle alt" aria-hidden="true" />
-      <div className="magic-circle slow" aria-hidden="true" />
       <div className="particles" ref={particlesRef} aria-hidden="true" />
 
       <div className="wrap" ref={wrapRef}>
         <header className="hero">
+          <FloatingHead hoveredCard={hoveredCard} onHoverChange={setVortexTarget} />
           <h1 className="title">Hyder Mohyuddin</h1>
           <ContribLabel username="hmohyud" />
           <ContribGrid username="hmohyud" />
