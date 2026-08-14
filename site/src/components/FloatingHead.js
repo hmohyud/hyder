@@ -614,7 +614,10 @@ export default function FloatingHead({
   }, [msgs]);
 
   useEffect(() => {
-    if (open && inputRef.current) inputRef.current.focus();
+    /* Not on a phone: focusing the field summons the keyboard the instant the
+       portrait opens, covering the thing the visitor came to look at. They can
+       tap the field when they actually want to type. */
+    if (open && mode !== "phone" && inputRef.current) inputRef.current.focus();
   }, [open]);
 
   const send = async (e) => {

@@ -166,7 +166,7 @@ function AppContent() {
             <NavBar />
           </header>
         )}
-        <main className="App-main">
+        <main className={`App-main${isLanding ? " App-main--landing" : ""}`}>
           <ScrollToTop />
           <Routes>
             <Route path="/" element={<Landing />} />

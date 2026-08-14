@@ -408,6 +408,13 @@
   .fh-log {
     max-height: 38vh;
   }
+  /* iOS zooms the page whenever a focused input is smaller than 16px, which
+     rescales the whole overlay and pushes the send button off the left edge.
+     16px is the threshold, not a preference - anything under it re-triggers it. */
+  .fh-ask input,
+  .fh-ask button {
+    font-size: 16px;
+  }
   /* "drag to rotate - esc to close" is desktop advice: there is no Esc key on a
      phone and dragging is a mouse idiom. It was spending a line of scarce
      vertical space to say something untrue. */

@@ -464,3 +464,11 @@ body.motion-test #bg-animation::after {
 .site-footer--flush {
   margin-top: 0;
 }
+
+/* The 30px above belongs to the footer, which the landing page does not have.
+   Left in place it becomes a band of empty screen under the last card - the
+   page appears to stop short of its own edge. The wrap's own 12px stays, so the
+   bottom margin matches the left and right and reads as deliberate. */
+.App-main--landing {
+  padding-bottom: 0;
+}
