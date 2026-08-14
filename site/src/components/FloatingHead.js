@@ -56,7 +56,21 @@ const GAZE_RADIUS_BASE = 135;
 const POINT_COUNT = 4200; // procedural stand-in only
 const POINTS_URL = process.env.PUBLIC_URL + "/head-points.bin";
 
-const CHAT_ENDPOINT = process.env.REACT_APP_CHAT_ENDPOINT || "";
+/* The deployed worker is the default so the chat works everywhere without a
+   build-time variable — `npm start`, a bare `npm run build`, a fresh clone.
+   Missing the variable used to hide the whole chat block, input bar included,
+   with no visible error. REACT_APP_CHAT_ENDPOINT still overrides it (point it
+   at `npm run chat:local` to develop against a local worker; set it empty to
+   render the portrait with no chat at all). Not a secret: the worker only
+   answers requests whose Origin it recognises, and the keys live in
+   Cloudflare. */
+const CHAT_LOG_KEY = "fh-chat-log";
+
+const DEFAULT_CHAT_ENDPOINT = "https://hyder-chat.hmohyud.workers.dev";
+const CHAT_ENDPOINT =
+  process.env.REACT_APP_CHAT_ENDPOINT === undefined
+    ? DEFAULT_CHAT_ENDPOINT
+    : process.env.REACT_APP_CHAT_ENDPOINT;
 
 /* ---------- procedural stand-in ---------- */
 
@@ -169,6 +183,8 @@ export default function FloatingHead({
   const [missionEl, setMissionEl] = useState(null);
   const miniRef = useRef(null);
   const stageRef = useRef(null);
+  const overlayRef = useRef(null);
+  const askRef = useRef(null);
   const worldRef = useRef(null);
   const stateRef = useRef({
     open: false,
@@ -193,12 +209,32 @@ export default function FloatingHead({
   // only built there once the lightbox is actually opened.
   const needsScene = mode !== "phone" || open;
   const [capable, setCapable] = useState(true);
-  const [msgs, setMsgs] = useState([]);
+  /* The transcript survives a reload. Written only when a reply has finished,
+     so streaming does not hammer localStorage a chunk at a time, and trimmed to
+     the last 40 turns so a long session cannot fill the quota. */
+  const [msgs, setMsgs] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(CHAT_LOG_KEY) || "[]");
+      return Array.isArray(saved) ? saved.filter((m) => m && m.role && m.content) : [];
+    } catch (err) {
+      return [];
+    }
+  });
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const logRef = useRef(null);
   const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (busy) return;
+    try {
+      if (msgs.length) localStorage.setItem(CHAT_LOG_KEY, JSON.stringify(msgs.slice(-40)));
+      else localStorage.removeItem(CHAT_LOG_KEY);
+    } catch (err) {
+      // private mode, or the quota is full: the chat still works, it just forgets
+    }
+  }, [msgs, busy]);
 
   /* corner shows a subset; the lightbox shows every point */
   const applyDrawRange = useCallback(() => {
@@ -503,6 +539,17 @@ export default function FloatingHead({
 
   /* size + re-parent the canvas when the lightbox opens or closes */
   const layout = useCallback(() => {
+    /* Keep the portrait clear of the chat: the stage stops at the top of the
+       input bar, so the head centres in what's left of the viewport. Measured
+       from the input bar alone — the transcript grows upward over the stage
+       rather than pushing it, so a long conversation never shoves the head. */
+    if (open && overlayRef.current) {
+      const ask = askRef.current;
+      const reserve = ask
+        ? Math.max(0, Math.round(window.innerHeight - ask.getBoundingClientRect().top + 10))
+        : 0;
+      overlayRef.current.style.setProperty("--fh-reserve", reserve + "px");
+    }
     const world = worldRef.current;
     if (!world) return;
     const host = open ? stageRef.current : miniRef.current;
@@ -532,13 +579,26 @@ export default function FloatingHead({
       stateRef.current.targetX = 0;
       stateRef.current.targetY = 0;
     }
+    /* Run it now and again next frame. rAF alone is not enough: a browser does
+       not service rAF in a hidden tab, so a resize that crosses a breakpoint
+       while the tab is in the background would leave the canvas orphaned and
+       the head invisible when the user came back. The immediate call re-parents
+       regardless; the frame after is the settle pass. */
+    layout();
     const t = requestAnimationFrame(layout);
     window.addEventListener("resize", layout);
     return () => {
       cancelAnimationFrame(t);
       window.removeEventListener("resize", layout);
     };
-  }, [open, ready, layout]);
+    /* mode and missionEl belong here even though the body never reads them.
+       There is one canvas, moved between hosts by layout(); crossing a
+       breakpoint destroys the old host button and mounts a new one (and the
+       tablet portal swaps it again once .mission is found), leaving the canvas
+       parented to a detached node - a head that silently vanishes. These deps
+       are what re-runs the re-parent. */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, ready, layout, mode, missionEl]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -580,7 +640,14 @@ export default function FloatingHead({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ messages: history }),
       });
-      if (!res.ok || !res.body) throw new Error(String(res.status));
+      /* The worker explains refusals in the body — the daily cap, an unknown
+         origin — so show that rather than a generic network apology. Only 5xx
+         is really "couldn't reach the model". */
+      if (!res.ok) {
+        const said = await res.text().catch(() => "");
+        throw new Error(res.status < 500 && said.trim() ? said.trim() : String(res.status));
+      }
+      if (!res.body) throw new Error("no body");
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let acc = "";
@@ -592,8 +659,11 @@ export default function FloatingHead({
       }
       if (!acc.trim()) replace("(no answer came back)");
     } catch (err) {
+      const said = String((err && err.message) || "");
       replace(
-        "I couldn't reach the model just now — email hyder.mohyuddin@gmail.com and you'll get a real reply."
+        said.includes(" ")
+          ? said
+          : "I couldn't reach the model just now — email hyder.mohyuddin@gmail.com and you'll get a real reply."
       );
     } finally {
       setBusy(false);
@@ -676,6 +746,7 @@ export default function FloatingHead({
         createPortal(
           <div
             className="fh-overlay"
+            ref={overlayRef}
           role="dialog"
           aria-modal="true"
           aria-label="3D portrait"
@@ -709,23 +780,26 @@ export default function FloatingHead({
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
             >
+              {/* Outside the log on purpose: inside it, it scrolled away with
+                  the transcript, so collapsing a long conversation meant
+                  scrolling up to find the control that collapses it. */}
+              {msgs.length > 2 && (
+                <button
+                  type="button"
+                  className="fh-more"
+                  onClick={() => setShowAll((v) => !v)}
+                  aria-expanded={showAll}
+                >
+                  <span className={"fh-caret" + (showAll ? " open" : "")}>▸</span>
+                  {showAll
+                    ? "hide earlier"
+                    : msgs.length - 2 +
+                      " earlier message" +
+                      (msgs.length - 2 === 1 ? "" : "s")}
+                </button>
+              )}
               {msgs.length > 0 && (
                 <div className="fh-log" ref={logRef}>
-                  {msgs.length > 2 && (
-                    <button
-                      type="button"
-                      className="fh-more"
-                      onClick={() => setShowAll((v) => !v)}
-                      aria-expanded={showAll}
-                    >
-                      <span className={"fh-caret" + (showAll ? " open" : "")}>▸</span>
-                      {showAll
-                        ? "hide earlier"
-                        : msgs.length - 2 +
-                          " earlier message" +
-                          (msgs.length - 2 === 1 ? "" : "s")}
-                    </button>
-                  )}
                   {(showAll ? msgs : msgs.slice(-2)).map((m, i, shown) => (
                     <p key={i} className={"fh-msg fh-" + m.role}>
                       <span className="fh-who">
@@ -737,7 +811,7 @@ export default function FloatingHead({
                   ))}
                 </div>
               )}
-              <form className="fh-ask" onSubmit={send}>
+              <form className="fh-ask" ref={askRef} onSubmit={send}>
                 <input
                   ref={inputRef}
                   type="text"
@@ -746,7 +820,10 @@ export default function FloatingHead({
                   placeholder="Ask me about my work"
                   aria-label="Ask a question"
                   maxLength={1500}
-                  disabled={busy}
+                  /* Deliberately not disabled while a reply streams. Disabling
+                     an element blurs it, which threw the caret out of the box
+                     after every message; send() already ignores submits while
+                     busy, so the guard costs nothing to drop. */
                 />
                 <button type="submit" disabled={busy || !draft.trim()}>
                   Ask

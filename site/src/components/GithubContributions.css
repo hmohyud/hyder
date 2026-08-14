@@ -173,6 +173,18 @@
     --gh-h-gap: 2px;
     --gh-v-gap: 2px;
     max-width: none; /* let cells fill container on mobile/mid-mobile */
+
+    /* Below this width both width caps come off (here and in Landing.css), so
+       the panel grows from about 560x89 to 970x143 CSS px - roughly 2.8x the
+       area. backdrop-filter has to re-run its blur whenever the backdrop
+       repaints, and the backdrop here is the ember canvas, which repaints
+       every frame forever. That is the most expensive thing on the page at
+       exactly the widths with the least GPU to spare. Over a field of drifting
+       embers a 6px blur reads as little more than a tint, so a slightly
+       heavier flat fill stands in for it. */
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: rgba(10, 14, 28, 0.55);
   }
 }
 @media (max-width: 760px) {

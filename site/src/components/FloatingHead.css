@@ -73,9 +73,15 @@
    clipped by a box, and the whole surface is grabbable. */
 .fh-stage {
   position: absolute;
-  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  /* --fh-reserve is set from the input bar's measured top, so the head
+     centres between the top of the screen and the chat input rather than in
+     the whole viewport. 0 when there's no chat, i.e. full-bleed as before. */
+  bottom: var(--fh-reserve, 0px);
   width: 100%;
-  height: 100%;
+  height: auto;
   cursor: grab;
   touch-action: none;
 }
@@ -122,10 +128,14 @@
    layouts that can host it. */
 /* Smaller layouts keep the portrait, just scaled down — the canvas and the
    gaze radius follow the button size, so nothing else needs adjusting. */
+/* Tablet sets the portrait inline in the mission paragraph, where it has a
+   column of text to hold its own against — 76px read as an afterthought beside
+   it. At 112px it occupies roughly two thirds of the paragraph's height without
+   making the paragraph any taller, and the text wraps around it properly. */
 @media (max-width: 1050px) {
   .fh-mini {
-    width: 76px;
-    height: 76px;
+    width: 112px;
+    height: 112px;
     margin: 0 10px 0 0;
   }
 }
@@ -267,7 +277,10 @@
 .fh-slot {
   float: left;
   display: block;
-  margin: 2px 16px 6px 0;
+  /* The top margin is doing real work: without it the portrait rides up
+     against the tagline above the paragraph. It drops the head far enough for
+     the first line to clear it, which reads as deliberate rather than cramped. */
+  margin: 18px 22px 12px 0;
   shape-outside: circle(50%);
 }
 .fh-mini-inline {

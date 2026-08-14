@@ -135,12 +135,7 @@
   animation: float 22s ease-in-out infinite;
   filter: blur(1px);
 }
-.particle{
-  position: absolute;
-  background: white;
-  border-radius: 50%;
-  animation: float 20s ease-in-out infinite;
-}
+/* .particle moved into BgVariantB's canvas - see `floaters` there. */
 
 /* HERO — CSS Grid layout, swaps areas at mobile breakpoints */
 .hero{

@@ -118,8 +118,16 @@ body {
   background-position: 72% 14%, 18% 82%;
   background-size: auto, auto;
 
-  will-change: background-position;
-  animation: glowSlide 55s ease-in-out infinite alternate;
+  /* No animation here on purpose. `background-size: auto` on a gradient - which
+     has no intrinsic size - sizes the image to the positioning area, so every
+     percentage background-position resolves to (area - image) * pct = 0px.
+     glowSlide therefore moved these glows exactly nowhere, while forcing a
+     re-raster of a 124vw x 124vh layer plus a saturate/contrast pass on every
+     frame of every route. Removing it is bit-for-bit identical output.
+     (.title in Landing.css sets background-size: 300% 300% precisely so its
+     position animation *can* move - that one is real, leave it alone.)
+     The filter stays: with nothing animating the layer rasterises once and is
+     cached, so it costs nothing per frame. */
   filter: saturate(.85) contrast(.95);
 }
 
@@ -131,17 +139,6 @@ body {
 
   100% {
     transform: translate3d(-36px, 28px, 0) rotate(-0.2deg) scale(1.02);
-  }
-}
-
-/* Subtle parallax: glows drift to new positions */
-@keyframes glowSlide {
-  0% {
-    background-position: 72% 14%, 18% 82%;
-  }
-
-  100% {
-    background-position: 67% 10%, 23% 86%;
   }
 }
 

@@ -82,7 +82,6 @@ function CardPreview({ imgSrc, videoSrc, alt, isHovered }) {
 }
 
 export default function Landing() {
-  const particlesRef = useRef(null);
   const wrapRef = useRef(null);
   const [hoveredCard, setHoveredCard] = useState(null);
   const [vortexTarget, setVortexTarget] = useState(null);
@@ -113,34 +112,10 @@ export default function Landing() {
     return () => window.removeEventListener("resize", fit);
   }, []);
 
-  useEffect(() => {
-    // --- Build ambience with fixed counts for consistent look ---
-    const buildParticles = (count) => {
-      if (!particlesRef.current) return;
-      const frag = document.createDocumentFragment();
-      for (let i = 0; i < count; i++) {
-        const p = document.createElement("span");
-        p.className = "particle";
-        p.style.left = Math.random() * 100 + "%";
-        p.style.top = Math.random() * 100 + "%";
-        const s = 1 + Math.random() * 2;
-        p.style.width = `${s}px`;
-        p.style.height = `${s}px`;
-        p.style.animationDuration = `${18 + Math.random() * 10}s`;
-        p.style.animationDelay = `${Math.random() * 5}s`;
-        p.style.opacity = String(0.25 + Math.random() * 0.5);
-        frag.appendChild(p);
-      }
-      particlesRef.current.innerHTML = "";
-      particlesRef.current.appendChild(frag);
-    };
-
-    buildParticles(60);
-
-    return () => {
-      particlesRef.current && (particlesRef.current.innerHTML = ""); // eslint-disable-line
-    };
-  }, []);
+  /* The 60 ambient dots now live in BgVariantB's canvas - see the `floaters`
+     block there. As DOM spans they were style-recalculated on the main thread
+     every frame because Chrome declined to composite them; on the canvas they
+     are 60 more fills in a loop that was already running. */
 
   const PU = process.env.PUBLIC_URL;
 
@@ -154,7 +129,6 @@ export default function Landing() {
       />
       {/* Tubes cursor */}
       <TubesCursorOverlay hoveredCard={hoveredCard} />
-      <div className="particles" ref={particlesRef} aria-hidden="true" />
 
       <div className="wrap" ref={wrapRef}>
         <header className="hero">

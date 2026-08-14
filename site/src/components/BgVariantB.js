@@ -65,6 +65,50 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget })
 
     let particles = [];
 
+    /* The 60 ambient white dots that used to be `.particle` spans built in
+       Landing.js. As DOM elements they animated `transform`, but Chrome would
+       not composite them, so every frame cost 60 style resolutions on the main
+       thread - measured at roughly 200ms per 4 seconds, forever, at every
+       viewport width. Drawn here they ride a loop that is already running and
+       cost 60 more fills. They deliberately ignore the cursor, the magnets and
+       the vortex, exactly as the CSS version did.
+       fx/fy are fractions of the viewport, mirroring the old `left: %` /
+       `top: %`, so a resize repositions them without rebuilding anything. */
+    const FLOAT_PATH = [[0, 0], [28, -24], [-26, 20], [18, 26], [0, 0]];
+    const floaters = [];
+    for (let i = 0; i < 60; i++) {
+      floaters.push({
+        fx: Math.random(),
+        fy: Math.random(),
+        size: 1 + Math.random() * 2,
+        dur: 18 + Math.random() * 10,
+        delay: Math.random() * 5,
+        alpha: 0.25 + Math.random() * 0.5,
+      });
+    }
+    // smoothstep stands in for CSS ease-in-out; the two differ by ~2%, which on
+    // a 1-3px dot moving 28px over five seconds is not resolvable.
+    const easeInOut = (t) => t * t * (3 - 2 * t);
+    const drawFloaters = (sec) => {
+      for (const f of floaters) {
+        const phase = ((sec + f.delay) / f.dur) % 1;
+        const seg = Math.min(3, Math.floor(phase * 4));
+        const k = easeInOut(phase * 4 - seg);
+        const a = FLOAT_PATH[seg];
+        const b = FLOAT_PATH[seg + 1];
+        ctx.beginPath();
+        ctx.arc(
+          f.fx * W + a[0] + (b[0] - a[0]) * k,
+          f.fy * H + a[1] + (b[1] - a[1]) * k,
+          f.size / 2,
+          0,
+          Math.PI * 2
+        );
+        ctx.fillStyle = `rgba(255,255,255,${f.alpha})`;
+        ctx.fill();
+      }
+    };
+
     const initParticle = (startRandom) => {
       const c = COLORS[Math.floor(Math.random() * COLORS.length)];
       return {
@@ -311,6 +355,8 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget })
         ctx.fillStyle = `rgba(${p.r},${p.g},${p.b},${a})`;
         ctx.fill();
       }
+
+      drawFloaters(performance.now() / 1000);
 
       raf = requestAnimationFrame(draw);
     };
