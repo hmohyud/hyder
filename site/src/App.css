@@ -232,8 +232,24 @@ body.motion-test #bg-animation::after {
 }
 
 /* ===== Content ===== */
+/* The shell is a column: header, then main taking whatever is left, then the
+   footer after it. This replaces an invalid `height` value on .App-main -
+   Chrome dropped it, but WebKit reads it as -webkit-fill-available and made
+   main exactly one viewport tall no matter how much was inside. On iOS that
+   put the footer a full screen down, in the middle of the content, with the
+   overflow spilling past it. It only looked right while main was also
+   overflow:auto, because the content was scrolling inside that box.
+   min-height keeps the footer at the bottom of the screen on short pages
+   without pinning it; dvh follows the mobile toolbar, with vh as the fallback. */
+.App {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
 .App-main {
-  height: fill;
+  flex: 1 0 auto;
   justify-content: center;
   align-items: center;
   align-content: center;
@@ -445,7 +461,13 @@ body.motion-test #bg-animation::after {
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 36px;
-  padding: 14px 16px 18px;
+  /* The extra bottom padding is for iOS. Safari's toolbar slides back in when
+     you reach the end of a page and overlays the last strip of it, and on a
+     notched phone the home indicator claims some too - so a footer sitting on
+     the document's final pixel gets clipped on a real device while measuring
+     perfectly in a desktop browser at the same width. env() resolves to 0 where
+     there is no inset, so this costs nothing elsewhere. */
+  padding: 14px 16px calc(18px + env(safe-area-inset-bottom, 0px));
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   font-size: 0.72rem;
   letter-spacing: 0.04em;

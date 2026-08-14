@@ -315,6 +315,16 @@
   .skills-container {
     width: 95vw;
     height: auto;
+    /* Without this the outlined box ends flush against whatever follows, which
+       reads as the panel being cut off rather than finished. */
+    margin-bottom: 28px;
+  }
+
+  /* And breathing room inside it, so the last skill is not pressed against the
+     outline itself. */
+  .list-container,
+  .tooltip-container {
+    padding-bottom: 14px;
   }
 
   .list-container,
