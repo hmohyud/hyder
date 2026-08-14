@@ -461,13 +461,7 @@ body.motion-test #bg-animation::after {
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 36px;
-  /* The extra bottom padding is for iOS. Safari's toolbar slides back in when
-     you reach the end of a page and overlays the last strip of it, and on a
-     notched phone the home indicator claims some too - so a footer sitting on
-     the document's final pixel gets clipped on a real device while measuring
-     perfectly in a desktop browser at the same width. env() resolves to 0 where
-     there is no inset, so this costs nothing elsewhere. */
-  padding: 14px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+  padding: 14px 16px 18px;
   font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   font-size: 0.72rem;
   letter-spacing: 0.04em;

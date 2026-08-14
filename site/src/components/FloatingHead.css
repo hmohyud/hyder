@@ -387,6 +387,29 @@
     place-items: stretch;
     padding: 60px 12px 14px;
     gap: 10px;
+    /* The tint and blur move to ::before below, which is painted larger than
+       the screen. Safari SHIFTS the layout viewport when the keyboard opens
+       rather than shrinking it, so a fixed overlay pinned to that viewport
+       stops covering the strip that slides into view - an unblurred band under
+       the composer. Overshooting top and bottom means there is no edge to
+       expose, whichever way the viewport moves. */
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .fh-overlay::before {
+    content: "";
+    position: fixed;
+    left: 0;
+    right: 0;
+    top: -25vh;
+    bottom: -25vh;
+    background: rgba(6, 8, 12, 0.82);
+    backdrop-filter: blur(7px);
+    -webkit-backdrop-filter: blur(7px);
+    z-index: -1;
+    pointer-events: none;
   }
   .fh-stage {
     position: relative;
