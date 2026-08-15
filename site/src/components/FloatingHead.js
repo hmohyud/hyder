@@ -43,6 +43,10 @@ const CARD_TINT = {
   4: [0.47, 1.0, 0.66], // Resume
 };
 
+/* When the page's attention is on something else (the contribution grid), the
+   head goes with it: a soft off-white, deliberately shy of pure. */
+const ATTEND_TINT = [0.93, 0.95, 1.0];
+
 // The canvas is deliberately larger than the button so the head can wobble and
 // turn without being clipped by its own box; the overflow is pointer-transparent.
 // The canvas is drawn larger than its button so the head can turn and wobble
@@ -326,6 +330,7 @@ function detectMode() {
 export default function FloatingHead({
   hoveredCard = null,
   onHoverChange,
+  lookTarget = null,
   fabOnly = false,
 }) {
   const [mode, setMode] = useState(() => (fabOnly ? "phone" : detectMode()));
@@ -475,6 +480,8 @@ export default function FloatingHead({
     /* tuning hooks: __fhU exposes the uniforms, __fhSay feeds text into the
        viseme sequencer without spending an API call */
     window.__fhU = material.uniforms;
+    window.__fhG = group; // rotation inspection for tuning
+    window.__fhS = stateRef.current; // gaze-state inspection for tuning
     window.__fhSay = (txt) => {
       ensureAudio();
       stateRef.current.talkBuf = (stateRef.current.talkBuf || "") + String(txt);
@@ -690,17 +697,40 @@ export default function FloatingHead({
         // Parked, the head is ~100px across, so a subtle wobble reads as
         // nothing at all — swing it much harder when small and let the
         // lightbox keep the restrained version.
-        const amp = s.open ? 1 : 2.8;
-        const shift = s.open ? 1 : 2.2;
-        group.rotation.x =
-          s.rotX + (Math.cos(w * 0.61) * 0.085 + Math.sin(w * 1.13) * 0.03) * amp;
-        group.rotation.y =
-          s.rotY + (Math.sin(w * 0.47) * 0.075 + Math.cos(w * 0.91) * 0.028) * amp;
+        /* Attention RECTIFIES the wobble rather than killing it. The idle
+           sway's amplitude rivals a deliberate turn, so unfiltered it can
+           rotate the head against where it is trying to look and cancel the
+           turn. But uniform damping made it too still - so the filter is
+           directional: sway components moving WITH the look direction keep
+           half their swing, components fighting it are cut to ~12%. The head
+           keeps oscillating, biased around the thing it is looking at, like
+           leaning in. Roll and positional drift take a milder uniform cut -
+           they do not oppose a turn, they are just liveliness. Driven by
+           gaze-target magnitude, so cursor-tracking calms it the same way,
+           and eased so the sway drains and refills rather than snapping. */
+        const focusMag = Math.min(
+          1,
+          Math.hypot(s.targetX || 0, s.targetY || 0) * 2.5
+        );
+        s.calm = (s.calm || 0) + (focusMag - (s.calm || 0)) * (1 - Math.exp(-6 * dt));
+        const calmT = s.calm;
+        const ampBase = s.open ? 1 : 2.8;
+        const shiftBase = s.open ? 1 : 2.2;
+        const rect = (v, dir) => {
+          if (calmT <= 0.001 || dir === 0) return v * (1 - 0.5 * calmT);
+          const fighting = v * dir < 0;
+          return v * (fighting ? 1 - 0.88 * calmT : 1 - 0.5 * calmT);
+        };
+        const wx = (Math.cos(w * 0.61) * 0.085 + Math.sin(w * 1.13) * 0.03) * ampBase;
+        const wy = (Math.sin(w * 0.47) * 0.075 + Math.cos(w * 0.91) * 0.028) * ampBase;
+        group.rotation.x = s.rotX + rect(wx, Math.sign(s.targetX || 0));
+        group.rotation.y = s.rotY + rect(wy, Math.sign(s.targetY || 0));
+        const drift = 1 - 0.6 * calmT;
         group.rotation.z =
-          (Math.sin(w * 0.53) * 0.055 + Math.cos(w * 1.27) * 0.018) * amp;
+          (Math.sin(w * 0.53) * 0.055 + Math.cos(w * 1.27) * 0.018) * ampBase * drift;
         group.position.y =
-          (Math.sin(w * 0.79) * 0.055 + Math.sin(w * 1.41) * 0.018) * shift;
-        group.position.x = Math.cos(w * 0.67) * 0.03 * shift;
+          (Math.sin(w * 0.79) * 0.055 + Math.sin(w * 1.41) * 0.018) * shiftBase * drift;
+        group.position.x = Math.cos(w * 0.67) * 0.03 * shiftBase * drift;
         // a faint nod while speaking - most of what sells "talking" is here,
         // not in the mouth itself
         group.rotation.x += (s.mouth || 0) * 0.035 * Math.sin(w * 5.1);
@@ -810,6 +840,7 @@ export default function FloatingHead({
     const onPointerMove = (e) => {
       const s = stateRef.current;
       if (s.open || s.reduced || !miniRef.current) return;
+      if (s.lookLock) return; // attending something - the gaze holds
 
       const r = miniRef.current.getBoundingClientRect();
       const dx = e.clientX - (r.left + r.width / 2);
@@ -866,10 +897,40 @@ export default function FloatingHead({
     };
   }, [needsScene]);
 
-  /* hovering a card pulls the whole cloud toward that card's accent */
+  /* hovering a card pulls the whole cloud toward that card's accent; attending
+     something (lookTarget) overrides with the off-white */
   useEffect(() => {
-    stateRef.current.wantTint = hoveredCard ? CARD_TINT[hoveredCard] || null : null;
-  }, [hoveredCard]);
+    stateRef.current.wantTint = lookTarget
+      ? ATTEND_TINT
+      : hoveredCard
+        ? CARD_TINT[hoveredCard] || null
+        : null;
+  }, [hoveredCard, lookTarget]);
+
+  /* Turn toward whatever the visitor is inspecting. Computed geometrically
+     from the two elements' centres, so it works wherever the head happens to
+     live in the current layout. lookLock keeps the pointer-gaze handler from
+     fighting it while the cursor moves around inside the target. */
+  useEffect(() => {
+    const s = stateRef.current;
+    if (lookTarget && miniRef.current) {
+      const a = miniRef.current.getBoundingClientRect();
+      const b = lookTarget.getBoundingClientRect();
+      const fx =
+        (b.left + b.width / 2 - (a.left + a.width / 2)) /
+        Math.max(1, window.innerWidth / 2);
+      const fy =
+        (b.top + b.height / 2 - (a.top + a.height / 2)) /
+        Math.max(1, window.innerHeight / 2);
+      s.targetY = Math.max(-0.9, Math.min(0.9, fx * 1.4));
+      s.targetX = Math.max(-0.5, Math.min(0.5, fy * 0.9));
+      s.lookLock = true;
+    } else {
+      s.lookLock = false;
+      s.targetX = 0;
+      s.targetY = 0;
+    }
+  }, [lookTarget]);
 
   /* size + re-parent the canvas when the lightbox opens or closes */
   const layout = useCallback(() => {

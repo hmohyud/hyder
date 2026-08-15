@@ -16,6 +16,7 @@ import About from "./pages/About";
 import Resume from "./pages/Resume";
 import BgDemo from "./pages/BgDemo";
 import FloatingHead from "./components/FloatingHead";
+import CopyEmail from "./components/CopyEmail";
 
 /**
  * Map each page to its accent pair (matches your card-1..4 colors)
@@ -91,7 +92,7 @@ const CONTACT = {
 function SiteFooter({ flush = false }) {
   return (
     <footer className={`site-footer${flush ? " site-footer--flush" : ""}`}>
-      <a href={`mailto:${CONTACT.email}`}>{CONTACT.email}</a>
+      <CopyEmail email={CONTACT.email} />
       <span className="site-footer-sep" aria-hidden="true">·</span>
       <a href={CONTACT.github} target="_blank" rel="noopener noreferrer">
         github

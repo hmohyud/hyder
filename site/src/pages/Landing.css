@@ -106,6 +106,56 @@
   filter: brightness(1);
 }
 
+/* Hovering the portrait quiets everything else, exactly like a card hover.
+   The head sits INSIDE the hero, so its siblings dim individually rather than
+   dimming .hero wholesale - and .hero-meta is display:contents (no box), so
+   opacity must land on its children, not on the wrapper. On tablet the head
+   is portalled into .mission, so the mission only dims on desktop widths. */
+.title,
+.gh-contrib-label,
+.gh-contrib-grid-wrap,
+.subtitle,
+.hero-contact,
+.mission {
+  transition: opacity 0.35s ease;
+}
+.head-focus .card {
+  opacity: 0.3;
+  filter: brightness(0.5);
+}
+.head-focus .title,
+.head-focus .gh-contrib-label,
+.head-focus .gh-contrib-grid-wrap,
+.head-focus .subtitle,
+.head-focus .hero-contact {
+  opacity: 0.25;
+}
+.mission-text {
+  transition: opacity 0.35s ease;
+}
+.head-focus .mission-text {
+  opacity: 0.25;
+}
+
+/* Hovering the contribution grid quiets the page the same way - the grid and
+   its label stay lit as one unit. */
+.fh-mini {
+  transition: opacity 0.35s ease;
+}
+.gh-focus .card {
+  opacity: 0.3;
+  filter: brightness(0.5);
+}
+.gh-focus .title,
+.gh-focus .subtitle,
+.gh-focus .hero-contact,
+.gh-focus .fh-mini {
+  opacity: 0.25;
+}
+.gh-focus .mission-text {
+  opacity: 0.25;
+}
+
 /* decorative rings */
 .magic-circle{
   position: fixed;
@@ -154,15 +204,19 @@
 }
 .hero > .title           { grid-area: title; align-self: end; white-space: nowrap; }
 .hero > .gh-contrib-label{ grid-area: label; justify-self: end; align-self: end; }
-.hero > .gh-contrib-grid-wrap {
+/* Descendant, not child ('>'): the grid-focus span and .hero-meta wrap these
+   in display:contents, which removes them from layout but NOT from the
+   selector tree - a child combinator silently stops matching and the named
+   grid areas fall apart into auto-placement. */
+.hero .gh-contrib-grid-wrap {
   grid-area: grid;
   align-self: start;
   justify-self: end;
   max-width: 560px;
   width: 100%;
 }
-.hero > .subtitle        { grid-area: sub; }
-.hero > .hero-contact    { grid-area: gh; justify-self: end; align-self: center; }
+.hero .subtitle        { grid-area: sub; }
+.hero .hero-contact    { grid-area: gh; justify-self: end; align-self: center; }
 .hero-contact {
   display: flex;
   align-items: center;
@@ -196,7 +250,7 @@
   }
   .hero > .title { align-self: baseline; white-space: normal; }
   .hero > .gh-contrib-label{ align-self: baseline; }
-  .hero > .gh-contrib-grid-wrap{
+  .hero .gh-contrib-grid-wrap{
     justify-self: stretch;
     max-width: none;
   }

@@ -4,6 +4,7 @@ import BgVariantB from "../components/BgVariantB";
 import TubesCursorOverlay from "../components/TubesCursorOverlay";
 import { ContribLabel, ContribGrid } from "../components/GithubContributions";
 import FloatingHead from "../components/FloatingHead";
+import CopyEmail from "../components/CopyEmail";
 import "./Landing.css";
 
 /* Inline icons (no emojis) */
@@ -85,6 +86,9 @@ export default function Landing() {
   const wrapRef = useRef(null);
   const [hoveredCard, setHoveredCard] = useState(null);
   const [vortexTarget, setVortexTarget] = useState(null);
+  const [headFocus, setHeadFocus] = useState(false);
+  const [gridFocus, setGridFocus] = useState(false);
+  const [gridEl, setGridEl] = useState(null);
 
   // Card refs for magnet targeting
   const cardRefs = useRef({});
@@ -120,7 +124,7 @@ export default function Landing() {
   const PU = process.env.PUBLIC_URL;
 
   return (
-    <div className={`landing${hoveredCard ? " card-focus" : ""}`}>
+    <div className={`landing${hoveredCard ? " card-focus" : ""}${headFocus ? " head-focus" : ""}${gridFocus ? " gh-focus" : ""}`}>
       {/* Background */}
       <BgVariantB
         magnetTarget={magnetTarget}
@@ -132,10 +136,29 @@ export default function Landing() {
 
       <div className="wrap" ref={wrapRef}>
         <header className="hero">
-          <FloatingHead hoveredCard={hoveredCard} onHoverChange={setVortexTarget} />
+          <FloatingHead
+            hoveredCard={hoveredCard}
+            lookTarget={gridFocus ? gridEl : null}
+            onHoverChange={(el) => {
+              setVortexTarget(el);
+              setHeadFocus(!!el); // hovering the portrait quiets the rest, like a card
+            }}
+          />
           <h1 className="title">Hyder Mohyuddin</h1>
           <ContribLabel username="hmohyud" />
-          <ContribGrid username="hmohyud" />
+          {/* the grid is the trigger, deliberately not the links below it -
+              inspecting a year of commits earns the focus, brushing past an
+              email link should not make the page flinch */}
+          <span
+            style={{ display: "contents" }}
+            onMouseEnter={(e) => {
+              setGridFocus(true);
+              setGridEl(e.target.closest(".gh-contrib-grid-wrap") || e.target);
+            }}
+            onMouseLeave={() => setGridFocus(false)}
+          >
+            <ContribGrid username="hmohyud" />
+          </span>
           {/* Wrapper is display:contents by default, so on desktop these two
               still land in their own grid areas exactly as before. On a phone
               it becomes a flex row spanning the full width, which keeps the
@@ -145,9 +168,7 @@ export default function Landing() {
           <div className="hero-meta">
             <p className="subtitle">AI &amp; Software • Systems • Interfaces</p>
             <div className="hero-contact" role="group" aria-label="Contact links">
-              <a className="hero-gh-link" href="mailto:hyder.mohyuddin@gmail.com">
-                hyder.mohyuddin@gmail.com
-              </a>
+              <CopyEmail className="hero-gh-link" email="hyder.mohyuddin@gmail.com" />
               <span className="hero-contact-sep" aria-hidden="true">·</span>
               <a
                 className="hero-gh-link gh"
@@ -174,7 +195,10 @@ export default function Landing() {
             (React/JS, D3, Flask). For the full toolset and stack, see my resume.
           </p> */}
           <p className="mission">
-            I build dependable AI tools and interfaces. At UChicago with <strong>Professor Jason Salavon</strong>, I absorbed responsibilities previously held across three <strong>CS M.S. teammates</strong> and got comfortable being handed unknowns—researching, shipping, and owning production systems. Recent work: real-time tensor devtools for <strong>Stable Diffusion/ComfyUI</strong> (custom memory routing, layer-targeted transforms, node instrumentation) and a production <strong>SPIM research UI</strong> (controls + analysis). Also experienced with <strong>GPT models</strong> and <strong>modern web development</strong> (React/JS, D3, Flask). I built this site to showcase my skills and how I work—see my <strong>resume</strong> for the full stack.
+            {/* the text is its own span so focus states can dim it without
+                dimming the portrait, which portals INTO this paragraph on
+                tablet - the float wraps identically either way */}
+            <span className="mission-text">I build dependable AI tools and interfaces. At UChicago with <strong>Professor Jason Salavon</strong>, I absorbed responsibilities previously held across three <strong>CS M.S. teammates</strong> and got comfortable being handed unknowns—researching, shipping, and owning production systems. Recent work: real-time tensor devtools for <strong>Stable Diffusion/ComfyUI</strong> (custom memory routing, layer-targeted transforms, node instrumentation) and a production <strong>SPIM research UI</strong> (controls + analysis). Also experienced with <strong>GPT models</strong> and <strong>modern web development</strong> (React/JS, D3, Flask). I built this site to showcase my skills and how I work—see my <strong>resume</strong> for the full stack.</span>
           </p>
 
         </header>
