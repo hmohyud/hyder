@@ -2,6 +2,11 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import * as THREE from "three";
 import "./FloatingHead.css";
+/* Hand-painted point regions (eyes, mouth seam, jaw) exported from
+   point-picker.html. Regenerate with `node serve-picker.mjs` after any change
+   to head-points.bin - the indices are only valid for the sampling they were
+   painted on, which is why load() checks pointCount before using them. */
+import headRegions from "./headRegions.json";
 
 /**
  * A 3D portrait rendered as a cloud of ember-coloured points, parked in the
@@ -131,21 +136,163 @@ function makeSprite() {
   return new THREE.CanvasTexture(cv);
 }
 
-const VERT = [
-  "attribute vec3 aColor;",
-  "uniform float uSize;",
-  "uniform float uDpr;",
-  "varying vec3 vColor;",
-  "varying float vFacing;",
-  "void main() {",
-  "  vColor = aColor;",
-  "  vec4 mv = modelViewMatrix * vec4(position, 1.0);",
-  "  vec3 n = normalize(normalMatrix * normal);",
-  "  vFacing = smoothstep(-0.35, 0.55, n.z);",
-  "  gl_PointSize = (uSize * uDpr) / max(0.001, -mv.z);",
-  "  gl_Position = projectionMatrix * mv;",
-  "}",
-].join("\n");
+/* Blink ellipsoids, derived from the painted eye regions. The paint marks the
+   visible eyeball; the pads stretch each radius so the lids and a little brow
+   come along, since a blink that only moves the eyeball line reads as a squint.
+   The lid line each eye collapses toward sits just below the eye's centre. */
+const eyeParams = (r) => {
+  const c = r.center;
+  const rad = [r.halfExtents[0] * 1.35, r.halfExtents[1] * 2.3, r.halfExtents[2] * 2.0];
+  return { c, rad, lid: c[1] - 0.35 * rad[1] };
+};
+const EYE_L = eyeParams(headRegions.regions.eyeScreenLeft);
+const EYE_R = eyeParams(headRegions.regions.eyeScreenRight);
+/* While talking, the painted mouth-seam area glows with the speech envelope -
+   on an additive point cloud, light reads as voice far better than mechanics
+   do. The ellipsoid is the painted seam, padded tall so both lips catch it. */
+const MOUTH_GLOW = (() => {
+  const m = headRegions.regions.mouth;
+  return {
+    c: m.center,
+    r: [m.halfExtents[0] * 1.25, m.halfExtents[1] * 3.0, m.halfExtents[2] * 1.8],
+  };
+})();
+const LIP_GAP = 0.10; // how far the lower lip drops at uMouth = 1
+const MOUTH_CX = headRegions.regions.mouth.center[0];
+const MOUTH_X0 = headRegions.regions.mouth.min[0];
+const MOUTH_X1 = headRegions.regions.mouth.max[0];
+
+/* Two-letter sounds that deserve one mouth shape instead of two quick ones -
+   "th" is in the most common word in the language. Consumed with a lookahead. */
+const DIGRAPHS = {
+  sh: [0.28, 0.72, 95], ch: [0.25, 0.88, 85], th: [0.3, 1.1, 80],
+  ph: [0.12, 1.1, 70], wh: [0.3, 0.65, 85], qu: [0.3, 0.75, 85],
+  ee: [0.38, 1.32, 110], oo: [0.5, 0.6, 110],
+};
+
+/* ---------- jibberish voice ----------
+   Animalese / Hollow-Knight-style: a tiny pitched blip per viseme step,
+   synthesised from nothing - no assets, no TTS, and perfectly in sync with
+   the mouth because the same sequencer step fires both. Vowels are low and
+   round, sibilants chirp high, plosives are short ticks, and spaces and
+   punctuation are the rests. Each reply picks a slightly different base
+   pitch so answers do not all sound identical. */
+let audioCtx = null;
+const ensureAudio = () => {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    audioCtx = new AC();
+  }
+  if (audioCtx.state === "suspended") audioCtx.resume();
+};
+const BLIP_PITCH = {
+  a: 200, e: 250, i: 300, o: 168, u: 148,
+  m: 140, n: 150,
+  s: 900, z: 850, f: 800, c: 760, x: 780,
+  t: 520, d: 480, k: 540, g: 460, p: 500, b: 440, q: 520,
+  l: 260, r: 240, w: 190, y: 280, h: 230, j: 300, v: 320,
+  sh: 700, ch: 640, th: 300, ph: 800, wh: 190, qu: 400, ee: 310, oo: 150,
+};
+function speakBlip(key, base) {
+  if (!audioCtx || audioCtx.state !== "running") return;
+  const f0 = BLIP_PITCH[key];
+  if (!f0) return; // spaces and punctuation are the rests
+  const plosive = key.length === 1 && "tdkgpbq".indexOf(key) >= 0;
+  const dur = plosive ? 0.035 : key.length > 1 ? 0.09 : 0.07;
+  const t0 = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = "triangle";
+  const f = f0 * base * (0.94 + Math.random() * 0.12);
+  osc.frequency.setValueAtTime(f, t0);
+  osc.frequency.exponentialRampToValueAtTime(f * 0.8, t0 + dur);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(plosive ? 0.05 : 0.09, t0 + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(g);
+  g.connect(audioCtx.destination);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.02);
+}
+
+/* Letter-class visemes: [openness, width, duration ms]. The reply text is the
+   ground truth for what the head is "saying", so the mouth is shaped per
+   character class at speaking pace - open for vowels, rounded (width < 1) for
+   o/u/w, spread (width > 1) for e/i/s, fully closed for the bilabials m/b/p,
+   longer closures on punctuation. Letter-level approximation, not phonemes,
+   but at dot resolution the closures and the rounding are what read. */
+const VISEMES = {
+  a: [0.85, 1.0, 78], e: [0.5, 1.25, 70], i: [0.38, 1.3, 66],
+  o: [0.7, 0.7, 84], u: [0.42, 0.6, 84],
+  m: [0.03, 1.0, 70], b: [0.04, 1.0, 62], p: [0.04, 1.0, 62],
+  f: [0.12, 1.12, 64], v: [0.12, 1.12, 64], w: [0.3, 0.62, 76],
+  s: [0.16, 1.18, 70], z: [0.16, 1.15, 64], c: [0.2, 1.1, 62],
+  t: [0.2, 1.05, 55], d: [0.22, 1.05, 55], n: [0.18, 1.05, 55],
+  l: [0.28, 1.08, 60], r: [0.3, 0.9, 62],
+  g: [0.32, 0.95, 60], k: [0.3, 0.95, 60], q: [0.3, 0.8, 64],
+  j: [0.26, 1.1, 62], y: [0.3, 1.15, 62], h: [0.32, 1.0, 55], x: [0.2, 1.1, 62],
+  " ": [0.06, 1.0, 95], "\n": [0.04, 1.0, 130],
+  ".": [0.02, 1.0, 300], ",": [0.05, 1.0, 180], "!": [0.02, 1.0, 300],
+  "?": [0.02, 1.0, 300], ";": [0.03, 1.0, 220], ":": [0.04, 1.0, 200],
+};
+const VISEME_OTHER = [0.3, 1.0, 62];
+
+const g4 = (v) => v.toFixed(4);
+const gv3 = (a) => `vec3(${g4(a[0])}, ${g4(a[1])}, ${g4(a[2])})`;
+
+const VERT = `
+attribute vec3 aColor;
+attribute float aJaw;
+uniform float uSize;
+uniform float uDpr;
+uniform float uBlink;
+uniform float uMouth;
+uniform float uMouthW;
+uniform float uRegions;
+varying vec3 vColor;
+varying float vFacing;
+varying float vGlow;
+
+float eyeW(vec3 p, vec3 c, vec3 r) {
+  return 1.0 - smoothstep(0.45, 1.0, length((p - c) / r));
+}
+
+void main() {
+  vColor = aColor;
+  vGlow = 0.0;
+  vec3 p = position;
+  /* uRegions gates on the real head: the procedural stand-in shares this
+     shader, and without the gate a blink would dent a random patch of it. */
+  if (uRegions > 0.5) {
+    p.y = mix(p.y, ${g4(EYE_L.lid)}, eyeW(p, ${gv3(EYE_L.c)}, ${gv3(EYE_L.rad)}) * uBlink);
+    p.y = mix(p.y, ${g4(EYE_R.lid)}, eyeW(p, ${gv3(EYE_R.c)}, ${gv3(EYE_R.rad)}) * uBlink);
+    /* talk: the lips part locally. aJaw is a signed weight baked around the
+       painted mouth seam - negative just below it (lower lip, drops), a
+       smaller positive just above (upper lip, lifts) - fading out at the
+       corners and within a short distance of the seam. The opening lives at
+       the mouth and nowhere else; the jaw and chin do not move at all. */
+    p.y += uMouth * ${g4(LIP_GAP)} * aJaw;
+    /* width channel, corner-weighted: real lips round and spread from the
+       CORNERS - the centre barely travels, so a uniform horizontal scale
+       reads as the mouth shrink-wrapping. Rounding also puckers the lips
+       forward (+z) and spreading flattens them back; that depth cue is most
+       of what makes an "oo" look like an "oo". */
+    float wLip = smoothstep(0.02, 0.2, abs(aJaw));
+    float uAx = clamp((2.0 * p.x - (${g4(MOUTH_X0)}) - (${g4(MOUTH_X1)})) / ${g4(MOUTH_X1 - MOUTH_X0)}, -1.0, 1.0);
+    float cornerW = smoothstep(0.1, 0.85, abs(uAx));
+    p.x += (p.x - (${g4(MOUTH_CX)})) * (uMouthW - 1.0) * 0.6 * wLip * cornerW;
+    p.z += (1.0 - uMouthW) * 0.1 * wLip;
+    vGlow = uMouth * (1.0 - smoothstep(0.35, 1.0, length((p - ${gv3(MOUTH_GLOW.c)}) / ${gv3(MOUTH_GLOW.r)})));
+  }
+  vec4 mv = modelViewMatrix * vec4(p, 1.0);
+  vec3 n = normalize(normalMatrix * normal);
+  vFacing = smoothstep(-0.35, 0.55, n.z);
+  /* speaking dots swell with the glow - additive sprites overlap and fuse,
+     so the moving lip reads as a continuous band instead of separate dots */
+  gl_PointSize = ((uSize * uDpr) / max(0.001, -mv.z)) * (1.0 + 0.4 * vGlow);
+  gl_Position = projectionMatrix * mv;
+}`;
 
 const FRAG = [
   "uniform sampler2D uMap;",
@@ -153,6 +300,7 @@ const FRAG = [
   "uniform float uTintMix;",
   "varying vec3 vColor;",
   "varying float vFacing;",
+  "varying float vGlow;",
   "void main() {",
   "  vec4 t = texture2D(uMap, gl_PointCoord);",
   "  float a = t.a * (0.10 + 0.90 * vFacing);",
@@ -160,6 +308,7 @@ const FRAG = [
   // keep each point's own brightness when tinting, so the shading survives
   "  float lum = max(max(vColor.r, vColor.g), vColor.b);",
   "  vec3 col = mix(vColor, uTint * lum, uTintMix);",
+  "  col *= 1.0 + 1.35 * vGlow;",
   "  gl_FragColor = vec4(col, a);",
   "}",
 ].join("\n");
@@ -312,6 +461,10 @@ export default function FloatingHead({
         uDpr: { value: dpr },
         uTint: { value: new THREE.Vector3(1, 1, 1) },
         uTintMix: { value: 0 },
+        uBlink: { value: 0 },
+        uMouth: { value: 0 },
+        uMouthW: { value: 1 },
+        uRegions: { value: 0 },
       },
       vertexShader: VERT,
       fragmentShader: FRAG,
@@ -319,11 +472,99 @@ export default function FloatingHead({
       depthWrite: false,
       blending: THREE.AdditiveBlending,
     });
+    /* tuning hooks: __fhU exposes the uniforms, __fhSay feeds text into the
+       viseme sequencer without spending an API call */
+    window.__fhU = material.uniforms;
+    window.__fhSay = (txt) => {
+      ensureAudio();
+      stateRef.current.talkBuf = (stateRef.current.talkBuf || "") + String(txt);
+    };
 
     const load = (data) => {
       geometry.setAttribute("position", new THREE.BufferAttribute(data.position, 3));
       geometry.setAttribute("normal", new THREE.BufferAttribute(data.normal, 3));
       const n = data.position.length / 3;
+
+      /* Signed per-point talk weight around the painted mouth seam.
+         The seam dots are brush strokes, so using them raw makes the split
+         line a staircase of nearest-dot steps - instead a least-squares
+         quadratic is fitted through them, which keeps the seam's real curve
+         while averaging the brush noise away. The corner tapers anchor at the
+         seam's painted END points, not its mean - the paint is denser on one
+         side, and a mean-centred taper is what made the gap lopsided.
+         The opening's height follows an elliptical arch across the width -
+         sqrt(1 - u^2), full at the centre, closing to points at the corners -
+         so the gap is a vesica piscis rather than a slot: a constant-height
+         gap with end-caps reads as a rectangle, not a mouth.
+         Weights: -1 just below the curve (lower lip, drops), +0.35 just
+         above (upper lip, lifts), scaled by the arch, gated away from the
+         face's front, and fading within ~0.28 below / ~0.14 above. */
+      const jawW = new Float32Array(n);
+      let hasRegions = 0;
+      if (n === headRegions.pointCount) {
+        hasRegions = 1;
+        const sm = (a, b, v) => {
+          const t = Math.min(1, Math.max(0, (v - a) / (b - a)));
+          return t * t * (3 - 2 * t);
+        };
+        const m = headRegions.regions.mouth;
+        let Sx = 0, Sx2 = 0, Sx3 = 0, Sx4 = 0, Sy = 0, Sxy = 0, Sx2y = 0;
+        const k = m.indices.length;
+        for (const si of m.indices) {
+          const X = data.position[si * 3];
+          const Y = data.position[si * 3 + 1];
+          const X2 = X * X;
+          Sx += X; Sx2 += X2; Sx3 += X2 * X; Sx4 += X2 * X2;
+          Sy += Y; Sxy += X * Y; Sx2y += X2 * Y;
+        }
+        const A = [[k, Sx, Sx2], [Sx, Sx2, Sx3], [Sx2, Sx3, Sx4]];
+        const B = [Sy, Sxy, Sx2y];
+        const det3 = (M) =>
+          M[0][0] * (M[1][1] * M[2][2] - M[1][2] * M[2][1]) -
+          M[0][1] * (M[1][0] * M[2][2] - M[1][2] * M[2][0]) +
+          M[0][2] * (M[1][0] * M[2][1] - M[1][1] * M[2][0]);
+        const D = det3(A) || 1;
+        const rep = (M, c, v) => M.map((row, r) => row.map((val, cc) => (cc === c ? v[r] : val)));
+        let q0 = det3(rep(A, 0, B)) / D;
+        let q1 = det3(rep(A, 1, B)) / D;
+        let q2 = det3(rep(A, 2, B)) / D;
+        const x0 = m.min[0];
+        const x1 = m.max[0];
+        /* Expression control: the painted seam droops a little at the corners,
+           and an opening whose midline droops reads as a frown on every word.
+           Clamp the fitted curvature so the corners sit at worst level with
+           the centre and at best a touch above - neutral to slight smile. The
+           correction is anchored at the centre (adds zero there), so the gap
+           stays on the painted seam where it is widest; the corners drift up
+           at most ~0.02, where the arch has already closed the gap anyway. */
+        const halfW = (x1 - x0) / 2;
+        const cornerLift = q2 * halfW * halfW;   // corner height minus centre
+        const target = Math.max(cornerLift, 0.018);
+        const dq2 = (target - cornerLift) / (halfW * halfW);
+        const xc = (x0 + x1) / 2;
+        q0 += dq2 * xc * xc;
+        q1 -= 2 * dq2 * xc;
+        q2 += dq2;
+        for (let i = 0; i < n; i++) {
+          const x = data.position[i * 3];
+          const y = data.position[i * 3 + 1];
+          const z = data.position[i * 3 + 2];
+          const u = (2 * x - x0 - x1) / (x1 - x0);
+          const arch = Math.sqrt(Math.max(0, 1 - u * u));
+          const gz = sm(0.4, 0.62, z);
+          const g = arch * gz;
+          if (g <= 0) continue;
+          const cx = Math.min(x1, Math.max(x0, x));
+          const dy = y - (q0 + q1 * cx + q2 * cx * cx);
+          jawW[i] =
+            g *
+            (dy <= 0
+              ? -(1 - sm(0.06, 0.3, -dy))
+              : 0.35 * (1 - sm(0.04, 0.16, dy)));
+        }
+      }
+      geometry.setAttribute("aJaw", new THREE.BufferAttribute(jawW, 1));
+      material.uniforms.uRegions.value = hasRegions;
       const colors = new Float32Array(n * 3);
       let minY = Infinity;
       let maxY = -Infinity;
@@ -460,6 +701,9 @@ export default function FloatingHead({
         group.position.y =
           (Math.sin(w * 0.79) * 0.055 + Math.sin(w * 1.41) * 0.018) * shift;
         group.position.x = Math.cos(w * 0.67) * 0.03 * shift;
+        // a faint nod while speaking - most of what sells "talking" is here,
+        // not in the mouth itself
+        group.rotation.x += (s.mouth || 0) * 0.035 * Math.sin(w * 5.1);
       }
 
       // ease the hover tint in and out
@@ -467,6 +711,96 @@ export default function FloatingHead({
       s.tintMix += ((s.wantTint ? 1 : 0) - s.tintMix) * (1 - Math.exp(-7 * dt));
       material.uniforms.uTintMix.value = s.tintMix;
       material.uniforms.uTint.value.set(s.tint[0], s.tint[1], s.tint[2]);
+
+      /* ---- blink + talk ----
+         Blink: a 160ms sine pulse at random 3-7s intervals, occasionally
+         doubled - the double is most of what makes it read as alive rather
+         than metronomic. Talk: the jaw flaps while reply chunks are actually
+         arriving (send() stamps lastChunkAt), openness wandering on two
+         incommensurate sines so it chews rather than oscillates; it eases
+         shut in pauses and when the stream ends. window.__fhForce lets both
+         values be pinned from the console for tuning. */
+      if (s.reduced) {
+        material.uniforms.uBlink.value = 0;
+        material.uniforms.uMouth.value = 0;
+        material.uniforms.uMouthW.value = 1;
+      } else {
+        if (!s.nextBlinkAt) s.nextBlinkAt = t + 1400 + Math.random() * 2600;
+        if (t >= s.nextBlinkAt) {
+          s.blinkStart = t;
+          /* each blink draws its own duration from a tight band - the fixed
+             160ms was metronomic, and two identical blinks in a row is
+             exactly what the eye clocks as mechanical */
+          s.blinkDur = 210 + Math.random() * 70;
+          s.nextBlinkAt = t + 2800 + Math.random() * 4200;
+          s.doubleBlinkAt = Math.random() < 0.22 ? t + s.blinkDur + 90 : 0;
+        }
+        if (s.doubleBlinkAt && t >= s.doubleBlinkAt) {
+          s.blinkStart = t;
+          s.blinkDur = (s.blinkDur || 240) * 0.85; // the second of a pair is quicker
+          s.doubleBlinkAt = 0;
+        }
+        const bp = (t - (s.blinkStart || -1e9)) / (s.blinkDur || 240);
+        /* asymmetric on purpose: lids snap shut in the first third and release
+           slowly over the rest - a symmetric pulse reads as a camera shutter */
+        let blink = 0;
+        if (bp >= 0 && bp < 1) {
+          blink =
+            bp < 0.35
+              ? Math.sin((bp / 0.35) * (Math.PI / 2))
+              : Math.cos(((bp - 0.35) / 0.65) * (Math.PI / 2));
+        }
+
+        /* viseme sequencer: step through the streamed reply text at speaking
+           pace, one character class at a time. The stream arrives far faster
+           than speech, so the backlog is capped at 120 chars (the mouth ends
+           within ~6s of the last chunk) and it hurries when more than 40
+           behind - a fast talker rather than an endless one. */
+        const buf = s.talkBuf || "";
+        if (s.talkPos == null) s.talkPos = 0;
+        if (buf.length - s.talkPos > 120) s.talkPos = buf.length - 120;
+        const talking = s.talkPos < buf.length;
+        if (talking && t >= (s.talkNext || 0)) {
+          let key = buf.charAt(s.talkPos).toLowerCase();
+          const pair = key + buf.charAt(s.talkPos + 1).toLowerCase();
+          let v;
+          if (DIGRAPHS[pair]) {
+            v = DIGRAPHS[pair];
+            key = pair;
+            s.talkPos += 2;
+          } else {
+            v = VISEMES[key] || VISEME_OTHER;
+            s.talkPos += 1;
+          }
+          const hurry = buf.length - s.talkPos > 40 ? 0.55 : 1;
+          s.vOpen = v[0];
+          s.vWidth = v[1];
+          s.talkNext = t + v[2] * hurry * (0.85 + Math.random() * 0.3);
+          speakBlip(key, s.voicePitch || 1);
+        }
+        const mouthTarget = talking ? s.vOpen || 0 : 0;
+        const widthTarget = talking ? s.vWidth || 1 : 1;
+        s.mouth = s.mouth || 0;
+        /* gentle attack on purpose: sparse dots snapping between positions is
+           what jitter looks like - they glide instead */
+        s.mouth +=
+          (mouthTarget - s.mouth) *
+          (1 - Math.exp(-(mouthTarget > s.mouth ? 16 : 11) * dt));
+        s.mouthW = s.mouthW == null ? 1 : s.mouthW;
+        s.mouthW += (widthTarget - s.mouthW) * (1 - Math.exp(-12 * dt));
+        let mouth = s.mouth;
+        let mouthW = s.mouthW;
+
+        const force = window.__fhForce;
+        if (force) {
+          if (force.blink != null) blink = force.blink;
+          if (force.mouth != null) mouth = force.mouth;
+          if (force.mouthW != null) mouthW = force.mouthW;
+        }
+        material.uniforms.uBlink.value = blink;
+        material.uniforms.uMouth.value = mouth;
+        material.uniforms.uMouthW.value = mouthW;
+      }
 
       renderer.render(scene, camera);
     };
@@ -629,6 +963,11 @@ export default function FloatingHead({
     setMsgs(history.concat({ role: "assistant", content: "" }));
     setDraft("");
     setBusy(true);
+    stateRef.current.talkBuf = "";
+    stateRef.current.talkPos = 0;
+    stateRef.current.talkNext = 0;
+    stateRef.current.voicePitch = 0.95 + Math.random() * 0.2;
+    ensureAudio(); // sending IS the user gesture autoplay policy wants
 
     const replace = (content) =>
       setMsgs((prev) => {
@@ -657,17 +996,28 @@ export default function FloatingHead({
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
-        acc += decoder.decode(value, { stream: true });
+        const piece = decoder.decode(value, { stream: true });
+        acc += piece;
+        // feed the viseme sequencer - the mouth sounds out this exact text
+        stateRef.current.talkBuf = (stateRef.current.talkBuf || "") + piece;
         replace(acc);
       }
-      if (!acc.trim()) replace("(no answer came back)");
+      if (!acc.trim()) {
+        const none = "(no answer came back)";
+        replace(none);
+        stateRef.current.talkBuf += none;
+      }
     } catch (err) {
       const said = String((err && err.message) || "");
-      replace(
-        said.includes(" ")
-          ? said
-          : "I couldn't reach the model just now — email hyder.mohyuddin@gmail.com and you'll get a real reply."
-      );
+      const msg = said.includes(" ")
+        ? said
+        : "I couldn't reach the model just now — email hyder.mohyuddin@gmail.com and you'll get a real reply.";
+      replace(msg);
+      /* refusals and failures go through the same mouth as answers - the head
+         apologising in silence while text appears reads as broken, and the
+         daily-cap message is the one visitors most deserve to be told out
+         loud. The buffer was reset at send, so this voices exactly this. */
+      stateRef.current.talkBuf += msg;
     } finally {
       setBusy(false);
     }
