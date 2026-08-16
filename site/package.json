@@ -55,6 +55,7 @@
   },
   "devDependencies": {
     "gh-pages": "^6.3.0",
+    "meshoptimizer": "^1.2.0",
     "puppeteer": "^24.37.2",
     "puppeteer-screen-recorder": "^3.0.6"
   }

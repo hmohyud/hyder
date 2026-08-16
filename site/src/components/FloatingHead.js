@@ -64,6 +64,11 @@ const GAZE_RADIUS_BASE = 135;
 
 const POINT_COUNT = 4200; // procedural stand-in only
 const POINTS_URL = process.env.PUBLIC_URL + "/head-points.bin";
+/* the TRUE head surface, decimated and registered into the cloud's exact
+   frame by build-head-shell.mjs (median registration residual ~0.009 in
+   cloud units - a quarter of the dot spacing). Drawn depth-only, it makes
+   the cloud self-occlude like the solid head it samples. */
+const SHELL_URL = process.env.PUBLIC_URL + "/head-shell.bin";
 
 /* The deployed worker is the default so the chat works everywhere without a
    build-time variable — `npm start`, a bare `npm run build`, a fresh clone.
@@ -77,19 +82,32 @@ const CHAT_LOG_KEY = "fh-chat-log";
 
 /* Typed into the empty input as a cycling ghost placeholder - questions the
    bot genuinely answers well, so the suggestion is also a promise kept. */
+/* closers for the ghost trick's re-solidify moment - page-timed (the model
+   has long finished by then), varied because sameness reads as canned */
+const SOLID_LINES = [
+  "...and I'm solid again. That's the whole act.",
+  "...and back to solid. Matter suits me better.",
+  "...aaand I've re-materialised. Encores cost extra.",
+  "...solid again. The dots missed each other.",
+];
+
 const GHOST_QUESTIONS = [
   "do you design websites?",
   "have you managed databases?",
   "do you build mobile apps?",
   "have you worked with LLMs?",
+  "do a trick",
   "are you available for contract work?",
   "what stack do you usually reach for?",
   "how many projects have you shipped?",
+  "become a ghost",
   "what are you looking for next?",
   "do you like teaching?",
   "can you work in the UK?",
+  "do a spin",
   "why is your head made of dots?",
   "what is SPIM?",
+  "go blue",
 ];
 
 const DEFAULT_CHAT_ENDPOINT = "https://hyder-chat.hmohyud.workers.dev";
@@ -284,6 +302,7 @@ uniform float uRegions;
 varying vec3 vColor;
 varying float vFacing;
 varying float vGlow;
+varying float vKey;
 
 float eyeW(vec3 p, vec3 c, vec3 r) {
   return 1.0 - smoothstep(0.45, 1.0, length((p - c) / r));
@@ -316,6 +335,9 @@ void main() {
     p.z += (1.0 - uMouthW) * 0.1 * wLip;
     vGlow = uMouth * (1.0 - smoothstep(0.35, 1.0, length((p - ${gv3(MOUTH_GLOW.c)}) / ${gv3(MOUTH_GLOW.r)})));
   }
+  /* distance from the crown: the colour trick's wash sweeps this field,
+     so the tint pours down over the head instead of switching on */
+  vKey = length(p - vec3(0.0, 1.35, 0.0));
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   vec3 n = normalize(normalMatrix * normal);
   vFacing = smoothstep(-0.35, 0.55, n.z);
@@ -329,16 +351,25 @@ const FRAG = [
   "uniform sampler2D uMap;",
   "uniform vec3 uTint;",
   "uniform float uTintMix;",
+  "uniform float uTintEdge;",
+  "uniform float uGhost;",
   "varying vec3 vColor;",
   "varying float vFacing;",
   "varying float vGlow;",
+  "varying float vKey;",
   "void main() {",
   "  vec4 t = texture2D(uMap, gl_PointCoord);",
-  "  float a = t.a * (0.10 + 0.90 * vFacing);",
+  // the back-face floor RISES while ghosted: the trick is showing the far
+  // side, and at the solid-state floor of 2% there would be nothing to see
+  "  float fl = 0.02 + 0.35 * uGhost;",
+  "  float a = t.a * (fl + (1.0 - fl) * vFacing);",
   "  if (a < 0.012) discard;",
   // keep each point's own brightness when tinting, so the shading survives
   "  float lum = max(max(vColor.r, vColor.g), vColor.b);",
-  "  vec3 col = mix(vColor, uTint * lum, uTintMix);",
+  // wave front: dots the sweep has passed are tinted, dots ahead are not;
+  // the hover tint parks the edge at 99 so it covers instantly as before
+  "  float wave = 1.0 - smoothstep(uTintEdge - 0.35, uTintEdge + 0.05, vKey);",
+  "  vec3 col = mix(vColor, uTint * lum, uTintMix * wave);",
   "  col *= 1.0 + 1.35 * vGlow;",
   "  gl_FragColor = vec4(col, a);",
   "}",
@@ -543,6 +574,8 @@ export default function FloatingHead({
         uDpr: { value: dpr },
         uTint: { value: new THREE.Vector3(1, 1, 1) },
         uTintMix: { value: 0 },
+        uTintEdge: { value: 99 },
+        uGhost: { value: 0 },
         uBlink: { value: 0 },
         uMouth: { value: 0 },
         uMouthW: { value: 1 },
@@ -552,7 +585,30 @@ export default function FloatingHead({
       fragmentShader: FRAG,
       transparent: true,
       depthWrite: false,
+      depthTest: true,
       blending: THREE.AdditiveBlending,
+    });
+    /* invisible, depth-only; opaque, so three.js renders it before the
+       additive pass. DoubleSide: the far hemisphere is deeper and always
+       loses the depth test, so winding never matters. */
+    const shellMaterial = new THREE.ShaderMaterial({
+      /* slope-scaled offset on top of the constant view-space bias below -
+         handles grazing angles the constant term cannot (shadow-bias lesson) */
+      polygonOffset: true,
+      polygonOffsetFactor: 2,
+      polygonOffsetUnits: 2,
+      /* the shell IS the surface the dots sit on, so it is pushed back in
+         view space; 0.06 clears crease walls at grazing angles while staying
+         far under the ~0.3 chin-to-neck gap. It is a UNIFORM because the
+         ghost trick eases it: sliding the shell far behind the head makes
+         hidden dots reappear nearest-first - a visible depth peel rather
+         than a snap. */
+      uniforms: { uShellBias: { value: 0.06 } },
+      vertexShader:
+        "uniform float uShellBias; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); mv.z -= uShellBias; gl_Position = projectionMatrix * mv; }",
+      fragmentShader: "void main(){ gl_FragColor = vec4(0.0); }",
+      colorWrite: false,
+      depthWrite: true,
     });
     /* tuning hooks: __fhU exposes the uniforms, __fhSay feeds text into the
        viseme sequencer without spending an API call */
@@ -564,6 +620,7 @@ export default function FloatingHead({
       stateRef.current.talkBuf = (stateRef.current.talkBuf || "") + String(txt);
     };
 
+    let shellMesh = null;
     const load = (data) => {
       geometry.setAttribute("position", new THREE.BufferAttribute(data.position, 3));
       geometry.setAttribute("normal", new THREE.BufferAttribute(data.normal, 3));
@@ -671,8 +728,6 @@ export default function FloatingHead({
       }
       geometry.setAttribute("aColor", new THREE.BufferAttribute(colors, 3));
       geometry.computeBoundingSphere();
-
-
     };
     load(proceduralPoints(POINT_COUNT));
 
@@ -723,6 +778,50 @@ export default function FloatingHead({
       }
     })();
 
+    /* exact-surface occlusion shell - fetched separately, so a miss just
+       means no occlusion, never a broken head */
+    (async () => {
+      try {
+        const res = await fetch(SHELL_URL);
+        if (!res.ok) return;
+        const buf = await res.arrayBuffer();
+        if (cancelled || buf.byteLength < 12) return;
+        const view = new DataView(buf);
+        const magic =
+          String.fromCharCode(view.getUint8(0)) +
+          String.fromCharCode(view.getUint8(1)) +
+          String.fromCharCode(view.getUint8(2)) +
+          String.fromCharCode(view.getUint8(3));
+        if (magic !== "HSH2") return;
+        const vCount = view.getUint32(4, true);
+        const iCount = view.getUint32(8, true);
+        const quant = view.getFloat32(12, true) || 12000;
+        const packed = new Int16Array(buf, 16, vCount * 3);
+        const verts = new Float32Array(vCount * 3);
+        for (let i = 0; i < vCount * 3; i++) verts[i] = packed[i] / quant;
+        const IndexArr = vCount >= 65536 ? Uint32Array : Uint16Array;
+        const idxOff = 16 + vCount * 6;
+        const idx = new IndexArr(iCount);
+        for (let i = 0; i < iCount; i++) {
+          idx[i] = vCount >= 65536
+            ? view.getUint32(idxOff + i * 4, true)
+            : view.getUint16(idxOff + i * 2, true);
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute("position", new THREE.BufferAttribute(verts, 3));
+        geo.setIndex(new THREE.BufferAttribute(idx, 1));
+        if (shellMesh) {
+          group.remove(shellMesh);
+          shellMesh.geometry.dispose();
+        }
+        shellMesh = new THREE.Mesh(geo, shellMaterial);
+        group.add(shellMesh);
+        if (worldRef.current) worldRef.current.shell = shellMesh;
+      } catch (err) {
+        /* no shell = no occlusion; the head still renders */
+      }
+    })();
+
     /* render loop, with a capability check over the first second of frames */
     let raf = 0;
     let last = 0;
@@ -755,6 +854,16 @@ export default function FloatingHead({
       last = t;
 
       const s = stateRef.current;
+      if (s.spinFeed) {
+        // the spin trick's wind-up: smoothstepped delivery of the impulse
+        const f = s.spinFeed;
+        const e = (x) => x * x * (3 - 2 * x);
+        const p0 = e(Math.min(1, f.t / f.dur));
+        f.t += dt;
+        const p1 = e(Math.min(1, f.t / f.dur));
+        s.spin += f.total * (p1 - p0);
+        if (f.t >= f.dur) s.spinFeed = null;
+      }
       if (!s.dragging && !s.reduced) {
         // ease back toward forward instead of spinning indefinitely
         s.spin += (0 - s.spin) * (1 - Math.exp(-RETURN * dt));
@@ -813,9 +922,29 @@ export default function FloatingHead({
         group.rotation.x += (s.mouth || 0) * 0.035 * Math.sin(w * 5.1);
       }
 
-      // ease the hover tint in and out
-      if (s.wantTint) s.tint = s.wantTint;
-      s.tintMix += ((s.wantTint ? 1 : 0) - s.tintMix) * (1 - Math.exp(-7 * dt));
+      /* ghost trick: ease the shell's bias toward "far behind everything";
+         the far side then fades in nearest-first as the shell recedes
+         through the head - a depth peel the eye can follow. Reverses the
+         same way. Reduced-motion visitors get the instant flip. */
+      const gTarget = s.ghostTarget || 0;
+      s.ghost = s.ghost || 0;
+      s.ghost += (gTarget - s.ghost) * (s.reduced ? 1 : 1 - Math.exp(-0.9 * dt));
+      /* smoothstepped, and mapped across just the head's ~1.7-unit depth -
+         every frame of the ramp is visible change, so the dissolve reads as
+         a wave moving through the head instead of a blink */
+      const gS = s.ghost * s.ghost * (3 - 2 * s.ghost);
+      shellMaterial.uniforms.uShellBias.value = 0.06 + gS * 1.9;
+      material.uniforms.uGhost.value = gS;
+
+      /* tint: the colour trick outranks the hover tint. The trick's wash
+         SPREADS - uTintEdge sweeps the crown-distance field over ~1.4s -
+         then holds, then fades out uniformly when trickTint clears. The
+         hover tint keeps its old instant full-coverage behaviour. */
+      const wantTint = s.trickTint || s.wantTint;
+      if (wantTint) s.tint = wantTint;
+      s.tintMix += ((wantTint ? 1 : 0) - s.tintMix) * (1 - Math.exp(-7 * dt));
+      if (s.trickTint) s.tintWave = Math.min(1, (s.tintWave || 0) + dt / 1.4);
+      material.uniforms.uTintEdge.value = s.trickTint ? (s.tintWave || 0) * 3.2 : 99;
       material.uniforms.uTintMix.value = s.tintMix;
       material.uniforms.uTint.value.set(s.tint[0], s.tint[1], s.tint[2]);
 
@@ -971,6 +1100,11 @@ export default function FloatingHead({
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerout", onPointerOut);
       geometry.dispose();
+      clearTimeout(stateRef.current.trickTimer);
+      clearTimeout(stateRef.current.trickTimer2);
+      clearTimeout(stateRef.current.tintTimer);
+      if (shellMesh) shellMesh.geometry.dispose();
+      shellMaterial.dispose();
       if (material.uniforms.uMap.value) material.uniforms.uMap.value.dispose();
       material.dispose();
       renderer.dispose();
@@ -1112,12 +1246,67 @@ export default function FloatingHead({
     stateRef.current.voicePitch = 0.95 + Math.random() * 0.2;
     ensureAudio(); // sending IS the user gesture autoplay policy wants
 
+    /* pinned to THIS reply's slot, not the last message: the ghost trick's
+       re-solidify closer can append a bubble while a later reply is still
+       streaming, and last-message indexing would overwrite the closer with
+       stream chunks */
+    const replyAt = history.length;
     const replace = (content) =>
       setMsgs((prev) => {
         const copy = prev.slice();
-        copy[copy.length - 1] = { role: "assistant", content };
+        if (replyAt < copy.length) copy[replyAt] = { role: "assistant", content };
         return copy;
       });
+
+    /* The model triggers tricks but never controls them: it may start a
+       reply with [[ghost]] or [[spin]] (see the worker prompt), and each
+       token maps to one typed, page-controlled effect here. The model's
+       share is the two things it is good at - recognising a trick request
+       in any phrasing, and writing a fresh line about it every time. */
+    let trickFired = false;
+    const fireTrick = (kind) => {
+      trickFired = true;
+      const s = stateRef.current;
+      if (kind.startsWith("tint:")) {
+        const hex = kind.slice(6);
+        let r = parseInt(hex.slice(0, 2), 16) / 255;
+        let g = parseInt(hex.slice(2, 4), 16) / 255;
+        let b = parseInt(hex.slice(4, 6), 16) / 255;
+        /* brightness floor: the tint multiplies each dot's own luminance,
+           so "go black" would just switch the head off - keep the hue,
+           lift the level */
+        const m = Math.max(r, g, b);
+        if (m === 0) r = g = b = 0.45;
+        else if (m < 0.45) { r *= 0.45 / m; g *= 0.45 / m; b *= 0.45 / m; }
+        s.trickTint = [Math.min(1, r), Math.min(1, g), Math.min(1, b)];
+        s.tintWave = 0;
+        clearTimeout(s.tintTimer);
+        s.tintTimer = setTimeout(() => {
+          stateRef.current.trickTint = null;
+        }, 10000);
+        return;
+      }
+      if (kind === "spin") {
+        /* ~3 turns, POURED in over 1.6s with an ease-in-out rather than
+           injected in one frame - the head visibly accelerates into the
+           spin, peaks, and the frame loop's RETURN easing unwinds it,
+           exactly like letting go after a hard drag */
+        if (!s.reduced) s.spinFeed = { total: 33, t: 0, dur: 1.8 };
+        return;
+      }
+      if (s.ghostTarget === 1) return; // already mid-ghost; the line still plays
+      s.ghostTarget = 1;
+      clearTimeout(s.trickTimer);
+      clearTimeout(s.trickTimer2);
+      s.trickTimer = setTimeout(() => {
+        stateRef.current.ghostTarget = 0;
+        s.trickTimer2 = setTimeout(() => {
+          const back = SOLID_LINES[Math.floor(Math.random() * SOLID_LINES.length)];
+          setMsgs((prev) => prev.concat({ role: "assistant", content: back }));
+          stateRef.current.talkBuf = (stateRef.current.talkBuf || "") + " " + back;
+        }, 2600);
+      }, 8000);
+    };
 
     try {
       const res = await fetch(CHAT_ENDPOINT, {
@@ -1135,20 +1324,48 @@ export default function FloatingHead({
       if (!res.body) throw new Error("no body");
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
+      /* A trick token can arrive SPLIT across stream chunks, so the head of
+         the reply is held back from both the transcript and the mouth until
+         it either is a complete token or provably is not one - "[[gho"
+         flashing on screen would give the whole game away. */
       let acc = "";
+      let held = "";
+      let decided = false;
+      const flow = (final) => {
+        if (!decided) {
+          const m = held.match(/^\[\[(ghost|spin|tint:#[0-9a-fA-F]{6})\]\]\s*/);
+          if (m) {
+            fireTrick(m[1]);
+            held = held.slice(m[0].length);
+            decided = true;
+          } else if (final || held.length >= 18 || !/^\[\[?[a-z]*(:#?[0-9a-f]*)?\]?$/i.test(held)) {
+            decided = true; // provably not a directive - let it all through
+          }
+        }
+        if (decided && held) {
+          acc += held;
+          // feed the viseme sequencer - the mouth sounds out this exact text
+          stateRef.current.talkBuf = (stateRef.current.talkBuf || "") + held;
+          held = "";
+          replace(acc);
+        }
+      };
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
-        const piece = decoder.decode(value, { stream: true });
-        acc += piece;
-        // feed the viseme sequencer - the mouth sounds out this exact text
-        stateRef.current.talkBuf = (stateRef.current.talkBuf || "") + piece;
-        replace(acc);
+        held += decoder.decode(value, { stream: true });
+        flow(false);
       }
+      flow(true);
       if (!acc.trim()) {
-        const none = "(no answer came back)";
-        replace(none);
-        stateRef.current.talkBuf += none;
+        if (trickFired) {
+          // token-only reply: drop the empty bubble - the trick IS the answer
+          setMsgs((prev) => prev.filter((_, i) => i !== replyAt));
+        } else {
+          const none = "(no answer came back)";
+          replace(none);
+          stateRef.current.talkBuf += none;
+        }
       }
     } catch (err) {
       const said = String((err && err.message) || "");
