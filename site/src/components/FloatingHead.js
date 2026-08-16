@@ -82,6 +82,23 @@ const CHAT_LOG_KEY = "fh-chat-log";
 
 /* Typed into the empty input as a cycling ghost placeholder - questions the
    bot genuinely answers well, so the suggestion is also a promise kept. */
+/* said when the visitor hand-spins the head hard enough - no dot-tracking
+   needed, the drag deltas already flow through one number (s.spin), so an
+   accumulator with a slow leak and a cooldown is the whole detector */
+const SHAKE_LINES = [
+  "Stop shaking me, please.",
+  "Hey - careful, you'll knock the dots off.",
+  "I'm a head, not a snow globe.",
+  "Rattling. I am rattling.",
+];
+
+const DIZZY_LINES = [
+  "Okay - I'm getting dizzy.",
+  "The room is spinning. I am the room.",
+  "Easy. I just got these dots lined up.",
+  "Wheee. Right, that's plenty.",
+];
+
 /* closers for the ghost trick's re-solidify moment - page-timed (the model
    has long finished by then), varied because sameness reads as canned */
 const SOLID_LINES = [
@@ -106,6 +123,7 @@ const GHOST_QUESTIONS = [
   "can you work in the UK?",
   "do a spin",
   "why is your head made of dots?",
+  "breathe fire",
   "what is SPIM?",
   "go blue",
 ];
@@ -610,6 +628,42 @@ export default function FloatingHead({
       colorWrite: false,
       depthWrite: true,
     });
+
+    /* ---- fire breath ----
+       ~550 additive embers streamed from the painted mouth position, living
+       in the head's group so the plume aims wherever the head faces. CPU-
+       updated only while a breath is live; parked black-at-origin otherwise,
+       which under additive blending is invisible and costs one draw call of
+       nothing. Dead particles fade THROUGH the fire ramp (yellow - orange -
+       red - black), so extinguishing is the same thing as disappearing. */
+    const FIRE_N = 550;
+    const firePos = new Float32Array(FIRE_N * 3);
+    const fireCol = new Float32Array(FIRE_N * 3);
+    const fireVel = new Float32Array(FIRE_N * 3);
+    const fireLife = new Float32Array(FIRE_N);
+    const fireMax = new Float32Array(FIRE_N);
+    const fireGeo = new THREE.BufferGeometry();
+    fireGeo.setAttribute("position", new THREE.BufferAttribute(firePos, 3));
+    fireGeo.setAttribute("color", new THREE.BufferAttribute(fireCol, 3));
+    const fireTex = makeSprite();
+    const fireMat = new THREE.PointsMaterial({
+      map: fireTex,
+      size: 0.11,
+      sizeAttenuation: true,
+      vertexColors: true,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    });
+    /* parked particles must live OFF-FRUSTUM, not merely black: on a
+       transparent canvas an additive black point still writes destination
+       alpha and punches a dark hole in the page behind the canvas */
+    for (let i = 0; i < FIRE_N; i++) firePos[3 * i + 1] = -9999;
+    const firePoints = new THREE.Points(fireGeo, fireMat);
+    firePoints.frustumCulled = false;
+    group.add(firePoints);
+    let fireCursor = 0;
+    let fireBudget = 0;
     /* tuning hooks: __fhU exposes the uniforms, __fhSay feeds text into the
        viseme sequencer without spending an API call */
     window.__fhU = material.uniforms;
@@ -785,7 +839,7 @@ export default function FloatingHead({
         const res = await fetch(SHELL_URL);
         if (!res.ok) return;
         const buf = await res.arrayBuffer();
-        if (cancelled || buf.byteLength < 12) return;
+        if (cancelled || buf.byteLength < 16) return;
         const view = new DataView(buf);
         const magic =
           String.fromCharCode(view.getUint8(0)) +
@@ -825,19 +879,30 @@ export default function FloatingHead({
     /* render loop, with a capability check over the first second of frames */
     let raf = 0;
     let last = 0;
+    let firstFrameT = 0;
     const samples = [];
     let judged = window.__fhNoGuard === true;
     const RETURN = 0.9; // how firmly it eases back to facing forward
+    const sstep = (x) => x * x * (3 - 2 * x);
+    let rectCalm = 0;
+    const rectify = (v, dir) => {
+      if (rectCalm <= 0.001 || dir === 0) return v * (1 - 0.5 * rectCalm);
+      return v * (v * dir < 0 ? 1 - 0.88 * rectCalm : 1 - 0.5 * rectCalm);
+    };
 
     const frame = (t) => {
       raf = requestAnimationFrame(frame);
+      if (!firstFrameT) firstFrameT = t;
       if (document.hidden) {
         last = t;
         return;
       }
       const dt = last ? Math.min(0.05, (t - last) / 1000) : 0.016;
 
-      if (last && !judged) {
+      if (last && !judged && t - firstFrameT > 900) {
+        /* the first ~0.9s after a scene build is layout/upload jank on even
+           strong devices - judging it would condemn capable phones on the
+           overlay-open transition */
         samples.push(t - last);
         if (samples.length >= 70) {
           const sorted = samples.slice().sort((a, b) => a - b);
@@ -857,17 +922,20 @@ export default function FloatingHead({
       if (s.spinFeed) {
         // the spin trick's wind-up: smoothstepped delivery of the impulse
         const f = s.spinFeed;
-        const e = (x) => x * x * (3 - 2 * x);
-        const p0 = e(Math.min(1, f.t / f.dur));
+        const p0 = sstep(Math.min(1, f.t / f.dur));
         f.t += dt;
-        const p1 = e(Math.min(1, f.t / f.dur));
+        const p1 = sstep(Math.min(1, f.t / f.dur));
         s.spin += f.total * (p1 - p0);
         if (f.t >= f.dur) s.spinFeed = null;
       }
-      if (!s.dragging && !s.reduced) {
-        // ease back toward forward instead of spinning indefinitely
+      if (!s.dragging) {
+        // ease back toward forward instead of spinning indefinitely - under
+        // reduced motion too, or a drag would leave the head stuck sideways
         s.spin += (0 - s.spin) * (1 - Math.exp(-RETURN * dt));
       }
+      // dizziness leaks away: only sustained spinning crosses the threshold
+      if (s.dizzy) s.dizzy -= Math.sign(s.dizzy) * Math.min(Math.abs(s.dizzy), 3.5 * dt);
+      if (s.shake) s.shake = Math.max(0, s.shake - 2.2 * dt);
       const k = 1 - Math.exp(-6 * dt);
       s.rotY += (s.spin + s.targetY - s.rotY) * k;
       s.rotX += (s.targetX - s.rotX) * k;
@@ -900,13 +968,10 @@ export default function FloatingHead({
         );
         s.calm = (s.calm || 0) + (focusMag - (s.calm || 0)) * (1 - Math.exp(-6 * dt));
         const calmT = s.calm;
+        rectCalm = calmT;
         const ampBase = s.open ? 1 : 2.8;
         const shiftBase = s.open ? 1 : 2.2;
-        const rect = (v, dir) => {
-          if (calmT <= 0.001 || dir === 0) return v * (1 - 0.5 * calmT);
-          const fighting = v * dir < 0;
-          return v * (fighting ? 1 - 0.88 * calmT : 1 - 0.5 * calmT);
-        };
+        const rect = rectify; // hoisted - no per-frame closure allocation
         const wx = (Math.cos(w * 0.61) * 0.085 + Math.sin(w * 1.13) * 0.03) * ampBase;
         const wy = (Math.sin(w * 0.47) * 0.075 + Math.cos(w * 0.91) * 0.028) * ampBase;
         group.rotation.x = s.rotX + rect(wx, Math.sign(s.targetX || 0));
@@ -928,13 +993,62 @@ export default function FloatingHead({
          same way. Reduced-motion visitors get the instant flip. */
       const gTarget = s.ghostTarget || 0;
       s.ghost = s.ghost || 0;
-      s.ghost += (gTarget - s.ghost) * (s.reduced ? 1 : 1 - Math.exp(-0.9 * dt));
+      s.ghost += (gTarget - s.ghost) * (s.reduced ? 1 : 1 - Math.exp(-0.75 * dt));
       /* smoothstepped, and mapped across just the head's ~1.7-unit depth -
          every frame of the ramp is visible change, so the dissolve reads as
          a wave moving through the head instead of a blink */
       const gS = s.ghost * s.ghost * (3 - 2 * s.ghost);
-      shellMaterial.uniforms.uShellBias.value = 0.06 + gS * 1.9;
+      /* 3.0 clears the head's depth extent at every reachable tilt (the
+         cloud is 2.4 tall; pitched 40 degrees its view depth is ~2.9) */
+      shellMaterial.uniforms.uShellBias.value = 0.06 + gS * 3.0;
       material.uniforms.uGhost.value = gS;
+
+      /* ---- fire breath simulation ---- */
+      if (s.fireLive) {
+        const burning = t < (s.fireUntil || 0);
+        if (burning) {
+          fireBudget += dt * 260;
+          while (fireBudget >= 1) {
+            fireBudget -= 1;
+            const i = fireCursor++ % FIRE_N;
+            firePos[3 * i] = MOUTH_GLOW.c[0] + (Math.random() - 0.5) * 0.09;
+            firePos[3 * i + 1] = MOUTH_GLOW.c[1] + (Math.random() - 0.5) * 0.05;
+            firePos[3 * i + 2] = MOUTH_GLOW.c[2] - 0.02;
+            fireVel[3 * i] = (Math.random() - 0.5) * 0.7;
+            fireVel[3 * i + 1] = 0.05 + Math.random() * 0.3;
+            fireVel[3 * i + 2] = 2.2 + Math.random() * 1.3;
+            fireLife[i] = 0.0001;
+            fireMax[i] = 0.45 + Math.random() * 0.45;
+          }
+        }
+        let alive = 0;
+        for (let i = 0; i < FIRE_N; i++) {
+          if (!fireLife[i]) continue;
+          fireLife[i] += dt;
+          if (fireLife[i] >= fireMax[i]) {
+            fireLife[i] = 0;
+            fireCol[3 * i] = fireCol[3 * i + 1] = fireCol[3 * i + 2] = 0;
+            firePos[3 * i + 1] = -9999; // off-frustum: zero fragments, zero alpha writes
+            continue;
+          }
+          alive++;
+          const age = fireLife[i] / fireMax[i];
+          firePos[3 * i] += fireVel[3 * i] * dt;
+          firePos[3 * i + 1] += fireVel[3 * i + 1] * dt;
+          firePos[3 * i + 2] += fireVel[3 * i + 2] * dt;
+          fireVel[3 * i + 1] += 0.45 * dt; // heat rises
+          fireVel[3 * i] += Math.sin(t * 0.013 + i) * 0.55 * dt; // flicker
+          /* yellow core -> orange -> ember red -> out */
+          const g2 = Math.max(0, 0.85 - age * 1.15);
+          const fade = 1 - age * age;
+          fireCol[3 * i] = fade;
+          fireCol[3 * i + 1] = g2 * fade;
+          fireCol[3 * i + 2] = Math.max(0, 0.28 - age) * fade;
+        }
+        fireGeo.attributes.position.needsUpdate = true;
+        fireGeo.attributes.color.needsUpdate = true;
+        if (!burning && !alive) s.fireLive = false;
+      }
 
       /* tint: the colour trick outranks the hover tint. The trick's wash
          SPREADS - uTintEdge sweeps the crown-distance field over ~1.4s -
@@ -1019,7 +1133,9 @@ export default function FloatingHead({
           s.talkNext = t + v[2] * hurry * (0.85 + Math.random() * 0.3);
           speakBlip(key, s.voicePitch || 1);
         }
-        const mouthTarget = talking ? s.vOpen || 0 : 0;
+        let mouthTarget = talking ? s.vOpen || 0 : 0;
+        // breathing fire: the jaw drops for the burst, whatever else is said
+        if (s.fireLive && t < (s.fireUntil || 0)) mouthTarget = Math.max(mouthTarget, 0.75);
         const widthTarget = talking ? s.vWidth || 1 : 1;
         s.mouth = s.mouth || 0;
         /* gentle attack on purpose: sparse dots snapping between positions is
@@ -1100,15 +1216,31 @@ export default function FloatingHead({
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerout", onPointerOut);
       geometry.dispose();
+      /* the timers below were armed to RESTORE state - clearing them without
+         also restoring it would strand a permanent ghost/tint across a phone
+         overlay close (the scene tears down, stateRef survives) */
       clearTimeout(stateRef.current.trickTimer);
       clearTimeout(stateRef.current.trickTimer2);
       clearTimeout(stateRef.current.tintTimer);
+      stateRef.current.ghostTarget = 0;
+      stateRef.current.ghost = 0;
+      stateRef.current.trickTint = null;
+      stateRef.current.tintWave = 0;
+      stateRef.current.fireLive = false;
+      stateRef.current.fireUntil = 0;
       if (shellMesh) shellMesh.geometry.dispose();
+      fireGeo.dispose();
+      fireMat.dispose();
+      fireTex.dispose();
       shellMaterial.dispose();
       if (material.uniforms.uMap.value) material.uniforms.uMap.value.dispose();
       material.dispose();
       renderer.dispose();
+      /* dispose() alone leaves the GL context alive until GC; fab-mode
+         open/close cycles would pile contexts up to the browser's cap */
+      renderer.forceContextLoss();
       canvas.remove();
+      window.__fhU = window.__fhG = window.__fhS = window.__fhSay = null;
       worldRef.current = null;
     };
   }, [needsScene]);
@@ -1240,6 +1372,7 @@ export default function FloatingHead({
     setMsgs(history.concat({ role: "assistant", content: "" }));
     setDraft("");
     setBusy(true);
+    stateRef.current.busy = true; // timer callbacks cannot see React state
     stateRef.current.talkBuf = "";
     stateRef.current.talkPos = 0;
     stateRef.current.talkNext = 0;
@@ -1286,6 +1419,11 @@ export default function FloatingHead({
         }, 10000);
         return;
       }
+      if (kind === "fire") {
+        s.fireLive = true;
+        s.fireUntil = performance.now() + 3600;
+        return;
+      }
       if (kind === "spin") {
         /* ~3 turns, POURED in over 1.6s with an ease-in-out rather than
            injected in one frame - the head visibly accelerates into the
@@ -1303,23 +1441,35 @@ export default function FloatingHead({
         s.trickTimer2 = setTimeout(() => {
           const back = SOLID_LINES[Math.floor(Math.random() * SOLID_LINES.length)];
           setMsgs((prev) => prev.concat({ role: "assistant", content: back }));
-          stateRef.current.talkBuf = (stateRef.current.talkBuf || "") + " " + back;
+          /* voice it only when no newer reply is mid-stream - splicing
+             words into another answer's viseme buffer reads as garbled */
+          if (!stateRef.current.busy) {
+            stateRef.current.talkBuf = (stateRef.current.talkBuf || "") + " " + back;
+          }
         }, 2600);
       }, 8000);
     };
 
+    /* a stalled stream (hung upstream, half-dead connection) would wedge
+       busy=true forever and disable the chat until reload - cap the whole
+       exchange at 45s */
+    const ctrl = new AbortController();
+    const killT = setTimeout(() => ctrl.abort(), 45000);
     try {
       const res = await fetch(CHAT_ENDPOINT, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ messages: history }),
+        signal: ctrl.signal,
       });
       /* The worker explains refusals in the body — the daily cap, an unknown
          origin — so show that rather than a generic network apology. Only 5xx
          is really "couldn't reach the model". */
       if (!res.ok) {
         const said = await res.text().catch(() => "");
-        throw new Error(res.status < 500 && said.trim() ? said.trim() : String(res.status));
+        /* worker-authored refusals carry a sentinel so the catch can tell
+           them from browser noise ("Failed to fetch") with certainty */
+        throw new Error(res.status < 500 && said.trim() ? "said:" + said.trim() : String(res.status));
       }
       if (!res.body) throw new Error("no body");
       const reader = res.body.getReader();
@@ -1333,7 +1483,7 @@ export default function FloatingHead({
       let decided = false;
       const flow = (final) => {
         if (!decided) {
-          const m = held.match(/^\[\[(ghost|spin|tint:#[0-9a-fA-F]{6})\]\]\s*/);
+          const m = held.match(/^\[\[(ghost|spin|fire|tint:#[0-9a-fA-F]{6})\]\]\s*/);
           if (m) {
             fireTrick(m[1]);
             held = held.slice(m[0].length);
@@ -1369,8 +1519,8 @@ export default function FloatingHead({
       }
     } catch (err) {
       const said = String((err && err.message) || "");
-      const msg = said.includes(" ")
-        ? said
+      const msg = said.startsWith("said:")
+        ? said.slice(5)
         : "I couldn't reach the model just now — email hyder.mohyuddin@gmail.com and you'll get a real reply.";
       replace(msg);
       /* refusals and failures go through the same mouth as answers - the head
@@ -1379,6 +1529,8 @@ export default function FloatingHead({
          loud. The buffer was reset at send, so this voices exactly this. */
       stateRef.current.talkBuf += msg;
     } finally {
+      clearTimeout(killT);
+      stateRef.current.busy = false;
       setBusy(false);
     }
   };
@@ -1399,7 +1551,51 @@ export default function FloatingHead({
     const dx = e.clientX - s.lastX;
     const dy = e.clientY - s.lastY;
     s.moved += Math.abs(dx) + Math.abs(dy);
+    /* shake vs spin: a shake is rapid direction REVERSALS - each flip of the
+       drag direction (above a jitter floor) scores one, and the frame loop
+       leaks the score, so only genuine rattling crosses the line */
+    if (Math.abs(dx) > 4) {
+      if (s.lastDx && Math.sign(dx) !== Math.sign(s.lastDx)) s.shake = (s.shake || 0) + 1;
+      s.lastDx = dx;
+    }
+    if (Math.abs(dy) > 4) {
+      if (s.lastDy && Math.sign(dy) !== Math.sign(s.lastDy)) s.shake = (s.shake || 0) + 1;
+      s.lastDy = dy;
+    }
+    if (
+      (s.shake || 0) >= 6 &&
+      (!s.shakeAt || Date.now() - s.shakeAt > 10000) &&
+      Date.now() - (s.dizzyAt || 0) > 1000
+    ) {
+      s.shake = 0;
+      s.dizzy = 0; // a shake is not a spin - do not let it double-fire
+      s.shakeAt = Date.now();
+      const line = SHAKE_LINES[Math.floor(Math.random() * SHAKE_LINES.length)];
+      setMsgs((prev) => prev.concat({ role: "assistant", content: line }));
+      s.talkBuf = (s.talkBuf || "") + " " + line;
+      ensureAudio();
+    }
     s.spin += dx * 0.007;
+    /* dizziness: hand-spun rotation accumulates (the frame loop leaks it
+       away slowly, so only a real spree crosses the line), one complaint
+       per minute at most, MANUAL spins only - the spin trick feeds s.spin
+       elsewhere and does not count toward this */
+    /* SIGNED accumulation: a shake's reversals cancel to near-zero net, so
+       only genuine same-direction laps (2.5+ full turns) read as dizziness -
+       rattling can never masquerade as spinning */
+    s.dizzy = (s.dizzy || 0) + dx * 0.007;
+    if (
+      Math.abs(s.dizzy) > 16 &&
+      (!s.dizzyAt || Date.now() - s.dizzyAt > 10000) &&
+      Date.now() - (s.shakeAt || 0) > 1000
+    ) {
+      s.dizzy = 0;
+      s.dizzyAt = Date.now();
+      const line = DIZZY_LINES[Math.floor(Math.random() * DIZZY_LINES.length)];
+      setMsgs((prev) => prev.concat({ role: "assistant", content: line }));
+      s.talkBuf = (s.talkBuf || "") + " " + line;
+      ensureAudio();
+    }
     s.targetX = Math.max(-0.7, Math.min(0.7, s.targetX + dy * 0.005));
     s.lastX = e.clientX;
     s.lastY = e.clientY;

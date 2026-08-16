@@ -211,6 +211,14 @@
 
         var dpr = 1, cx = 0, cy = 0, offX = 0, offY = 0;
         function resize() {
+          /* React removes the loader after exit but this listener would live
+             on, re-allocating a full-viewport backing store for a detached
+             canvas on every window resize - self-remove once orphaned */
+          if (!canvas.isConnected) {
+            window.removeEventListener('resize', resize);
+            if (typeof mo !== 'undefined' && mo) mo.disconnect();
+            return;
+          }
           dpr = Math.min(window.innerWidth < 700 ? 1.5 : 2, window.devicePixelRatio || 1);
           canvas.width  = Math.floor(window.innerWidth  * dpr);
           canvas.height = Math.floor(window.innerHeight * dpr);
@@ -534,11 +542,13 @@
         // Re-run on back-forward cache restore (page was kept in memory;
         // scripts don't re-execute but pageshow fires with persisted=true).
         window.addEventListener('pageshow', function(e){
-          if (e.persisted && loader.parentNode) {
+          if (!loader.parentNode) return;
+          if (e.persisted) {
             loader.classList.remove('loader-exit');
             kickoffWhenVisible();
           }
         });
+
       })();
     </script>
 
