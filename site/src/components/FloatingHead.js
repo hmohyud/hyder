@@ -75,6 +75,23 @@ const POINTS_URL = process.env.PUBLIC_URL + "/head-points.bin";
    Cloudflare. */
 const CHAT_LOG_KEY = "fh-chat-log";
 
+/* Typed into the empty input as a cycling ghost placeholder - questions the
+   bot genuinely answers well, so the suggestion is also a promise kept. */
+const GHOST_QUESTIONS = [
+  "do you design websites?",
+  "have you managed databases?",
+  "do you build mobile apps?",
+  "have you worked with LLMs?",
+  "are you available for contract work?",
+  "what stack do you usually reach for?",
+  "how many projects have you shipped?",
+  "what are you looking for next?",
+  "do you like teaching?",
+  "can you work in the UK?",
+  "why is your head made of dots?",
+  "what is SPIM?",
+];
+
 const DEFAULT_CHAT_ENDPOINT = "https://hyder-chat.hmohyud.workers.dev";
 const CHAT_ENDPOINT =
   process.env.REACT_APP_CHAT_ENDPOINT === undefined
@@ -242,6 +259,16 @@ const VISEMES = {
 };
 const VISEME_OTHER = [0.3, 1.0, 62];
 
+/* Digits had no viseme class and no pitch, so numbers played as silence with
+   a generic mouth. Spoken as their names instead: the word is spliced into
+   the talk buffer in place of the digit, and the ordinary letter machinery -
+   visemes, lip width, blips - does the rest. Multi-digit numbers read
+   digit-by-digit, which suits the voice. */
+const DIGIT_WORDS = {
+  0: "zero", 1: "one", 2: "two", 3: "three", 4: "four",
+  5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine",
+};
+
 const g4 = (v) => v.toFixed(4);
 const gv3 = (a) => `vec3(${g4(a[0])}, ${g4(a[1])}, ${g4(a[2])})`;
 
@@ -389,6 +416,56 @@ export default function FloatingHead({
       // private mode, or the quota is full: the chat still works, it just forgets
     }
   }, [msgs, busy]);
+
+  /* Typewriter placeholder: types a sample question, holds, backspaces, moves
+     to the next. It drives the placeholder ATTRIBUTE directly - no re-renders,
+     and the browser itself guarantees the "only when the field is empty" rule,
+     since a placeholder is never shown over typed text. Skipped under
+     prefers-reduced-motion; the static prompt stays. */
+  useEffect(() => {
+    if (!open || !CHAT_ENDPOINT) return undefined;
+    const input = inputRef.current;
+    if (!input) return undefined;
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)
+      return undefined;
+    let alive = true;
+    let timer;
+    let qi = Math.floor(Math.random() * GHOST_QUESTIONS.length);
+    let pos = 0;
+    let deleting = false;
+    const tick = () => {
+      if (!alive) return;
+      const q = GHOST_QUESTIONS[qi];
+      if (!deleting) {
+        pos += 1;
+        input.placeholder = q.slice(0, pos);
+        if (pos >= q.length) {
+          deleting = true;
+          timer = setTimeout(tick, 7800); // hold the finished question a good while before cycling
+          return;
+        }
+        timer = setTimeout(tick, 62 + Math.random() * 58);
+      } else {
+        pos -= 3;
+        if (pos <= 0) {
+          pos = 0;
+          deleting = false;
+          qi = (qi + 1) % GHOST_QUESTIONS.length;
+          input.placeholder = "";
+          timer = setTimeout(tick, 400);
+          return;
+        }
+        input.placeholder = q.slice(0, pos);
+        timer = setTimeout(tick, 26);
+      }
+    };
+    timer = setTimeout(tick, 700);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+      input.placeholder = "Ask me about my work";
+    };
+  }, [open]);
 
   /* corner shows a subset; the lightbox shows every point */
   const applyDrawRange = useCallback(() => {
@@ -786,11 +863,16 @@ export default function FloatingHead({
            than speech, so the backlog is capped at 120 chars (the mouth ends
            within ~6s of the last chunk) and it hurries when more than 40
            behind - a fast talker rather than an endless one. */
-        const buf = s.talkBuf || "";
+        let buf = s.talkBuf || "";
         if (s.talkPos == null) s.talkPos = 0;
         if (buf.length - s.talkPos > 120) s.talkPos = buf.length - 120;
         const talking = s.talkPos < buf.length;
         if (talking && t >= (s.talkNext || 0)) {
+          const dw = DIGIT_WORDS[buf.charAt(s.talkPos)];
+          if (dw) {
+            buf = buf.slice(0, s.talkPos) + dw + buf.slice(s.talkPos + 1);
+            s.talkBuf = buf;
+          }
           let key = buf.charAt(s.talkPos).toLowerCase();
           const pair = key + buf.charAt(s.talkPos + 1).toLowerCase();
           let v;

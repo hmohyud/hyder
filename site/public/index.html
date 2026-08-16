@@ -203,7 +203,7 @@
         var contentMinY = 0, contentMaxY = LOGO_H;
         var SCALE_MAX = 3.8;
         var SCALE = SCALE_MAX;        // recomputed on resize so the logo fits any viewport
-        var PER_LETTER = 240;
+        var PER_LETTER = window.innerWidth < 700 ? 130 : 240; // phones draw a smaller logo - fewer dots, same density
         var ASSEMBLE_DUR = 720;
         var LERP = 0.095;            // per-frame convergence toward target (lower = slower, more visible streaming)
 
@@ -211,7 +211,7 @@
 
         var dpr = 1, cx = 0, cy = 0, offX = 0, offY = 0;
         function resize() {
-          dpr = Math.min(2, window.devicePixelRatio || 1);
+          dpr = Math.min(window.innerWidth < 700 ? 1.5 : 2, window.devicePixelRatio || 1);
           canvas.width  = Math.floor(window.innerWidth  * dpr);
           canvas.height = Math.floor(window.innerHeight * dpr);
           canvas.style.width  = window.innerWidth  + 'px';
@@ -327,6 +327,13 @@
         pushPs(targetsH, Math.PI);   // H streams in from the left
         pushPs(targetsM, 0);         // M streams in from the right
 
+        /* Bucketed by color once, so every draw loop can batch: one path and
+           one fill per color instead of one of each per dot. */
+        var byColor = [[], [], [], []];
+        for (var bi = 0; bi < particles.length; bi++) {
+          byColor[COLORS.indexOf(particles[bi].color)].push(particles[bi]);
+        }
+
         var phase = 'assembling';
         var elapsed = 0;              // accumulated real animation time
         var lastFrameNow = null;      // for dt-based advancement
@@ -371,19 +378,40 @@
 
           ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
 
-          for (var i = 0; i < particles.length; i++) {
-            var p = particles[i];
-            if (elapsed > p.startDelay) {
+          /* Batched by color: 480 individual arc+fill calls with per-dot
+             state changes were the mobile bottleneck - every fill flushed
+             the pipeline. Two passes per color (waiting dots at rest alpha,
+             moving dots on a shared ramp) is at most 8 fills a frame. The
+             per-dot fade stagger collapses into the shared ramp; the stagger
+             that actually reads - the movement - is untouched. */
+          var ramp = Math.min(1, elapsed / 240);
+          for (var c = 0; c < COLORS.length; c++) {
+            var bucket = byColor[c];
+            ctx.fillStyle = COLORS[c];
+            ctx.globalAlpha = 0.22;
+            ctx.beginPath();
+            var drew = false;
+            for (var i = 0; i < bucket.length; i++) {
+              var p = bucket[i];
+              if (elapsed > p.startDelay) continue;
+              ctx.moveTo(p.x + p.size, p.y);
+              ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+              drew = true;
+            }
+            if (drew) ctx.fill();
+            ctx.globalAlpha = 0.22 + 0.78 * ramp;
+            ctx.beginPath();
+            drew = false;
+            for (i = 0; i < bucket.length; i++) {
+              p = bucket[i];
+              if (elapsed <= p.startDelay) continue;
               p.x += (p.tx - p.x) * LERP;
               p.y += (p.ty - p.y) * LERP;
-              ctx.globalAlpha = Math.min(1, (elapsed - p.startDelay) / 110);
-            } else {
-              ctx.globalAlpha = 0.22;
+              ctx.moveTo(p.x + p.size, p.y);
+              ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+              drew = true;
             }
-            ctx.fillStyle = p.color;
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-            ctx.fill();
+            if (drew) ctx.fill();
           }
           ctx.globalAlpha = 1;
 
@@ -394,12 +422,16 @@
 
         function drawStatic() {
           ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-          for (var i = 0; i < particles.length; i++) {
-            var p = particles[i];
-            ctx.fillStyle = p.color;
-            ctx.globalAlpha = 1;
+          ctx.globalAlpha = 1;
+          for (var c = 0; c < COLORS.length; c++) {
+            var bucket = byColor[c];
+            ctx.fillStyle = COLORS[c];
             ctx.beginPath();
-            ctx.arc(p.tx, p.ty, p.size, 0, Math.PI * 2);
+            for (var i = 0; i < bucket.length; i++) {
+              var p = bucket[i];
+              ctx.moveTo(p.tx + p.size, p.ty);
+              ctx.arc(p.tx, p.ty, p.size, 0, Math.PI * 2);
+            }
             ctx.fill();
           }
         }
@@ -409,12 +441,16 @@
           // whatever the very next paint commits, it shows the start of the
           // animation — never an advanced state from rAF bursts.
           ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-          for (var i = 0; i < particles.length; i++) {
-            var p = particles[i];
-            ctx.fillStyle = p.color;
-            ctx.globalAlpha = 0.22;
+          ctx.globalAlpha = 0.22;
+          for (var c = 0; c < COLORS.length; c++) {
+            var bucket = byColor[c];
+            ctx.fillStyle = COLORS[c];
             ctx.beginPath();
-            ctx.arc(p.sx, p.sy, p.size, 0, Math.PI * 2);
+            for (var i = 0; i < bucket.length; i++) {
+              var p = bucket[i];
+              ctx.moveTo(p.sx + p.size, p.sy);
+              ctx.arc(p.sx, p.sy, p.size, 0, Math.PI * 2);
+            }
             ctx.fill();
           }
           ctx.globalAlpha = 1;

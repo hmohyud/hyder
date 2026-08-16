@@ -557,3 +557,120 @@
   .gh-url-long { display: none; }
   .gh-url-short { display: inline; }
 }
+
+/* The mission is a short summary with an expandable tail - the fill-in role
+   the original bio had, without its permanent bulk. On tablet the portrait
+   floats inside it again and the text (expanded or not) wraps around the head
+   exactly as the old paragraph did. flow-root keeps the float contained when
+   the collapsed text runs shorter than the head. */
+.mission {
+  display: flow-root;
+  font-size: 0.88rem;
+  /* fixed pixel line-height on purpose: the dot lattice's vertical pitch IS
+     the line-height (JS reads it), so dot rows fall in the same rhythm as
+     text lines and alignment comes from typography instead of measurement */
+  line-height: 22px;
+  color: #b8bfd2;
+  text-align: left;
+  hyphens: none;
+}
+
+/* The hint names whatever actually answers questions in the current layout:
+   the floating head above 640px, the corner AI button below it. */
+.hint-fab {
+  display: none;
+}
+@media (max-width: 640px) {
+  .hint-head {
+    display: none;
+  }
+  .hint-fab {
+    display: inline;
+  }
+}
+.mission-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 10px;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  color: #7d879f;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  transition: color 0.2s ease;
+}
+.mission-toggle:hover,
+.mission-toggle:focus-visible {
+  color: #9ed8ff;
+}
+.mission-caret {
+  display: inline-block;
+  transition: transform 0.15s ease;
+}
+.mission-caret.open {
+  transform: rotate(90deg);
+}
+
+/* The dot fill - ONE lattice, one element, one origin.
+   Previous versions stitched a line-tail hack and a flex band together and
+   spent JS keeping their separate grids in phase; every fix moved the seam.
+   Here a single pseudo covers the column with the lattice and a clip-path
+   cuts the L-shape around the text: the strip completing the last line, plus
+   the rows below, are the SAME layer, so they cannot misalign. All four mask
+   coordinates are snapped to lattice lines in JS, so a sliced dot is not a
+   bug we guard against - it is unrepresentable. The same code serves every
+   width: desktop shows just the strip (no leftover height), tablet shows
+   strip plus rows down to the head's bottom edge. */
+.mission .mission-text {
+  position: relative;
+  /* block at every width: outside tablet this span was inline, and an
+     absolutely-positioned pseudo anchored to inline fragments simply never
+     rendered where intended - which is why desktop had no dot strip */
+  display: block;
+}
+.mission .mission-text::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  /* full column width; the dot columns are fitted to it edge-to-edge by
+     JS (--dg-px pitch, --dg-ox phase), so the last dot always sits the same
+     P/2 inset from the right as the first does from the left */
+  width: var(--dg-w, 0px);
+  height: var(--dg-h, 0px);
+  pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.26) 1.4px, transparent 1.7px);
+  /* vertical pitch == the mission's line-height; horizontal pitch is the
+     JS-fitted column pitch, phase-shifted so centres span edge to edge */
+  background-size: var(--dg-px, 22px) 22px;
+  background-position: var(--dg-ox, 0px) 0;
+  /* a staircase polygon built in JS from the browser's own line boxes: each
+     text row's dots start one full pitch after that row's last glyph, empty
+     rows fill completely - so dots can never sit behind text, on any line */
+  clip-path: var(--dg-clip, polygon(0 0, 0 0, 0 0));
+}
+
+@media (max-width: 1050px) and (min-width: 641px) {
+  .mission {
+    display: flex;
+    align-items: stretch;
+    gap: 20px;
+    /* the head's canvas paints well past its 112px button (by design, so
+       wobble and turns never clip) - without this margin its drawn mass
+       brushes the contact row above and the cards below */
+    margin: 18px 0 16px;
+  }
+  .mission .fh-slot {
+    margin: 0;
+    flex: 0 0 auto;
+    align-self: flex-start;
+  }
+  .mission .mission-text {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}

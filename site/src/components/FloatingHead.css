@@ -281,7 +281,6 @@
      against the tagline above the paragraph. It drops the head far enough for
      the first line to clear it, which reads as deliberate rather than cramped. */
   margin: 18px 22px 12px 0;
-  shape-outside: circle(50%);
 }
 .fh-mini-inline {
   grid-area: auto;

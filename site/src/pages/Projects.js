@@ -120,7 +120,7 @@ const CATEGORIES = [
 ];
 
 // ---------- Project data ----------
-const projects = [
+export const projects = [
   // 1. SPIM
   {
     title: "SPIM (Salavon's Pathology Inducing Machine)",
