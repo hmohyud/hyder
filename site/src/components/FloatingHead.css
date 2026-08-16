@@ -18,10 +18,23 @@
   opacity: 0.9;
   transition: opacity 0.25s ease, transform 0.25s ease;
 }
-.fh-mini:hover,
 .fh-mini:focus-visible {
   opacity: 1;
   transform: scale(1.05);
+}
+/* hover looks only where hover exists - on touch a tap otherwise latches the
+   hover state ("the animation played but nothing opened") */
+@media (hover: hover) {
+  .fh-mini:hover {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+/* one tap = one click: without this, the browser may hold taps back while
+   deciding whether they are a double-tap zoom */
+.fh-mini,
+.fh-fab {
+  touch-action: manipulation;
 }
 .fh-mini:focus-visible {
   outline: 1px solid rgba(158, 216, 255, 0.6);
@@ -355,9 +368,13 @@
   animation: fh-orbit 14s linear infinite;
 }
 
-.fh-fab:hover::before,
 .fh-fab:focus-visible::before {
   opacity: 1;
+}
+@media (hover: hover) {
+  .fh-fab:hover::before {
+    opacity: 1;
+  }
 }
 @keyframes fh-orbit {
   to {
@@ -365,11 +382,17 @@
   }
 }
 
-.fh-fab:hover,
 .fh-fab:focus-visible {
   outline: none;
   color: #9ed8ff;
   border-color: rgba(158, 216, 255, 0.55);
+}
+@media (hover: hover) {
+  .fh-fab:hover {
+    outline: none;
+    color: #9ed8ff;
+    border-color: rgba(158, 216, 255, 0.55);
+  }
 }
 .fh-fab:active {
   transform: scale(0.94);

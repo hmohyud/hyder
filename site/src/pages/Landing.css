@@ -643,7 +643,10 @@
   width: var(--dg-w, 0px);
   height: var(--dg-h, 0px);
   pointer-events: none;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.26) 1.4px, transparent 1.7px);
+  /* the text's own #b8bfd2, so the filler reads as part of the type, not a
+     separate white system; alpha bumped a touch to keep the perceived weight
+     the white dots had */
+  background-image: radial-gradient(rgba(184, 191, 210, 0.38) 1.4px, transparent 1.7px);
   /* vertical pitch == the mission's line-height; horizontal pitch is the
      JS-fitted column pitch, phase-shifted so centres span edge to edge */
   background-size: var(--dg-px, 22px) 22px;

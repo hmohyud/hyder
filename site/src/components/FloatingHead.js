@@ -1203,11 +1203,18 @@ export default function FloatingHead({
         }
         ref={miniRef}
         onClick={() => setOpen(true)}
-        onMouseEnter={() => {
+        /* Mouse-only on purpose: on touch, this fires during the tap's
+           synthetic hover phase, and mobile Safari withholds the click when a
+           hover handler mutates the DOM (onHoverChange re-renders the page
+           with the dim classes) - the dim would play and the panel never
+           open. A tap should go straight to onClick. */
+        onPointerEnter={(e) => {
+          if (e.pointerType !== "mouse") return;
           stateRef.current.hovering = true;
           if (onHoverChange) onHoverChange(miniRef.current);
         }}
-        onMouseLeave={() => {
+        onPointerLeave={(e) => {
+          if (e.pointerType !== "mouse") return;
           stateRef.current.hovering = false;
           if (onHoverChange) onHoverChange(null);
         }}
