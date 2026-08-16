@@ -1422,6 +1422,12 @@ export default function FloatingHead({
       if (kind === "fire") {
         s.fireLive = true;
         s.fireUntil = performance.now() + 3600;
+        /* while breathing fire the head does not narrate - it yells. The
+           reply text still lands in the transcript (flow() mutes its voice),
+           and the sequencer screams vowels through the gaping jaw instead. */
+        s.talkBuf = "AAAAAAAHHHHHAAAAAAAHHHHHHAAAAAHHH";
+        s.talkPos = 0;
+        s.talkNext = 0;
         return;
       }
       if (kind === "spin") {
@@ -1481,10 +1487,12 @@ export default function FloatingHead({
       let acc = "";
       let held = "";
       let decided = false;
+      let muteVoice = false;
       const flow = (final) => {
         if (!decided) {
           const m = held.match(/^\[\[(ghost|spin|fire|tint:#[0-9a-fA-F]{6})\]\]\s*/);
           if (m) {
+            if (m[1] === "fire") muteVoice = true; // the scream replaces the narration
             fireTrick(m[1]);
             held = held.slice(m[0].length);
             decided = true;
@@ -1495,7 +1503,10 @@ export default function FloatingHead({
         if (decided && held) {
           acc += held;
           // feed the viseme sequencer - the mouth sounds out this exact text
-          stateRef.current.talkBuf = (stateRef.current.talkBuf || "") + held;
+          // (unless a fire scream owns the voice for this reply)
+          if (!muteVoice) {
+            stateRef.current.talkBuf = (stateRef.current.talkBuf || "") + held;
+          }
           held = "";
           replace(acc);
         }
