@@ -151,12 +151,13 @@ export default function Landing() {
           if (endX > ends[row]) ends[row] = endX;
         }
       }
-      /* a row's first dot needs a full pitch of clearance after the glyphs
-         (centre at P/2 + k*PX, so first k with centre >= end + P); rows with
-         no text fill from the left edge, rows past the last column get none */
+      /* a row's first dot needs half a pitch of clearance after the glyphs
+         (centre at P/2 + k*PX, so first k with centre >= end + P/2); rows
+         with no text fill from the left edge, rows past the last column get
+         none */
       const xs = ends.map((e) => {
         if (e < 0) return 0;
-        const k = Math.ceil((e + P / 2) / PX);
+        const k = Math.ceil(e / PX);
         if (k > cols - 1) return W;
         return P / 2 + k * PX - PX / 2;
       });
@@ -309,7 +310,7 @@ export default function Landing() {
             <span className="mission-text">
               <span className="mission-copy">
               I build AI tooling, web platforms, and the occasional strange
-              experiment — I built this site to collect that work and the
+              experiment — I built this site to showcase that work and the
               thinking behind it. The cards are the tour;{" "}
               <span className="hint-head">the head takes questions.</span>
               <span className="hint-fab">
@@ -318,12 +319,12 @@ export default function Landing() {
               {moreOpen && (
                 <span>
                   {" "}
-                  The history in brief: CS and visual arts at UChicago, then a
-                  year and a half building research tooling in Professor
-                  Jason Salavon's studio — including SPIM, the instrument
-                  behind his 2024 show at TAI Modern — and client platforms,
-                  mobile apps, and indie tools since: {projects.length} write-ups
-                  below. I'm comfortable being handed unknowns.
+                  That work started with CS and visual arts at UChicago,
+                  then two-ish years in Professor Jason Salavon's studio
+                  building AI research tooling that modifies models at the
+                  tensor level, then client platforms, mobile apps, and
+                  indie tools — the {projects.length} write-ups below. I'm
+                  comfortable being handed unknowns.
                 </span>
               )}
               <button
