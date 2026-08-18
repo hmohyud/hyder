@@ -487,19 +487,98 @@ const REF_RX = new RegExp(
   "gi"
 );
 
+/* E-mail addresses are linkified by US, deliberately: WebKit's data
+   detectors (Safari, and every iPhone browser, since they all wrap WebKit)
+   otherwise inject their own <a> around an address in text React believes
+   it owns, and the next re-render reconciles against DOM that no longer
+   matches - a commit-phase throw that unmounts the whole app. Text that is
+   already inside an anchor is left alone by the detector, so rendering the
+   real mailto link removes the crash AND makes the address tappable. */
+const EMAIL_RX = /([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/g;
+
+function emailifyText(text) {
+  const parts = String(text).split(EMAIL_RX);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) =>
+    i % 2 === 1 ? (
+      <a key={i} href={"mailto:" + part} className="fh-proj-link">
+        {part}
+      </a>
+    ) : (
+      part
+    )
+  );
+}
+
 function linkifyReply(text, onNavigate) {
   if (!text) return text;
   const parts = String(text).split(REF_RX);
-  if (parts.length === 1) return text;
-  return parts.map((part, i) => {
+  const out = [];
+  parts.forEach((part, i) => {
+    if (!part) return;
     const hit = LINK_ENTRIES.find((e) => e.key === refKey(part));
-    if (!hit) return part;
-    return (
-      <Link key={i} to={hit.to} className="fh-proj-link" onClick={onNavigate}>
-        {part}
-      </Link>
-    );
+    if (hit) {
+      out.push(
+        <Link key={i} to={hit.to} className="fh-proj-link" onClick={onNavigate}>
+          {part}
+        </Link>
+      );
+      return;
+    }
+    const sub = part.split(EMAIL_RX);
+    for (let j = 0; j < sub.length; j++) {
+      if (!sub[j]) continue;
+      if (j % 2 === 1) {
+        out.push(
+          <a key={i + "-" + j} href={"mailto:" + sub[j]} className="fh-proj-link">
+            {sub[j]}
+          </a>
+        );
+      } else {
+        out.push(sub[j]);
+      }
+    }
   });
+  return out;
+}
+
+/* Any render crash inside the chat would otherwise unmount the WHOLE app -
+   React tears the tree down when a commit throws with no boundary above it,
+   and the visitor sees a blank page. The chat is the one place third-party
+   text (model replies, restored transcripts, browser-injected DOM) meets
+   the renderer, so it gets a boundary: the fallback swaps in, the possibly
+   poisoned saved transcript is dropped, and the site never notices. */
+class ChatShield extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { broken: false };
+  }
+  static getDerivedStateFromError() {
+    return { broken: true };
+  }
+  componentDidCatch() {
+    try {
+      localStorage.removeItem(CHAT_LOG_KEY);
+    } catch (err) {
+      // storage unavailable - nothing to clear
+    }
+  }
+  render() {
+    if (this.state.broken) {
+      return (
+        <div className="fh-chat" onClick={(e) => e.stopPropagation()}>
+          <p className="fh-msg fh-assistant">
+            <span className="fh-who">hyder</span>
+            The chat hit a snag and cleared itself. Ask again?
+          </p>
+          <button type="button" className="fh-more" onClick={this.props.onReset}>
+            restart chat
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 /* ---------- component ---------- */
@@ -562,6 +641,11 @@ export default function FloatingHead({
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [showAll, setShowAll] = useState(false);
+  /* the free model behind the chat has slow days; past ~9 seconds the wait
+     reads as a broken site unless the page owns the delay in words */
+  const [slowNote, setSlowNote] = useState(false);
+  /* bumped to remount the ChatShield after a crash reset */
+  const [chatEpoch, setChatEpoch] = useState(0);
   const logRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -1463,7 +1547,7 @@ export default function FloatingHead({
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
-  }, [msgs]);
+  }, [msgs, slowNote]);
 
   useEffect(() => {
     /* Not on a phone: focusing the field summons the keyboard the instant the
@@ -1567,9 +1651,11 @@ export default function FloatingHead({
 
     /* a stalled stream (hung upstream, half-dead connection) would wedge
        busy=true forever and disable the chat until reload - cap the whole
-       exchange at 45s */
+       exchange at 70s. Long enough to survive the free tier's slow days,
+       because the slow-model notice keeps the visitor informed meanwhile. */
     const ctrl = new AbortController();
-    const killT = setTimeout(() => ctrl.abort(), 45000);
+    const killT = setTimeout(() => ctrl.abort(), 70000);
+    const slowT = setTimeout(() => setSlowNote(true), 9000);
     try {
       const res = await fetch(CHAT_ENDPOINT, {
         method: "POST",
@@ -1597,6 +1683,7 @@ export default function FloatingHead({
       let held = "";
       let decided = false;
       let muteVoice = false;
+      let firstText = false;
       const flow = (final) => {
         if (!decided) {
           const m = held.match(/^\[\[(ghost|spin|fire|tint:#[0-9a-fA-F]{6})\]\]\s*/);
@@ -1610,6 +1697,12 @@ export default function FloatingHead({
           }
         }
         if (decided && held) {
+          if (!firstText) {
+            // once real text is flowing the wait is over - retire the notice
+            firstText = true;
+            clearTimeout(slowT);
+            setSlowNote(false);
+          }
           acc += held;
           // feed the viseme sequencer - the mouth sounds out this exact text
           // (unless a fire scream owns the voice for this reply)
@@ -1650,6 +1743,8 @@ export default function FloatingHead({
       stateRef.current.talkBuf += msg;
     } finally {
       clearTimeout(killT);
+      clearTimeout(slowT);
+      setSlowNote(false);
       stateRef.current.busy = false;
       setBusy(false);
     }
@@ -1818,6 +1913,13 @@ export default function FloatingHead({
             onPointerCancel={endDrag}
           />
           {CHAT_ENDPOINT ? (
+            <ChatShield
+              key={chatEpoch}
+              onReset={() => {
+                setMsgs([]);
+                setChatEpoch((c) => c + 1);
+              }}
+            >
             <div
               className="fh-chat"
               onClick={(e) => e.stopPropagation()}
@@ -1850,12 +1952,20 @@ export default function FloatingHead({
                       </span>
                       {m.role === "assistant"
                         ? linkifyReply(m.content, () => setOpen(false))
-                        : m.content}
+                        : emailifyText(m.content)}
                       {!m.content && busy && i === shown.length - 1
                         ? "thinking…"
                         : ""}
                     </p>
                   ))}
+                  {busy && slowNote && (
+                    <p className="fh-msg fh-assistant fh-slownote">
+                      <span className="fh-who">hyder</span>
+                      The model behind me is running slow right now — that's
+                      it, not the site. Bear with me, or come back in a bit
+                      and I'll be quicker.
+                    </p>
+                  )}
                 </div>
               )}
               <form className="fh-ask" ref={askRef} onSubmit={send}>
@@ -1878,6 +1988,7 @@ export default function FloatingHead({
               </form>
               <p className="fh-hint">drag to rotate · esc to close</p>
             </div>
+            </ChatShield>
           ) : (
             <p className="fh-hint">drag to rotate · esc to close</p>
             )}

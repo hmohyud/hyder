@@ -4,6 +4,11 @@
     <meta charset="utf-8" />
     <link rel="icon" href="%PUBLIC_URL%/logoV6.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- WebKit data detectors rewrite e-mail/phone text into their own <a>
+         elements inside React-owned DOM, which crashes reconciliation on the
+         next render (blank page on iPhones). The chat also renders its own
+         mailto links, so nothing is lost by disabling detection. -->
+    <meta name="format-detection" content="telephone=no,email=no,address=no,date=no" />
     <meta name="theme-color" content="#0a0c11" />
 
     <!-- Primary Meta Tags -->
