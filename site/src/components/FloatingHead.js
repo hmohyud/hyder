@@ -432,28 +432,65 @@ const PROJECT_REFS = projects
   .map((p) => ({ name: projectShortName(p.title), slug: projectSlug(p.title) }))
   /* short names would fire on ordinary prose */
   .filter((p) => p.name.length >= 4)
-  /* longest first so a name nested inside another still wins */
-  .sort((a, b) => b.name.length - a.name.length);
+  .map((p) => ({ key: refKey(p.name), to: "/projects#" + p.slug, pattern: null, name: p.name }));
 
-const REF_RX = new RegExp(
-  "(" + PROJECT_REFS.map((p) => Array.from(p.name).map(charPattern).join("")).join("|") + ")",
-  "gi"
-);
+/* ---------- the site's own pages ----------
+   Only QUALIFIED phrases: "about" and "skills" are ordinary English words and
+   linking them bare would pepper every reply with false links, so a page word
+   only counts when it comes with page/section/map, or is distinctive on its
+   own ("diploma", "resume"). */
+const PAGE_REFS = [
+  { phrase: "skills map", to: "/skills" },
+  { phrase: "skills page", to: "/skills" },
+  { phrase: "skills section", to: "/skills" },
+  { phrase: "projects page", to: "/projects" },
+  { phrase: "projects section", to: "/projects" },
+  { phrase: "project write-ups", to: "/projects" },
+  { phrase: "write-ups", to: "/projects" },
+  { phrase: "about page", to: "/about" },
+  { phrase: "about section", to: "/about" },
+  { phrase: "resume page", to: "/resume" },
+  /* "resume" is also a verb ("I will resume that thought"), so it only
+     counts when it is clearly the document */
+  { phrase: "my resume", to: "/resume" },
+  { phrase: "the resume", to: "/resume" },
+  { phrase: "diploma", to: "/resume" },
+];
 
-function linkifyProjects(text, onNavigate) {
+const phrasePattern = (t) =>
+  t
+    .split(/\s+/)
+    .map((w) => w.replace(/[^\w-]/g, (c) => "\\" + c))
+    .join("\\s+");
+
+/* one ordered table drives both the matcher and the lookup; longest key first
+   so "project write-ups" wins over "write-ups" and a long project name wins
+   over any shorter name nested inside it */
+const LINK_ENTRIES = PROJECT_REFS.map((p) => ({
+  key: p.key,
+  to: p.to,
+  pattern: Array.from(p.name).map(charPattern).join(""),
+}))
+  .concat(
+    PAGE_REFS.map((p) => ({
+      key: refKey(p.phrase),
+      to: p.to,
+      pattern: phrasePattern(p.phrase),
+    }))
+  )
+  .sort((a, b) => b.key.length - a.key.length);
+
+const REF_RX = new RegExp("(" + LINK_ENTRIES.map((e) => e.pattern).join("|") + ")", "gi");
+
+function linkifyReply(text, onNavigate) {
   if (!text) return text;
   const parts = String(text).split(REF_RX);
   if (parts.length === 1) return text;
   return parts.map((part, i) => {
-    const hit = PROJECT_REFS.find((p) => refKey(p.name) === refKey(part));
+    const hit = LINK_ENTRIES.find((e) => e.key === refKey(part));
     if (!hit) return part;
     return (
-      <Link
-        key={i}
-        to={"/projects#" + hit.slug}
-        className="fh-proj-link"
-        onClick={onNavigate}
-      >
+      <Link key={i} to={hit.to} className="fh-proj-link" onClick={onNavigate}>
         {part}
       </Link>
     );
@@ -1807,7 +1844,7 @@ export default function FloatingHead({
                         {m.role === "user" ? "you" : "hyder"}
                       </span>
                       {m.role === "assistant"
-                        ? linkifyProjects(m.content, () => setOpen(false))
+                        ? linkifyReply(m.content, () => setOpen(false))
                         : m.content}
                       {!m.content && busy && i === shown.length - 1
                         ? "thinking…"

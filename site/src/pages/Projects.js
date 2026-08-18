@@ -151,7 +151,7 @@ export const projects = [
     images: SPIM_IMAGES,
     description: [
       "A research platform for understanding diffusion models from the inside: modify a model's internal tensors mid-generation and study how its output — and human perception of it — changes. Off-manifold, dreamlike imagery is the observable result, not the goal.",
-      "I built effectively all of it: 800+ commits (~96% of the codebase) of Python and React over a year of 20–50-hour weeks (alongside my degree), from the browser UI down to the GPU servers it ran on. The interface is still live to explore; the original GPU fleet has spun down, but I run the system locally — **happy to arrange a live demo of the investor-facing front end on request** (the in-house research tooling I built for the studio is under NDA).",
+      "I built effectively all of it: 800+ commits (~96% of the codebase) of Python and React over two-ish years of 20–50-hour weeks (alongside my degree), from the browser UI down to the GPU servers it ran on. The interface is still live to explore; the original GPU fleet has spun down, but I run the system locally — **happy to arrange a live demo of the investor-facing front end on request** (the in-house research tooling I built for the studio is under NDA).",
       {
         summary: "The questions: which layers hold style, structure, coherence?",
         details:
