@@ -480,7 +480,12 @@ const LINK_ENTRIES = PROJECT_REFS.map((p) => ({
   )
   .sort((a, b) => b.key.length - a.key.length);
 
-const REF_RX = new RegExp("(" + LINK_ENTRIES.map((e) => e.pattern).join("|") + ")", "gi");
+/* word-bounded, or a name would match inside a longer word: "Simone"
+   would light up "Simon" and "SPIMulator" would light up "SPIM". */
+const REF_RX = new RegExp(
+  "(" + LINK_ENTRIES.map((e) => "\\b" + e.pattern + "\\b").join("|") + ")",
+  "gi"
+);
 
 function linkifyReply(text, onNavigate) {
   if (!text) return text;
