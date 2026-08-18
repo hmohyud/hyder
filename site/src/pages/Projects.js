@@ -17,6 +17,13 @@ const POKE_IMAGES = [
   `${PU}/projects/POKE_5.jpg`, // market premiums
   `${PU}/projects/POKE_6.jpg`, // sealed products
 ];
+const SIMON_IMAGES = [
+  `${PU}/projects/SIMON_1.jpg`, // glazed porcelain, front
+  `${PU}/projects/SIMON_4.jpg`, // porcelain, transcript open - marble q&a
+  `${PU}/projects/SIMON_2.jpg`, // weathered stone
+  `${PU}/projects/SIMON_3.jpg`, // rusted bronze, three-quarter
+  `${PU}/projects/SIMON_5.jpg`, // two full exchanges, advice for the living
+];
 const JARJAR_IMAGES = Array.from(
   { length: 4 },
   (_, i) => `${PU}/projects/JARJAR_${i + 1}.jpg`
@@ -551,6 +558,21 @@ export const projects = [
     ],
     qrData:
       "https://expo.dev/preview/update?message=Initial+commit%0A%0AGenerated+by+create-expo-app+3.4.2.&updateRuntimeVersion=1.0.0&createdAt=2025-06-30T12%3A23%3A53.766Z&slug=exp&projectId=bf485ddb-a27e-47b0-b8ba-444f4dbde301&group=ee75b629-263a-4bc1-aa43-7aa4a5313843",
+  },
+  // Simon - a talking bust
+  {
+    title: "Simon — a Talking Bust",
+    color: "#e8c66a",
+    tags: ["web", "software", "art"],
+    minor: true,
+    images: SIMON_IMAGES,
+    description: [
+      "A statue you can talk to — made for a friend who saw this site's point-cloud head, thought it was cool, and got one of his own spun up in a day. His sculpted head renders in-browser in physically-based materials (glazed porcelain, weathered stone, rusted bronze, or gold), with a chat box at its feet and a personality to match the pedestal: marble-proud, and unimpressed by the living.",
+      "Replies come from Qwen 3.6 27B, served on-demand through GroqCloud.",
+    ],
+    links: [
+      { label: "Talk to Simon", href: "https://hmohyud.github.io/simon_head/" },
+    ],
   },
   // 7. Jar Jar Quote Bot
   {
