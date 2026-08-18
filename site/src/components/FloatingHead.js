@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Link } from "react-router-dom";
+import { projects, projectSlug, projectShortName } from "../pages/Projects";
 import * as THREE from "three";
 import "./FloatingHead.css";
 /* Hand-painted point regions (eyes, mouth seam, jaw) exported from
@@ -392,6 +394,71 @@ const FRAG = [
   "  gl_FragColor = vec4(col, a);",
   "}",
 ].join("\n");
+
+/* ---------- project name -> write-up link ----------
+   Superimposed on the finished reply, not asked of the model: it writes
+   plain prose and never sees a URL or any markup, and any project it happens
+   to name is turned into a link here. Nothing for the model to get wrong,
+   and nothing to keep in sync - a new project becomes linkable the moment it
+   is in the list.
+   Matching is accent-blind BOTH ways ("Pokecompare" and "Pokecompare" with
+   an accented e both find the same card, and a plain "Motam" finds Motam),
+   and tolerant of odd spacing, because people and models spell these
+   however they please. */
+const COMBINING = /[\u0300-\u036f]/g;
+const refKey = (t) =>
+  t.normalize("NFD").replace(COMBINING, "").toLowerCase().replace(/\s+/g, " ").trim();
+
+/* every letter that commonly carries an accent matches its whole family */
+const ACCENT_SETS = {
+  a: "aàáâãäåā",
+  c: "cç",
+  e: "eèéêëē",
+  i: "iìíîïī",
+  n: "nñ",
+  o: "oòóôõöō",
+  u: "uùúûüū",
+  y: "yýÿ",
+};
+
+const charPattern = (ch) => {
+  if (/\s/.test(ch)) return "\\s+";
+  const base = refKey(ch);
+  if (ACCENT_SETS[base]) return "[" + ACCENT_SETS[base] + "]";
+  return /[a-z0-9]/i.test(ch) ? ch : "\\" + ch;
+};
+
+const PROJECT_REFS = projects
+  .map((p) => ({ name: projectShortName(p.title), slug: projectSlug(p.title) }))
+  /* short names would fire on ordinary prose */
+  .filter((p) => p.name.length >= 4)
+  /* longest first so a name nested inside another still wins */
+  .sort((a, b) => b.name.length - a.name.length);
+
+const REF_RX = new RegExp(
+  "(" + PROJECT_REFS.map((p) => Array.from(p.name).map(charPattern).join("")).join("|") + ")",
+  "gi"
+);
+
+function linkifyProjects(text, onNavigate) {
+  if (!text) return text;
+  const parts = String(text).split(REF_RX);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) => {
+    const hit = PROJECT_REFS.find((p) => refKey(p.name) === refKey(part));
+    if (!hit) return part;
+    return (
+      <Link
+        key={i}
+        to={"/projects#" + hit.slug}
+        className="fh-proj-link"
+        onClick={onNavigate}
+      >
+        {part}
+      </Link>
+    );
+  });
+}
 
 /* ---------- component ---------- */
 
@@ -1739,8 +1806,12 @@ export default function FloatingHead({
                       <span className="fh-who">
                         {m.role === "user" ? "you" : "hyder"}
                       </span>
-                      {m.content ||
-                        (busy && i === shown.length - 1 ? "thinking…" : "")}
+                      {m.role === "assistant"
+                        ? linkifyProjects(m.content, () => setOpen(false))
+                        : m.content}
+                      {!m.content && busy && i === shown.length - 1
+                        ? "thinking…"
+                        : ""}
                     </p>
                   ))}
                 </div>

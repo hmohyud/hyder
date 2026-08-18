@@ -275,7 +275,14 @@ export default function Landing() {
               the title shares a grid column with the tagline, so narrowing that
               column to fit the contacts was clipping "Hyder Mohyuddin". */}
           <div className="hero-meta">
-            <p className="subtitle">AI &amp; Software • Systems • Interfaces</p>
+            <p className="subtitle">
+              {/* the text lives in its own box so it can ellipsise when the
+                  contact row crowds it - text-overflow does not apply to the
+                  flex container itself */}
+              <span className="subtitle-text">
+                AI &amp; Software • Systems • Interfaces
+              </span>
+            </p>
             <div className="hero-contact" role="group" aria-label="Contact links">
               <CopyEmail className="hero-gh-link" email="hyder.mohyuddin@gmail.com" />
               <span className="hero-contact-sep" aria-hidden="true">·</span>

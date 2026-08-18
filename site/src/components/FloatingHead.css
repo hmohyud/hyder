@@ -129,7 +129,7 @@
   z-index: 2;
   bottom: 28px;
   margin: 0;
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   letter-spacing: 0.05em;
   color: #6f788f;
@@ -180,7 +180,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
 }
 
 .fh-log {
@@ -476,4 +476,18 @@
   .fh-hint {
     display: none;
   }
+}
+
+/* project names inside a reply lead to their write-up */
+.fh-proj-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(158, 216, 255, 0.5);
+  text-underline-offset: 2px;
+  transition: color 0.18s ease, text-decoration-color 0.18s ease;
+}
+.fh-proj-link:hover,
+.fh-proj-link:focus-visible {
+  color: #9ed8ff;
+  text-decoration-color: #9ed8ff;
 }

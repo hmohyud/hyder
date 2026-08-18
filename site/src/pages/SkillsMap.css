@@ -81,7 +81,7 @@
   right: 10px;
   z-index: 11;
   width: auto;
-  font-family: monospace;
+  font-family: var(--font-mono);
   background: #111;
   color: #eee;
   border: 1px solid #444;
@@ -111,7 +111,7 @@
   border-radius: 50%;
   color: #ccc;
   font-size: 20px;
-  font-family: monospace;
+  font-family: var(--font-mono);
   cursor: pointer;
   /* box-shadow: 0 0 4px #555; */
   transition: all 0.2s ease;
@@ -136,7 +136,7 @@
   color: #aaa;
   padding: 6px 10px;
   font-size: 12px;
-  font-family: monospace;
+  font-family: var(--font-mono);
   border: 1px solid #333;
   border-radius: 6px;
   background: #111;
@@ -353,7 +353,7 @@
   padding: 6px 10px;
   margin-bottom: 6px;
   cursor: pointer;
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   color: #eee;
   border-radius: 6px;
@@ -387,7 +387,7 @@
   /* color: #111; */
   padding: 12px 16px 12px 12px;
   border-radius: 8px;
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   margin-bottom: 10px;
   margin-left: 10px;
@@ -457,7 +457,7 @@
   backdrop-filter: blur(4px);
   padding: 14px 18px;
   border-radius: 12px;
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 14px;
   line-height: 1.35;
 }
@@ -621,7 +621,7 @@
 .hint-node-circle>span {
   color: #fff;
   /* node label color */
-  font-family: monospace;
+  font-family: var(--font-mono);
   /* match your labels */
   font-size: 9px;
   /* small enough to fit the circle */

@@ -2,7 +2,7 @@
 .gh-contrib-label {
   display: inline-block;
   vertical-align: baseline;
-  font-size: clamp(0.4rem, 1.15vw, 0.78rem);
+  font-size: clamp(0.4rem, 1.15vw, 0.6rem);
   color: #d9deee;
   opacity: 0.85;
   letter-spacing: 0.02em;
@@ -48,7 +48,7 @@
 }
 .gh-contrib-count {
   font-weight: 700;
-  font-size: clamp(0.52rem, 1.4vw, 0.95rem);
+  font-size: clamp(0.52rem, 1.4vw, 0.73rem);
   background: linear-gradient(90deg, #b7c5ff, #9ed8ff, #b8ffd8);
   -webkit-background-clip: text;
   background-clip: text;
@@ -59,7 +59,7 @@
 }
 .gh-contrib-ytd {
   color: #8e97b0;
-  font-size: clamp(0.42rem, 1.05vw, 0.72rem);
+  font-size: clamp(0.42rem, 1.05vw, 0.55rem);
   margin-left: 2px;
 }
 

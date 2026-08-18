@@ -145,7 +145,7 @@ function measureHeading(mDiv, text, isTitle) {
   mDiv.style.width = "auto";
   const el = document.createElement(isTitle ? "div" : "h2");
   el.style.cssText = isTitle
-    ? "font-size:2.5rem;padding:0 0 0.5rem 0;margin:0;display:inline-block;white-space:nowrap"
+    ? "font-size:2.5rem;padding:0.3rem 0.75rem 0.5rem;margin:0;display:inline-block;white-space:nowrap"
     : "font-size:1.6rem;padding:0.3rem 0.6rem;margin:0;display:inline-block;white-space:nowrap";
   el.textContent = text;
   mDiv.appendChild(el);
@@ -161,7 +161,7 @@ function measureHeadingWords(mDiv, text, blockW, isTitle) {
   mDiv.innerHTML = "";
   const el = document.createElement(isTitle ? "div" : "h2");
   el.style.cssText = isTitle
-    ? "font-size:2.5rem;padding:0 0 0.5rem 0;margin:0;white-space:nowrap"
+    ? "font-size:2.5rem;padding:0.3rem 0.75rem 0.5rem;margin:0;white-space:nowrap"
     : "font-size:1.6rem;padding:0.3rem 0.6rem;margin:0;white-space:nowrap";
   const words = text.split(/\s+/).filter(Boolean);
   words.forEach((w, i) => {

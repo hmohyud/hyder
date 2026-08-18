@@ -47,7 +47,7 @@ body {
 
 body {
   margin: 0;
-  font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-mono);
   color: var(--fg);
 
   /* Keep only a solid fallback here (no seams). */
@@ -462,7 +462,7 @@ body.motion-test #bg-animation::after {
   gap: 10px;
   margin-top: 36px;
   padding: 14px 16px 18px;
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   letter-spacing: 0.04em;
   color: #7d879f;
@@ -531,5 +531,41 @@ body.motion-test #bg-animation::after {
   .nav-link {
     font-size: 0.6rem;
     padding: 0.3rem 0.25rem;
+  }
+}
+
+/* A card arrived at from a chat link is ringed briefly - being scrolled into
+   view says "somewhere here", the ring says "this one".
+   An OUTLINE, not a box-shadow: a shadow hugs the border box and crowded the
+   card's own contents, while an outline can be pushed clear of the card
+   without giving the card any padding (and outlines take no part in layout,
+   so nothing shifts). Nothing fills the inside - just the ring. The 8px
+   radius matches the project thumbnails, so its corners round the same way
+   the rest of the page does. */
+@keyframes projFlash {
+  0% {
+    outline-color: rgba(158, 216, 255, 0);
+  }
+  14% {
+    outline-color: rgba(158, 216, 255, 0.7);
+  }
+  60% {
+    outline-color: rgba(158, 216, 255, 0.4);
+  }
+  100% {
+    outline-color: rgba(158, 216, 255, 0);
+  }
+}
+.proj-flash {
+  border-radius: 8px;
+  outline: 2px solid transparent;
+  outline-offset: 14px;
+  animation: projFlash 1.9s ease-out 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* no pulse, but still mark which card was meant */
+  .proj-flash {
+    animation: none;
+    outline-color: rgba(158, 216, 255, 0.45);
   }
 }

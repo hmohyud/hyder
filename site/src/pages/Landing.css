@@ -282,6 +282,16 @@
   white-space: nowrap;
   min-width: 0;
 }
+.subtitle-text{
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  /* wherever the line runs out of room - the crowded 641-800 band, or a
+     narrow phone - it ends in ... so it reads as "there is more" rather
+     than as a word sliced in half */
+  text-overflow: ellipsis;
+}
+
 .subtitle::before{
   content: "";
   display: inline-block;
@@ -295,7 +305,7 @@
   font-size: clamp(0.7rem, 1.5vw, 0.72rem);
   color: #7d879f;
   letter-spacing: 0.04em;
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   text-decoration: none;
   transition: color 0.2s ease;
   white-space: nowrap;
@@ -329,6 +339,23 @@
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
 }
+/* The email and the GitHub link must stay on one line together. Between
+   ~645-780px the pair needs more width than the row can spare, and the
+   contact block was wrapping in two. The subtitle steps aside through that
+   zone - the same move the very-narrow rule already makes - instead. Below
+   641px the subtitle has shrunk (vw clamp) enough that both fit again. */
+@media (min-width: 641px) and (max-width: 800px){
+  /* the subtitle slides UNDER the contacts rather than vanishing: it keeps
+     its line and simply clips where the contact block begins */
+  .subtitle{ min-width: 0; }
+  .hero-contact{
+    flex-wrap: nowrap;
+    min-width: max-content;
+    position: relative;
+    z-index: 2;
+  }
+}
+
 @media (max-width: 760px){
   .landing{ cursor: auto; height: auto; overflow: visible; }
   .wrap{ transform: none !important; padding: 16px; }
@@ -593,7 +620,7 @@
   border: none;
   padding: 0;
   margin-left: 10px;
-  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   letter-spacing: 0.05em;
   color: #7d879f;

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 // ---------- Helper: build an array of images in /public/projects ----------
 const PU = process.env.PUBLIC_URL;
@@ -127,6 +127,21 @@ const CATEGORIES = [
 ];
 
 // ---------- Project data ----------
+/* Anchor identity for a project, shared with the chat so the head can link
+   to a write-up it mentions. Derived from the title so there is nothing to
+   keep in sync by hand. */
+export const projectSlug = (title) =>
+  title
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+/* The name a person actually says: everything before the em-dash gloss or
+   the parenthetical. "SPIM (Salavon's...)" -> "SPIM". */
+export const projectShortName = (title) => title.split(/\s+[—–(]/)[0].trim();
+
 export const projects = [
   // 1. SPIM
   {
@@ -1214,6 +1229,54 @@ export default function Projects() {
   const [qrOpen, setQrOpen] = useState(null); // { title, data, color } | null
   const [lightbox, setLightbox] = useState(null); // { title, color, images, index }
 
+  /* Deep link from the chat: the head links project names to /projects#slug.
+     Keyed on the location, not on mount, because clicking such a link while
+     ALREADY on this page changes only the hash - the component never
+     remounts, so a mount-only effect would do nothing (which is exactly what
+     it did). location.key changes on every navigation, so re-clicking the
+     same link re-runs it too.
+     Cards carry lazy media, so the scroll repeats a few times while the
+     layout settles rather than jumping once to a spot that is about to move,
+     and the target flashes so it is obvious WHICH card was meant. */
+  const location = useLocation();
+  useEffect(() => {
+    const id = decodeURIComponent((location.hash || "").replace("#", ""));
+    if (!id) return undefined;
+    /* a filter left on from earlier could be hiding the very card we were
+       sent to - show everything so the target is definitely present */
+    setActiveFilter("all");
+    /* Two other things move this page: <ScrollToTop> on a route change (keyed
+       on pathname, so a same-page hash click never triggers it) and the
+       art-gallery restore below. An explicit deep link outranks a stale saved
+       position, so drop it rather than letting the two fight - the gallery
+       round-trip itself carries no hash and is untouched. */
+    sessionStorage.removeItem("projects-scroll");
+
+    let target = null;
+    const timers = [0, 140, 420, 900].map((t) =>
+      setTimeout(() => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.scrollIntoView({ block: "start", behavior: t ? "smooth" : "auto" });
+        if (!target) {
+          target = el;
+          el.classList.remove("proj-flash");
+          void el.offsetWidth; // restart the animation if it is still running
+          el.classList.add("proj-flash");
+        }
+      }, t)
+    );
+    const done = setTimeout(() => {
+      if (target) target.classList.remove("proj-flash");
+    }, 2800);
+
+    return () => {
+      timers.forEach(clearTimeout);
+      clearTimeout(done);
+      if (target) target.classList.remove("proj-flash");
+    };
+  }, [location.hash, location.key]);
+
   // Restore scroll position when returning from art gallery
   useEffect(() => {
     const saved = sessionStorage.getItem("projects-scroll");
@@ -1394,7 +1457,9 @@ export default function Projects() {
         return (
           <div
             key={i}
+            id={projectSlug(proj.title)}
             style={{
+              scrollMarginTop: "84px",
               overflow: "hidden",
               opacity: isVisible ? 1 : 0,
               // generous cap — must exceed any card with every nested
@@ -1608,7 +1673,9 @@ export default function Projects() {
               return (
                 <div
                   key={proj.title}
+                  id={projectSlug(proj.title)}
                   style={{
+                    scrollMarginTop: "84px",
                     display: "flex",
                     flexWrap: "wrap",
                     gap: "1rem",
