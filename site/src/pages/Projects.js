@@ -384,6 +384,8 @@ export const projects = [
   // 3. Compassion Course
   {
     title: "Compassion Course Online",
+    /* names prose actually uses; the chat linkifier matches these too */
+    aliases: ["Compassion Course"],
     color: "#f4a261",
     tags: ["web", "software", "art"],
     images: CC_IMAGES,
@@ -592,6 +594,7 @@ export const projects = [
   // 7. Jar Jar Quote Bot
   {
     title: "Jar Jar Quote Bot (Twitter/X)",
+    aliases: ["Jar Jar bot"],
     color: "#ff6b9d",
     tags: ["software"],
     minor: true,

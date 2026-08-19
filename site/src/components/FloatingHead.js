@@ -407,7 +407,13 @@ const FRAG = [
    however they please. */
 const COMBINING = /[\u0300-\u036f]/g;
 const refKey = (t) =>
-  t.normalize("NFD").replace(COMBINING, "").toLowerCase().replace(/\s+/g, " ").trim();
+  t
+    .normalize("NFD")
+    .replace(COMBINING, "")
+    .toLowerCase()
+    .replace(/\band\b/g, "&") // models write "and" where a title has "&"
+    .replace(/\s+/g, " ")
+    .trim();
 
 /* every letter that commonly carries an accent matches its whole family */
 const ACCENT_SETS = {
@@ -423,13 +429,21 @@ const ACCENT_SETS = {
 
 const charPattern = (ch) => {
   if (/\s/.test(ch)) return "\\s+";
+  if (ch === "&") return "(?:&|and)"; // "Tech & Curriculum" vs "Tech and Curriculum"
   const base = refKey(ch);
   if (ACCENT_SETS[base]) return "[" + ACCENT_SETS[base] + "]";
   return /[a-z0-9]/i.test(ch) ? ch : "\\" + ch;
 };
 
 const PROJECT_REFS = projects
-  .map((p) => ({ name: projectShortName(p.title), slug: projectSlug(p.title) }))
+  .flatMap((p) => {
+    /* linkable by the short name AND any listed aliases - the names prose
+       actually uses ("Compassion Course" for "Compassion Course Online") */
+    const slug = projectSlug(p.title);
+    return [projectShortName(p.title)]
+      .concat(p.aliases || [])
+      .map((name) => ({ name, slug }));
+  })
   /* short names would fire on ordinary prose */
   .filter((p) => p.name.length >= 4)
   .map((p) => ({ key: refKey(p.name), to: "/projects#" + p.slug, pattern: null, name: p.name }));
@@ -454,8 +468,49 @@ const PAGE_REFS = [
      counts when it is clearly the document */
   { phrase: "my resume", to: "/resume" },
   { phrase: "the resume", to: "/resume" },
-  { phrase: "diploma", to: "/resume" },
+  /* deep link: Resume.js opens on the diploma when the hash asks for it */
+  { phrase: "diploma", to: "/resume#diploma" },
 ];
+
+/* ---------- skills deep links ----------
+   The skills map accepts /skills#sel=Python,PyTorch and preselects those
+   nodes. When a reply names skills AND points at the skills map, the link
+   carries the named ones. The id list is the same skillsData.json the map
+   renders from - fetched lazily when the chat opens; until it arrives (or
+   if it never does) skills links stay plain /skills, which always works. */
+let SKILL_IDS = [];
+let skillIdsRequested = false;
+const ensureSkillIds = () => {
+  if (skillIdsRequested) return;
+  skillIdsRequested = true;
+  fetch(process.env.PUBLIC_URL + "/skillsData.json")
+    .then((r) => r.json())
+    .then((j) => {
+      SKILL_IDS = (j.skillNodes || [])
+        .map((n) => String(n.id))
+        /* "C" alone would fire on any stray capital letter */
+        .filter((id) => id.length >= 3);
+    })
+    .catch(() => {});
+};
+
+const skillsHashFor = (text) => {
+  if (!SKILL_IDS.length) return "";
+  const found = [];
+  for (const id of SKILL_IDS) {
+    const pat = new RegExp(
+      "(^|[^A-Za-z0-9])" +
+        id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") +
+        "($|[^A-Za-z0-9#+])",
+      "i"
+    );
+    if (pat.test(text)) {
+      found.push(id);
+      if (found.length >= 6) break; // a link, not an inventory
+    }
+  }
+  return found.length ? "#sel=" + found.map(encodeURIComponent).join(",") : "";
+};
 
 const phrasePattern = (t) =>
   t
@@ -514,12 +569,18 @@ function linkifyReply(text, onNavigate) {
   if (!text) return text;
   const parts = String(text).split(REF_RX);
   const out = [];
+  let skillsHash = null; // computed once per reply, only if a skills link exists
   parts.forEach((part, i) => {
     if (!part) return;
     const hit = LINK_ENTRIES.find((e) => e.key === refKey(part));
     if (hit) {
+      let to = hit.to;
+      if (to === "/skills") {
+        if (skillsHash === null) skillsHash = skillsHashFor(String(text));
+        to = "/skills" + skillsHash;
+      }
       out.push(
-        <Link key={i} to={hit.to} className="fh-proj-link" onClick={onNavigate}>
+        <Link key={i} to={to} className="fh-proj-link" onClick={onNavigate}>
           {part}
         </Link>
       );
@@ -658,6 +719,12 @@ export default function FloatingHead({
       // private mode, or the quota is full: the chat still works, it just forgets
     }
   }, [msgs, busy]);
+
+  /* the skill-id list rides in lazily so a reply's "skills map" link can
+     carry the skills it names; fetched at open, long before any reply */
+  useEffect(() => {
+    if (open && CHAT_ENDPOINT) ensureSkillIds();
+  }, [open]);
 
   /* Typewriter placeholder: types a sample question, holds, backspaces, moves
      to the next. It drives the placeholder ATTRIBUTE directly - no re-renders,

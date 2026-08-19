@@ -1,5 +1,6 @@
 // src/pages/SkillsMap.js
 import React, { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import * as d3 from 'd3';
 import Matter from 'matter-js';
 import { applyLinkForces, applyRepulsion } from '../utils/linkForces';
@@ -27,6 +28,23 @@ const mapCircles = (svgEl) =>
   svgEl ? d3.select(svgEl).selectAll('g > circle') : d3.selectAll(null);
 const mapLabels = (svgEl) =>
   svgEl ? d3.select(svgEl).selectAll('g > text') : d3.selectAll(null);
+
+/* Deep links from the site's chat: /skills#sel=Python,Front-End%20Dev
+   preselects those nodes. Tokens match node ids case-insensitively;
+   anything unknown or malformed is silently ignored, so a stale or
+   mistyped link degrades to a plain visit, never an error. */
+const parseSelHash = (hash, skillNodes) => {
+  if (!hash || !hash.startsWith('#sel=') || !skillNodes.length) return [];
+  const byKey = new Map(skillNodes.map(n => [n.id.toLowerCase(), n.id]));
+  const out = [];
+  for (const raw of hash.slice(5).split(',')) {
+    let tok;
+    try { tok = decodeURIComponent(raw); } catch (err) { continue; }
+    const id = byKey.get(tok.trim().toLowerCase());
+    if (id && !out.includes(id)) out.push(id);
+  }
+  return out;
+};
 
 export default function SkillsMap() {
   useDotLottieScript();
@@ -145,6 +163,33 @@ export default function SkillsMap() {
       })
       .catch(err => console.error('Failed to load skillsData.json:', err));
   }, []);
+
+  /* Chat deep links: seed the selection from the URL. Keyed on data (a
+     fresh load's hash has to wait for the fetch) AND on location (a chat
+     link clicked while this page is already open is a router push, which
+     fires no hashchange). Additive, exactly like clicking the nodes, and
+     placed BEFORE the scene effect so a same-commit scene build already
+     sees the seeded ref. The imperative repaint below mirrors the sidebar
+     click handler for the already-built case; before the scene exists it
+     is a no-op and the scene build re-derives from the ref anyway. */
+  const location = useLocation();
+  useEffect(() => {
+    const ids = parseSelHash(window.location.hash, data.skillNodes);
+    if (!ids.length) return;
+    const set = expandedNodesRef.current;
+    ids.forEach((id) => set.add(id));
+    setOpenLearnedFromIds(prev => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      return next;
+    });
+    forceRerender(x => x + 1);
+    mapCircles(svgRef.current).attr('stroke', c => (c && set.has(c.id) ? c.ringColor : '#000'));
+    Object.entries(nodeListRefs.current).forEach(([id, el]) => {
+      if (el) el.dataset.selected = set.has(id) ? 'true' : 'false';
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, location]);
 
   // --- Single source of truth for viewport width/height (CSS px) using ResizeObserver ---
   useEffect(() => {

@@ -1,5 +1,6 @@
 // src/pages/Resume.js
 import React, { useMemo, useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import './Resume.css';
 import { Document, Page, pdfjs } from 'react-pdf';
 
@@ -9,9 +10,13 @@ pdfjs.GlobalWorkerOptions.workerSrc =
 
 export default function Resume() {
   const params = new URLSearchParams(window.location.search);
-  const initial = params.get('doc') === 'diploma' ? 'diploma' : 'resume';
+  const initial =
+    params.get('doc') === 'diploma' || window.location.hash === '#diploma'
+      ? 'diploma'
+      : 'resume';
 
   const [doc, setDoc] = React.useState(initial);
+  const location = useLocation();
   const [isPhone, setIsPhone] = useState(false);
   const [numPages, setNumPages] = useState(0);
 
@@ -48,6 +53,24 @@ export default function Resume() {
 
   // Reset pages when switching docs (phone mode viewer)
   useEffect(() => { setNumPages(0); }, [doc]);
+
+  /* Deep links: /resume#diploma opens the diploma directly (the chat's
+     "diploma" phrase points here). Keyed on location because a react-router
+     <Link> push does not fire hashchange; the listener covers hand-edited
+     URLs. Explicit hashes only - an empty hash must NOT force 'resume', or
+     the ?doc=diploma query path above would be clobbered on mount. Only
+     setDoc happens here: no scrolling, no navigation, so ScrollToTop and
+     the phone viewer's own reset machinery stay in charge. */
+  useEffect(() => {
+    const applyHash = () => {
+      const h = window.location.hash;
+      if (h === '#diploma') setDoc('diploma');
+      else if (h === '#resume') setDoc('resume');
+    };
+    applyHash();
+    window.addEventListener('hashchange', applyHash);
+    return () => window.removeEventListener('hashchange', applyHash);
+  }, [location]);
 
   // Open/download icon buttons for the CURRENT doc. Phone mode floats them
   // over the viewer; desktop puts them in the toggle row so they never
