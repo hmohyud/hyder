@@ -28,6 +28,9 @@ jobs:
     defaults:
       run:
         working-directory: site
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -57,8 +60,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # the worker needs an API token secret; until it exists, warn instead
+      # of failing the run (the site above has already been published)
       - name: deploy chat worker
+        if: ${{ env.CLOUDFLARE_API_TOKEN != '' }}
         run: npm run chat:deploy
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: chat worker skipped
+        if: ${{ env.CLOUDFLARE_API_TOKEN == '' }}
+        run: echo "::warning title=chat worker not deployed::add the CLOUDFLARE_API_TOKEN repository secret (Cloudflare token from the 'Edit Cloudflare Workers' template), then re-run this workflow"
