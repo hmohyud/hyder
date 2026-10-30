@@ -27,7 +27,7 @@
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d build",
+    "deploy": "gh-pages -d build && npm run chat:deploy",
     "chat:deploy": "node build-chat-knowledge.mjs && npx --yes wrangler@4 deploy",
     "chat:secret": "npx --yes wrangler@4 secret put GEMINI_KEY",
     "chat:kv": "npx --yes wrangler@4 kv namespace create CHAT_KV",

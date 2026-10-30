@@ -1,0 +1,64 @@
+# Push to main -> build the portfolio, publish it to GitHub Pages (gh-pages
+# branch, custom domain via public/CNAME), then deploy the chat worker to
+# Cloudflare. Equivalent to `npm run deploy` in site/, run by GitHub instead.
+#
+# Secrets (repo Settings -> Secrets and variables -> Actions):
+#   CLOUDFLARE_API_TOKEN   API token from the "Edit Cloudflare Workers" template
+#   CLOUDFLARE_ACCOUNT_ID  the Cloudflare account id
+name: deploy site + chat worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: portfolio-deploy
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      # install (not ci) in legacy-peer mode: this tree has peer conflicts that
+      # only resolve that way; puppeteer is a dev tool, skip its Chromium download
+      - run: npm install --legacy-peer-deps --no-audit --no-fund
+        env:
+          PUPPETEER_SKIP_DOWNLOAD: "true"
+
+      # CI=false so CRA's lint warnings stay warnings, as in a local build
+      - run: npm run build
+        env:
+          CI: "false"
+
+      - name: publish site to gh-pages
+        run: >
+          npx gh-pages -d build
+          -u "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+          -r "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          -m "deploy site ${GITHUB_SHA}"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: deploy chat worker
+        run: npm run chat:deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

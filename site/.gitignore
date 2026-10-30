@@ -51,3 +51,12 @@ src/utils/paperMesh.js
 src/utils/paperRenderer.js
 # large source meshes — the shipped artefact is public/head-points.bin
 assets/
+
+# local scratch: ad-hoc tests, screen captures, wrangler state
+*-tmp.mjs
+cap-*.mjs
+capture-*.mjs
+record-demo.mjs
+vloop.mjs
+nul.css
+.wrangler/

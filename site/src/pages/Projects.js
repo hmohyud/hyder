@@ -235,9 +235,9 @@ export const projects = [
     links: [
       {
         label: "Visit Site (UI only)",
-        href: "https://latentculture.com/spim/",
+        href: "https://spim.hydermohyuddin.com/",
         note:
-          "You're seeing the real front end, fully explorable — but its GPU servers are retired, so generations won't run from the site. Happy to arrange a live demo of the working system.",
+          "The real front end, fully explorable — its GPU servers are retired, so generate won't run until I hand you a server address. Press it there and it tells you how.",
       },
       {
         label: "Museum Show",

@@ -1,0 +1,417 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>head point picker</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0e14;color:#cfd4e0;font-family:ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;overflow:hidden}
+  #wrap{display:flex;height:100%}
+  /* min-width:0 matters: a canvas's width ATTRIBUTE gives it an intrinsic size,
+     and a flex item will not shrink below intrinsic width by default - the
+     panel gets shoved off-screen the moment the backing store is sized. */
+  #gl{flex:1;min-width:0;display:block;cursor:grab;touch-action:none}
+  #panel{width:252px;padding:14px;border-left:1px solid #232838;display:flex;flex-direction:column;gap:10px;font-size:12px;overflow-y:auto}
+  b{color:#e6e9f2}
+  button{background:#141926;border:1px solid #2c3350;color:#cfd4e0;font:inherit;font-size:12px;padding:6px 9px;border-radius:6px;cursor:pointer;text-align:left}
+  button:hover{border-color:#4a55ae}
+  button.active{outline:1px solid #9ed8ff;background:#182238}
+  .reg{display:flex;align-items:center;gap:8px;justify-content:space-between}
+  .reg .cnt{color:#6f788f}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;vertical-align:-1px}
+  #out{width:100%;min-height:110px;background:#0e1220;color:#9aa3bd;border:1px solid #2c3350;font-size:10px;font-family:inherit}
+  .hint{color:#6f788f;line-height:1.55}
+  label{display:flex;justify-content:space-between;gap:6px;align-items:center;color:#9aa3bd}
+  input[type=range]{width:118px}
+  .row{display:flex;gap:6px}
+  .row button{flex:1;text-align:center}
+  #brushCursor{position:fixed;border:1px solid rgba(255,255,255,.55);border-radius:50%;pointer-events:none;display:none;z-index:5}
+  #status{color:#6f788f}
+</style>
+<div id="wrap">
+  <canvas id="gl"></canvas>
+  <div id="panel">
+    <b>head point picker</b>
+    <div class="hint">
+      <b>left-drag</b> rotate · <b>right-drag</b> paint/erase<br>
+      wheel zoom · keys: 1-4 region · P/E tool · [ ] brush
+    </div>
+    <div class="row" id="tools">
+      <button id="tPaint" class="active">right-drag: paint</button>
+      <button id="tErase">erase</button>
+    </div>
+    <div id="regions"></div>
+    <label>brush <input id="brush" type="range" min="6" max="90" value="26"></label>
+    <label>points <input id="ptsize" type="range" min="0.5" max="4" step="0.1" value="1.4"></label>
+    <label>hide far side <input id="cull" type="checkbox" checked></label>
+    <div class="row">
+      <button id="vFront">front</button>
+      <button id="vLeft">left</button>
+      <button id="vRight">right</button>
+    </div>
+    <button id="copy">copy JSON for Claude</button>
+    <button id="clearReg">clear active region</button>
+    <button id="clearAll">clear all</button>
+    <textarea id="out" readonly placeholder="export appears here — paste this back into chat"></textarea>
+    <div id="status">loading…</div>
+  </div>
+</div>
+<div id="brushCursor"></div>
+<script>
+(async () => {
+  "use strict";
+  /* Region ids are named from the VIEWER's side in the front view:
+     eyeScreenLeft is the eye on the left of your screen (his right eye). */
+  /* Hot colors on purpose: the head itself is pastel pink/purple/blue/green,
+     so a selection tinted from that family disappears into it. Nothing on the
+     head is yellow, orange, red or magenta. */
+  const REGIONS = [
+    { id: 1, name: "eyeScreenLeft",  rgb: [1.00, 0.87, 0.20], css: "#ffdd33" },
+    { id: 2, name: "eyeScreenRight", rgb: [1.00, 0.48, 0.00], css: "#ff7a00" },
+    { id: 3, name: "mouth",          rgb: [1.00, 0.13, 0.13], css: "#ff2222" },
+    { id: 4, name: "jaw",            rgb: [1.00, 0.00, 0.67], css: "#ff00aa" },
+  ];
+  const EMBERS = [[255,114,161],[180,139,255],[127,211,255],[120,255,168]];
+  const TONE = [0.4, 0.72, 1.0, 1.35];
+
+  const status = m => (document.getElementById("status").textContent = m);
+
+  /* ---------- load head-points.bin (HDP3, same layout FloatingHead reads) --- */
+  const buf = await (await fetch("head-points.bin")).arrayBuffer();
+  const view = new DataView(buf);
+  const magic = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3));
+  if (magic !== "HDP3") { status("bad magic: " + magic); return; }
+  const n = view.getUint32(4, true);
+  const quant = view.getFloat32(8, true) || 12000;
+  const packedPos = new Int16Array(buf, 12, n * 3);
+  const packedNrm = new Int8Array(buf, 12 + n * 6, n * 3);
+  const colorIndex = new Uint8Array(buf, 12 + n * 9, n);
+  const pos = new Float32Array(n * 3);
+  const nrm = new Float32Array(n * 3);
+  for (let i = 0; i < n * 3; i++) { pos[i] = packedPos[i] / quant; nrm[i] = packedNrm[i] / 127; }
+
+  /* bounding extent, for camera distance + depth band */
+  let ext = 0;
+  for (let i = 0; i < n * 3; i++) ext = Math.max(ext, Math.abs(pos[i]));
+  const DEPTH_BAND = ext * 0.35;   // how deep past the nearest hit a stroke reaches
+
+  /* ---------- region state ------------------------------------------------- */
+  const region = new Float32Array(n); // 0 = none, else region id
+  const counts = [0, 0, 0, 0, 0];
+  const LS_KEY = "pp-regions-v1";
+  try {
+    const saved = JSON.parse(localStorage.getItem(LS_KEY) || "null");
+    if (saved && saved.n === n) {
+      for (const r of REGIONS) for (const i of (saved[r.name] || [])) { region[i] = r.id; counts[r.id]++; }
+    }
+  } catch (e) {}
+  const save = () => {
+    const o = { n };
+    for (const r of REGIONS) { const a = []; for (let i = 0; i < n; i++) if (region[i] === r.id) a.push(i); o[r.name] = a; }
+    try { localStorage.setItem(LS_KEY, JSON.stringify(o)); } catch (e) {}
+  };
+
+  /* ---------- webgl -------------------------------------------------------- */
+  const canvas = document.getElementById("gl");
+  const gl = canvas.getContext("webgl", { antialias: true });
+  const VS = `
+    attribute vec3 aPos; attribute float aCol; attribute float aReg; attribute vec3 aNrm;
+    uniform mat4 uMVP; uniform float uPt; uniform float uH; uniform vec3 uCam; uniform float uCull;
+    varying float vCol; varying float vReg;
+    void main(){
+      gl_Position = uMVP * vec4(aPos, 1.0);
+      /* hide the far side: a point whose normal faces away from the camera is
+         the back of the head showing through. Threshold slightly below zero so
+         silhouette points (normals near-perpendicular) survive and the outline
+         stays full. Matches the brush, which already refuses far-side points. */
+      if (uCull > 0.5 && dot(aNrm, normalize(uCam - aPos)) < -0.05) {
+        gl_Position = vec4(0.0, 0.0, 2.0, 1.0);
+        gl_PointSize = 0.0; vCol = 0.0; vReg = 0.0;
+        return;
+      }
+      float s = uPt * uH * 0.02 / max(0.2, gl_Position.w);
+      gl_PointSize = clamp(s * (aReg > 0.5 ? 1.8 : 1.0), 1.0, 22.0);
+      vCol = aCol; vReg = aReg;
+    }`;
+  const FS = `
+    precision mediump float;
+    varying float vCol; varying float vReg;
+    uniform vec3 uPal[4]; uniform vec3 uRegPal[4];
+    void main(){
+      vec2 d = gl_PointCoord - vec2(0.5);
+      if (dot(d, d) > 0.25) discard;
+      vec3 c;
+      int ci = int(vCol + 0.5);
+      if (ci == 0) c = uPal[0]; else if (ci == 1) c = uPal[1]; else if (ci == 2) c = uPal[2]; else c = uPal[3];
+      if (vReg > 0.5) {
+        int ri = int(vReg - 0.5);
+        vec3 rc = ri == 0 ? uRegPal[0] : ri == 1 ? uRegPal[1] : ri == 2 ? uRegPal[2] : uRegPal[3];
+        /* full replacement with a white core - a tint of the head's own pastel
+           family just blended in. The white pip is what makes a painted dot
+           readable at a glance even where the hot color sits over bright points. */
+        c = dot(d, d) < 0.05 ? vec3(1.0) : rc;
+      }
+      gl_FragColor = vec4(c, 1.0);
+    }`;
+  const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+  const prog = gl.createProgram();
+  gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS));
+  gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
+  gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+  gl.useProgram(prog);
+
+  const attr = (name, arr, size) => {
+    const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b);
+    gl.bufferData(gl.ARRAY_BUFFER, arr, name === "aReg" ? gl.DYNAMIC_DRAW : gl.STATIC_DRAW);
+    const loc = gl.getAttribLocation(prog, name);
+    gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
+    return b;
+  };
+  attr("aPos", pos, 3);
+  attr("aCol", new Float32Array(colorIndex), 1);
+  attr("aNrm", nrm, 3);
+  const regBuf = attr("aReg", region, 1);
+  const pushRegions = () => { gl.bindBuffer(gl.ARRAY_BUFFER, regBuf); gl.bufferSubData(gl.ARRAY_BUFFER, 0, region); };
+
+  const uMVP = gl.getUniformLocation(prog, "uMVP");
+  const uPt = gl.getUniformLocation(prog, "uPt");
+  const uH = gl.getUniformLocation(prog, "uH");
+  const uCam = gl.getUniformLocation(prog, "uCam");
+  const uCull = gl.getUniformLocation(prog, "uCull");
+  const flat = [];
+  for (const e of EMBERS.map((e, i) => e.map(v => (v / 255) * TONE[i]))) flat.push(...e);
+  gl.uniform3fv(gl.getUniformLocation(prog, "uPal"), flat);
+  gl.uniform3fv(gl.getUniformLocation(prog, "uRegPal"), REGIONS.flatMap(r => r.rgb));
+  gl.clearColor(0.043, 0.055, 0.078, 1);
+
+  /* ---------- camera + matrices ------------------------------------------- */
+  let yaw = 0, pitch = 0, dist = ext * 4.6;
+  const persp = (fovY, a, near, far) => {
+    const f = 1 / Math.tan(fovY / 2), d = near - far;
+    return [f / a, 0, 0, 0, 0, f, 0, 0, 0, 0, (far + near) / d, -1, 0, 0, (2 * far * near) / d, 0];
+  };
+  const lookAt = eye => {
+    const len = v => Math.hypot(v[0], v[1], v[2]);
+    const z = eye.map((v, i) => v / len(eye));           // target is the origin
+    const x = [z[2], 0, -z[0]]; const xl = len(x) || 1; x[0] /= xl; x[2] /= xl;
+    const y = [z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0]];
+    return [x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0,
+            -(x[0] * eye[0] + x[1] * eye[1] + x[2] * eye[2]),
+            -(y[0] * eye[0] + y[1] * eye[1] + y[2] * eye[2]),
+            -(z[0] * eye[0] + z[1] * eye[1] + z[2] * eye[2]), 1];
+  };
+  const mul = (a, b) => { const o = new Array(16).fill(0);
+    for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) for (let k = 0; k < 4; k++)
+      o[c * 4 + r] += a[k * 4 + r] * b[c * 4 + k];
+    return o; };
+  const camPos = () => [dist * Math.sin(yaw) * Math.cos(pitch), dist * Math.sin(pitch), dist * Math.cos(yaw) * Math.cos(pitch)];
+
+  let W = 0, H = 0, dpr = 1, mvp = null, projDirty = true;
+  const resize = () => {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = canvas.clientWidth; H = canvas.clientHeight;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    projDirty = true;
+  };
+  window.addEventListener("resize", resize);
+
+  /* screen-space projection cache, for picking */
+  const sx = new Float32Array(n), sy = new Float32Array(n), sw = new Float32Array(n);
+  const project = () => {
+    const m = mvp;
+    for (let i = 0; i < n; i++) {
+      const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2];
+      const cw = m[3] * x + m[7] * y + m[11] * z + m[15];
+      const cx = m[0] * x + m[4] * y + m[8] * z + m[12];
+      const cy = m[1] * x + m[5] * y + m[9] * z + m[13];
+      sw[i] = cw;
+      sx[i] = ((cx / cw) * 0.5 + 0.5) * W;
+      sy[i] = (1 - ((cy / cw) * 0.5 + 0.5)) * H;
+    }
+    projDirty = false;
+  };
+
+  /* ---------- painting ----------------------------------------------------- */
+  let active = 1;
+  /* Both the frame loop and the brush go through this, so a stroke landing
+     between a camera move and the next frame still picks with a fresh matrix. */
+  const ensureProj = () => {
+    if (!mvp || projDirty) { mvp = mul(persp(0.7, W / H, 0.01, 100), lookAt(camPos())); project(); }
+  };
+  const paintAt = (px, py, radius, setTo) => {
+    ensureProj();
+    const r2 = radius * radius;
+    const cp = camPos();
+    const cand = [];
+    let minW = Infinity;
+    for (let i = 0; i < n; i++) {
+      if (sw[i] <= 0) continue;
+      const dx = sx[i] - px, dy = sy[i] - py;
+      if (dx * dx + dy * dy > r2) continue;
+      const fx = cp[0] - pos[i * 3], fy = cp[1] - pos[i * 3 + 1], fz = cp[2] - pos[i * 3 + 2];
+      if (nrm[i * 3] * fx + nrm[i * 3 + 1] * fy + nrm[i * 3 + 2] * fz < -0.05) continue; // faces away
+      cand.push(i);
+      if (sw[i] < minW) minW = sw[i];
+    }
+    if (!cand.length) return 0;
+    let changed = 0;
+    for (const i of cand) {
+      if (sw[i] > minW + DEPTH_BAND) continue;  // behind the surface the brush touched
+      if (region[i] === setTo) continue;
+      counts[region[i]]--; counts[setTo]++;
+      region[i] = setTo; changed++;
+    }
+    if (changed) { pushRegions(); renderCounts(); }
+    return changed;
+  };
+
+  /* ---------- UI ----------------------------------------------------------- */
+  const regionBox = document.getElementById("regions");
+  for (const r of REGIONS) {
+    const b = document.createElement("button");
+    b.className = "reg"; b.id = "reg" + r.id;
+    b.innerHTML = `<span><span class="dot" style="background:${r.css}"></span>${r.id} · ${r.name}</span><span class="cnt" id="cnt${r.id}">0</span>`;
+    b.onclick = () => setActive(r.id);
+    regionBox.appendChild(b);
+  }
+  const setActive = id => { active = id;
+    for (const r of REGIONS) document.getElementById("reg" + r.id).classList.toggle("active", r.id === id); };
+  const renderCounts = () => { for (const r of REGIONS) document.getElementById("cnt" + r.id).textContent = counts[r.id]; };
+  setActive(1); renderCounts();
+
+  const brushEl = document.getElementById("brush");
+  const cursorEl = document.getElementById("brushCursor");
+  const ptEl = document.getElementById("ptsize");
+
+  /* Left-drag always rotates. Right-drag applies the tool - paint or erase,
+     whichever is selected. Shift/Alt on a left-drag still work as shortcuts. */
+  let tool = "paint";
+  const setTool = t => { tool = t;
+    document.getElementById("tPaint").classList.toggle("active", t === "paint");
+    document.getElementById("tErase").classList.toggle("active", t === "erase");
+    document.getElementById("tPaint").textContent = t === "paint" ? "right-drag: paint" : "paint";
+    document.getElementById("tErase").textContent = t === "erase" ? "right-drag: erase" : "erase"; };
+  document.getElementById("tPaint").onclick = () => setTool("paint");
+  document.getElementById("tErase").onclick = () => setTool("erase");
+
+  let dragging = false, painting = false, strokeMode = "paint", lastX = 0, lastY = 0;
+  canvas.addEventListener("contextmenu", e => e.preventDefault());
+  const strokeFrom = e => {
+    const rect = canvas.getBoundingClientRect();
+    paintAt(e.clientX - rect.left, e.clientY - rect.top, +brushEl.value, strokeMode === "erase" ? 0 : active);
+  };
+  canvas.addEventListener("pointerdown", e => {
+    canvas.setPointerCapture(e.pointerId);
+    lastX = e.clientX; lastY = e.clientY;
+    const m = e.button === 2 ? tool : e.shiftKey ? "paint" : e.altKey ? "erase" : "rotate";
+    if (m === "paint" || m === "erase") { painting = true; strokeMode = m; strokeFrom(e); }
+    else dragging = true;
+  });
+  canvas.addEventListener("pointermove", e => {
+    const r = +brushEl.value;
+    if (!dragging) {
+      /* the brush ring is always visible on hover - right-click can paint at
+         any moment, so you should always see what it would cover */
+      cursorEl.style.display = "block";
+      cursorEl.style.left = (e.clientX - r) + "px"; cursorEl.style.top = (e.clientY - r) + "px";
+      cursorEl.style.width = cursorEl.style.height = r * 2 + "px";
+      canvas.style.cursor = painting ? "crosshair" : "grab";
+    } else { cursorEl.style.display = "none"; canvas.style.cursor = "grabbing"; }
+    if (painting) { strokeFrom(e); return; }
+    if (dragging) {
+      /* minus: drag right = the face under the cursor moves right, like
+         grabbing the head and spinning it, not orbiting a camera around it */
+      yaw -= (e.clientX - lastX) * 0.008;
+      pitch = Math.max(-1.45, Math.min(1.45, pitch + (e.clientY - lastY) * 0.008));
+      lastX = e.clientX; lastY = e.clientY;
+      projDirty = true;
+    }
+  });
+  const endStroke = () => { if (painting) save(); dragging = painting = false; };
+  canvas.addEventListener("pointerup", endStroke);
+  canvas.addEventListener("pointercancel", endStroke);
+  canvas.addEventListener("wheel", e => {
+    e.preventDefault();
+    dist = Math.max(ext * 1.2, Math.min(ext * 12, dist * Math.exp(e.deltaY * 0.001)));
+    projDirty = true;
+  }, { passive: false });
+  window.addEventListener("keydown", e => {
+    if (e.key >= "1" && e.key <= "4") setActive(+e.key);
+    if (e.key === "[") brushEl.value = Math.max(6, +brushEl.value - 6);
+    if (e.key === "]") brushEl.value = Math.min(90, +brushEl.value + 6);
+    const k = e.key.toLowerCase();
+    if (k === "p") setTool("paint");
+    if (k === "e") setTool("erase");
+  });
+
+  document.getElementById("vFront").onclick = () => { yaw = 0; pitch = 0; projDirty = true; };
+  document.getElementById("vLeft").onclick = () => { yaw = -Math.PI / 2; pitch = 0; projDirty = true; };
+  document.getElementById("vRight").onclick = () => { yaw = Math.PI / 2; pitch = 0; projDirty = true; };
+  document.getElementById("clearReg").onclick = () => {
+    for (let i = 0; i < n; i++) if (region[i] === active) { region[i] = 0; }
+    counts[0] += counts[active]; counts[active] = 0;
+    pushRegions(); renderCounts(); save();
+  };
+  document.getElementById("clearAll").onclick = () => {
+    region.fill(0); counts.fill(0); pushRegions(); renderCounts(); save();
+  };
+
+  /* ---------- export ------------------------------------------------------- */
+  const r4 = v => Math.round(v * 1e4) / 1e4;
+  const exportJSON = () => {
+    const out = {
+      space: "head-points.bin coords (int16/quant, exactly what the vertex shader sees)",
+      note: "eyeScreenLeft = left side of the screen in the front view",
+      pointCount: n,
+      regions: {},
+    };
+    for (const r of REGIONS) {
+      if (!counts[r.id]) continue;
+      const idx = [];
+      const mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity], mean = [0, 0, 0];
+      for (let i = 0; i < n; i++) if (region[i] === r.id) {
+        idx.push(i);
+        for (let a = 0; a < 3; a++) {
+          const v = pos[i * 3 + a];
+          if (v < mn[a]) mn[a] = v; if (v > mx[a]) mx[a] = v; mean[a] += v;
+        }
+      }
+      for (let a = 0; a < 3; a++) mean[a] /= idx.length;
+      out.regions[r.name] = {
+        count: idx.length,
+        center: mean.map(r4),
+        halfExtents: [0, 1, 2].map(a => r4((mx[a] - mn[a]) / 2)),
+        min: mn.map(r4), max: mx.map(r4),
+        indices: idx,
+      };
+    }
+    return JSON.stringify(out);
+  };
+  document.getElementById("copy").onclick = async () => {
+    const json = exportJSON();
+    document.getElementById("out").value = json;
+    try { await navigator.clipboard.writeText(json); status("copied to clipboard (" + json.length + " chars)"); }
+    catch (e) { status("clipboard blocked — copy from the box below"); }
+  };
+
+  /* test hook so the tool itself can be exercised programmatically */
+  window.__pp = { paintAt, counts, n, exportJSON, setActive, get region() { return region; } };
+
+  /* ---------- render loop -------------------------------------------------- */
+  resize();
+  const frame = () => {
+    requestAnimationFrame(frame);
+    ensureProj();
+    gl.uniformMatrix4fv(uMVP, false, new Float32Array(mvp));
+    gl.uniform1f(uPt, +ptEl.value);
+    gl.uniform1f(uH, H * dpr);
+    const cp = camPos();
+    gl.uniform3f(uCam, cp[0], cp[1], cp[2]);
+    gl.uniform1f(uCull, document.getElementById("cull").checked ? 1 : 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.POINTS, 0, n);
+  };
+  frame();
+  status(n.toLocaleString() + " points · paint both eyes, then copy JSON");
+})().catch(e => { document.getElementById("status").textContent = "error: " + e.message; });
+</script>
