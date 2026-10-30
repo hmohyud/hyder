@@ -14,7 +14,6 @@ import SkillsMap from "./pages/SkillsMap";
 import Projects from "./pages/Projects";
 import About from "./pages/About";
 import Resume from "./pages/Resume";
-import BgDemo from "./pages/BgDemo";
 import FloatingHead from "./components/FloatingHead";
 import CopyEmail from "./components/CopyEmail";
 
@@ -179,7 +178,6 @@ function AppContent() {
           <ScrollToTop />
           <Routes>
             <Route path="/" element={<Landing />} />
-            <Route path="/bg-demo" element={<BgDemo />} />
             {Object.entries(pages).map(([key, { path, component }]) => (
               <Route key={key} path={path} element={component} />
             ))}
