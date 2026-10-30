@@ -4,13 +4,15 @@
 #   npm run chat:login     -> opens a browser, authorises this machine
 #   npm run chat:kv        -> prints an id; paste it below and uncomment the block
 #   npm run chat:secret    -> paste your Google AI Studio key when prompted
+#   npm run chat:secret:anthropic -> paste your Anthropic API key (enables Claude)
 #   npm run chat:deploy    -> publishes and prints your worker URL
 #
-# Both free providers run at once: Gemini is tried first (its free tier is
-# counted in requests, so a big knowledge prompt is cheap), and Workers AI
-# catches the overflow. A provider that returns a quota error is benched for the
-# rest of the UTC day; any other error benches it for five minutes.
-# GET /health on the worker shows which providers are live and today's usage.
+# Providers run as a chain: Claude Sonnet first while today's dollar meter has
+# room (its prompt cache makes the big knowledge prompt cheap), then Gemini's
+# free tier, then Workers AI. A provider that returns a quota error is benched
+# for 90 minutes, or for as long as it asks; any other error benches it for five
+# minutes. GET /health on the worker shows which providers are live, today's
+# usage, and Claude's spend and last error.
 
 name = "hyder-chat"
 main = "worker/chat-worker.js"
@@ -19,9 +21,11 @@ compatibility_date = "2026-01-01"
 [ai]
 binding = "AI"
 
-# There is no site-wide budget: the bot answers until the free tiers behind it
-# are spent for the day, then says so and returns after the reset. Nothing here
-# can generate a bill; every provider fails closed.
+# The free providers have no site-wide budget: the bot answers until they are
+# spent for the day, then says so and returns after the reset. Claude is the one
+# provider that can generate a bill; ANTHROPIC_DAILY_BUDGET_CENTS below caps it,
+# with the monthly spend limit in the Anthropic Console as the backstop, and its
+# meter fails closed, so a KV problem skips Claude rather than unmetering it.
 #
 # DAILY_PER_IP is an abuse guard, not a budget. 100 is many times what an
 # engaged visitor asks — the owner testing hard is the only person who has ever
@@ -30,6 +34,9 @@ binding = "AI"
 # drains it in minutes. "0" here means unlimited, if you ever want that.
 [vars]
 DAILY_PER_IP = "100"
+# Claude's daily spend ceiling in US cents (500 = $5). Past it the chain skips
+# Claude until UTC midnight and Gemini answers; 0 switches the Claude path off.
+ANTHROPIC_DAILY_BUDGET_CENTS = "500"
 
 # Provider quota tracking (and the per-visitor counter, if you re-enable it).
 [[kv_namespaces]]

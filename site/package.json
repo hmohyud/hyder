@@ -28,6 +28,8 @@
     "eject": "react-scripts eject",
     "deploy": "echo Deploys run on GitHub Actions on every push to main that touches site/. Nothing to run here. Emergency manual path: npm run deploy:local && exit 1",
     "deploy:local": "npm run build && gh-pages -d build --nojekyll && npm run chat:deploy",
+    "chat:secret:anthropic": "npx --yes wrangler@4 secret put ANTHROPIC_KEY",
+    "test:chat": "node worker/chat-worker.test.mjs",
     "chat:deploy": "node build-chat-knowledge.mjs && npx --yes wrangler@4 deploy",
     "chat:secret": "npx --yes wrangler@4 secret put GEMINI_KEY",
     "chat:kv": "npx --yes wrangler@4 kv namespace create CHAT_KV",

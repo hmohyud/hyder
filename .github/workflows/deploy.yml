@@ -46,6 +46,10 @@ jobs:
         env:
           PUPPETEER_SKIP_DOWNLOAD: "true"
 
+      # offline harness: fakes the model APIs and checks the chat worker's chain,
+      # spend meter and failure paths before anything is published
+      - run: npm run test:chat
+
       # CI=false so CRA's lint warnings stay warnings, as in a local build
       - run: npm run build
         env:

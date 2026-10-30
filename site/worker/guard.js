@@ -22,6 +22,7 @@ const LEAK_MARKERS = [
   "# hyder mohyuddin",
   "never invent anything",
   "voice: dry, specific",
+  "voice: dry above all",
 ];
 
 export const DEFLECTION =
@@ -76,6 +77,23 @@ export function createLeakGuard(emit) {
     async end() {
       if (tripped) return;
       if (buffering) await releaseHead();
+    },
+    /** true while the opening characters are still held back - nothing has reached the reader yet */
+    pending() {
+      return buffering && !tripped;
+    },
+    /**
+     * Drop the held opening and say something else instead. Only possible while
+     * pending(); once text has been released there is nothing to take back.
+     * Returns whether the swap happened.
+     */
+    async discard(replacement) {
+      if (!buffering || tripped) return false;
+      buffering = false;
+      head = "";
+      tripped = true; // nothing more from the model is wanted after this
+      if (replacement) await emit(replacement);
+      return true;
     },
   };
 }
