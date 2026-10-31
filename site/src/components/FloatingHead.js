@@ -146,7 +146,7 @@ const QUAD_VERT = "varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(p
    white, and that clamping is part of how the lightbox head looks. Averaged
    at 4x, far fewer sprites overlap per texel, nothing clamps, and the small
    head comes out brighter than its big self. The copy pass scales it back. */
-const SMALL_EXPOSURE = 0.62;
+const SMALL_EXPOSURE = 1.0; // averaging no longer clamps, and dimming it read as dull
 const COPY_FRAG =
   "uniform sampler2D tSrc; uniform float uExposure; varying vec2 vUv; void main(){ gl_FragColor = texture2D(tSrc, vUv) * uExposure; }";
 
@@ -310,7 +310,144 @@ const WK_TIPS = {
     "The main pipeline (Claude) is out for the day, or was unavailable, so this reply came from the backup model. " +
     "The backup does not size the question, share its reasoning, or report cache and cost, so only its timing and token counts are shown.",
   answer: "The backup model answered in one pass: no sizing, no shared reasoning.",
+  session:
+    "Totals for every reply in this conversation, which lives on this device: how many, how long they took " +
+    "all together, and what they cost in API fees. The line under each answer opens that one reply's workings.",
 };
+
+/* the help sheet: what the head can do, as tiles. Each is a thing to try,
+   not a paragraph: an icon, a name, one line, and the question it sends. */
+const HELP = [
+  { id: "ask", c: "#9ed8ff", t: "ask", d: "projects, skills, how things were built", q: "what's the hardest thing you've built?" },
+  { id: "rank", c: "#ffcb05", t: "rank", d: "a committed order, one reason each", q: "rank your three biggest projects" },
+  { id: "go", c: "#78ffa8", t: "go", d: "name a page or a project; it opens", q: "show me SPIM" },
+  { id: "tour", c: "#78ffa8", t: "tour", d: "a few stops, one page at a time", q: "give me a tour" },
+  { id: "here", c: "#ffb86b", t: "here", d: "hover a project card, then ask", q: "what's this one?" },
+  { id: "work", c: "#c3a6ff", t: "workings", d: "how a reply was made, and its cost", q: null },
+];
+/* the looks, as swatches: each sends the words that ask for it */
+const LOOKS = [
+  { id: "cloud", t: "cloud", q: "back to the cloud" },
+  { id: "ghost", t: "ghost", q: "go ghost" },
+  { id: "lattice", t: "lattice", q: "lattice look" },
+  { id: "wire", t: "wire", q: "go wireframe" },
+  { id: "spin", t: "spin", q: "give me a spin" },
+  { id: "fire", t: "fire", q: "set yourself on fire" },
+  { id: "tint", t: "colour", q: "make yourself blue" },
+];
+const ICON = {
+  ask: <path d="M4 5h16v10h-9l-5 4v-4H4z" />,
+  rank: <path d="M3 20v-7h5v7M9.5 20V5h5v15M16 20v-10h5v10" />,
+  go: <path d="M6 18L18 6M9 6h9v9" />,
+  tour: (
+    <>
+      <path d="M5 17c5 0 3-10 8-10s3 10 8 10" />
+      <circle cx="5" cy="17" r="2" />
+      <circle cx="13" cy="7" r="2" />
+      <circle cx="21" cy="17" r="2" />
+    </>
+  ),
+  here: (
+    <>
+      <path d="M12 21s-6-5.6-6-11a6 6 0 0 1 12 0c0 5.4-6 11-6 11z" />
+      <circle cx="12" cy="10" r="2" />
+    </>
+  ),
+  work: (
+    <>
+      <path d="M4 17a8 8 0 0 1 16 0" />
+      <path d="M12 17l4-5" />
+      <circle cx="12" cy="17" r="1.2" />
+    </>
+  ),
+  cloud: (
+    <>
+      <circle cx="8" cy="9" r="1.1" />
+      <circle cx="13" cy="7" r="1.1" />
+      <circle cx="17" cy="11" r="1.1" />
+      <circle cx="9" cy="14" r="1.1" />
+      <circle cx="14" cy="13" r="1.1" />
+      <circle cx="12" cy="18" r="1.1" />
+      <circle cx="17" cy="16" r="1.1" />
+      <circle cx="6" cy="18" r="1.1" />
+    </>
+  ),
+  ghost: <circle cx="12" cy="12" r="7" strokeDasharray="2 3" />,
+  lattice: (
+    <>
+      <circle cx="7" cy="8" r="1.4" />
+      <circle cx="12" cy="8" r="1.4" />
+      <circle cx="17" cy="8" r="1.4" />
+      <circle cx="9.5" cy="12.5" r="1.4" />
+      <circle cx="14.5" cy="12.5" r="1.4" />
+      <circle cx="7" cy="17" r="1.4" />
+      <circle cx="12" cy="17" r="1.4" />
+      <circle cx="17" cy="17" r="1.4" />
+    </>
+  ),
+  wire: (
+    <>
+      <circle cx="12" cy="12" r="7.5" />
+      <path d="M4.5 12h15M12 4.5v15M6.5 7.5h11M6.5 16.5h11" />
+    </>
+  ),
+  spin: <path d="M19 12a7 7 0 1 1-2-4.9M19 4v4h-4" />,
+  fire: <path d="M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 1-2-1-5 1-9z" />,
+  tint: <path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z" />,
+};
+const Icon = ({ id }) => (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {ICON[id]}
+  </svg>
+);
+
+/* the "?" sheet: tiles to click, swatches for the looks, the keys */
+function HelpSheet({ onTry, onWorkings, onClose }) {
+  return (
+    <section className="fh-help" aria-label="What this can do">
+      <p className="fh-help-head">
+        what I can do
+        <button type="button" className="fh-wk-latest" onClick={onClose}>
+          got it
+        </button>
+      </p>
+      <div className="fh-help-grid">
+        {HELP.map((h) => (
+          <button
+            key={h.id}
+            type="button"
+            className="fh-help-tile"
+            style={chipStyle(h.c)}
+            onClick={() => (h.q ? onTry(h.q) : onWorkings())}
+          >
+            <span className="fh-help-row">
+              <span className="fh-help-ic">
+                <Icon id={h.id} />
+              </span>
+              <span className="fh-help-t">{h.t}</span>
+            </span>
+            <span className="fh-help-d">{h.d}</span>
+            <span className="fh-help-try">{h.q ? "\u201c" + h.q + "\u201d" : "open the drawer \u203a"}</span>
+          </button>
+        ))}
+      </div>
+      <div className="fh-help-looks" role="group" aria-label="Looks">
+        <span className="fh-help-label">looks</span>
+        {LOOKS.map((l) => (
+          <button key={l.id} type="button" className="fh-help-look" onClick={() => onTry(l.q)} title={"\u201c" + l.q + "\u201d"}>
+            <Icon id={l.id} />
+            <span>{l.t}</span>
+          </button>
+        ))}
+        <span className="fh-help-note">a look stays until you ask for the cloud back</span>
+      </div>
+      <p className="fh-help-keys">
+        <kbd>esc</kbd> close <kbd>enter</kbd> send <kbd>{"\u2190"}</kbd>
+        <kbd>{"\u2192"}</kbd> tour stops <span className="fh-help-drag">drag rotates</span>
+      </p>
+    </section>
+  );
+}
 const secs = (ms) => (typeof ms !== "number" || ms < 0 ? "" : ms < 50 ? "<0.1 s" : (ms / 1000).toFixed(1) + " s");
 const WORKINGS_KEY = "fh-workings"; // the drawer stays the way the visitor left it
 
@@ -668,11 +805,25 @@ const PROJECT_REFS = projects
     const slug = projectSlug(p.title);
     return [projectShortName(p.title)]
       .concat(p.aliases || [])
-      .map((name) => ({ name, slug }));
+      .map((name) => ({ name, slug, color: p.color }));
   })
   /* short names would fire on ordinary prose */
   .filter((p) => p.name.length >= 4)
-  .map((p) => ({ key: refKey(p.name), to: "/projects#" + p.slug, pattern: null, name: p.name }));
+  .map((p) => ({ key: refKey(p.name), to: "/projects#" + p.slug, pattern: null, name: p.name, color: p.color }));
+
+/* a project chip wears its card's colour: the hex becomes the text colour
+   and two translucent shades of itself for the border and the fill */
+function chipStyle(hex) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
+  if (!m) return undefined;
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return {
+    "--chip": "#" + m[1],
+    "--chip-border": "rgba(" + r + "," + g + "," + b + ",0.45)",
+    "--chip-bg": "rgba(" + r + "," + g + "," + b + ",0.1)",
+  };
+}
 
 /* ---------- the site's own pages ----------
    Only QUALIFIED phrases: "about" and "skills" are ordinary English words and
@@ -751,6 +902,7 @@ const phrasePattern = (t) =>
 const LINK_ENTRIES = PROJECT_REFS.map((p) => ({
   key: p.key,
   to: p.to,
+  color: p.color,
   pattern: Array.from(p.name).map(charPattern).join(""),
 }))
   .concat(
@@ -810,7 +962,7 @@ function linkParts(text) {
         if (skillsHash === null) skillsHash = skillsHashFor(String(text));
         to = "/skills" + skillsHash;
       }
-      out.push({ text: part, to });
+      out.push({ text: part, to, color: hit.color });
       return;
     }
     const sub = part.split(EMAIL_RX);
@@ -887,7 +1039,7 @@ function renderReply(text, onNavigate, live) {
   for (const part of linkParts(text)) {
     if (part.to) {
       out.push(
-        <Link key={"l" + key++} to={part.to} className={"fh-proj-link" + fade} onClick={onNavigate}>
+        <Link key={"l" + key++} to={part.to} className={"fh-proj-link" + fade} style={chipStyle(part.color)} onClick={onNavigate}>
           {part.text}
         </Link>
       );
@@ -935,15 +1087,20 @@ const TOUR = {
   running: false,
   streaming: false, // the reply is still arriving; later stops may follow
   steps: [],
-  index: -1,
+  index: -1, // the stop on screen
+  maxShown: -1, // the furthest stop reached, for the transcript
   waiting: false, // the pause has elapsed but the next stop is not complete yet
+  manual: false, // the visitor took the wheel (back); no auto-advance until next
+  ended: false, // the last stop has had its time; the caption stays until dismissed
   timer: 0,
-  stage: null, // the mounted head: { navigate, setMsgs, speak, onStep, onTour }
+  stage: null, // the mounted head: { navigate, setMsgs, speak, onPage, onTour }
   pending: null, // words for the next stage to speak, when a move swaps heads
   transcript: null,
   replyAt: -1,
   shown: "",
   abort: null,
+  stats: null, // the reply's stats record and reasoning, once the stream ends
+  thinking: "",
 };
 
 /* the model that answered last, kept across head instances for the same
@@ -958,13 +1115,48 @@ const tourPersist = () => {
   }
 };
 
+/* the transcript's copy of the tour: the words said so far (what the model
+   sees later), plus the stops and the position, so the chat can show it as
+   one compact card and reopen it from where it was left */
+function tourRecord() {
+  if (!TOUR.transcript || TOUR.replyAt >= TOUR.transcript.length) return;
+  const steps = TOUR.steps.filter((st) => st.done).map(({ act, text }) => ({ act, text }));
+  const m = { role: "assistant", content: TOUR.shown, tour: { steps, index: TOUR.index, ended: TOUR.ended } };
+  if (TOUR.thinking) m.thinking = TOUR.thinking;
+  if (TOUR.stats) m.stats = TOUR.stats;
+  TOUR.transcript = TOUR.transcript.slice();
+  TOUR.transcript[TOUR.replyAt] = m;
+  tourPersist();
+}
+
+/* the stream has ended: its stats and reasoning ride with the tour's message */
+function tourMeta(stats, thinking) {
+  if (!TOUR.running) return;
+  TOUR.stats = stats || null;
+  TOUR.thinking = thinking || "";
+  tourRecord();
+}
+
+/* what the caption shows: one stop at a time, never a growing stack */
+const tourPage = () => ({
+  i: TOUR.index,
+  n: TOUR.steps.length,
+  more: TOUR.streaming,
+  waiting: TOUR.waiting,
+  ended: TOUR.ended,
+  text: TOUR.index >= 0 && TOUR.steps[TOUR.index] ? TOUR.steps[TOUR.index].text : "",
+});
+
 function tourStart(transcript, replyAt, abort) {
   clearTimeout(TOUR.timer);
   Object.assign(TOUR, {
-    running: true, streaming: true, steps: [], index: -1, waiting: false, timer: 0,
-    pending: null, transcript, replyAt, shown: "", abort,
+    running: true, streaming: true, steps: [], index: -1, maxShown: -1, waiting: false, manual: false, ended: false,
+    timer: 0, pending: null, transcript, replyAt, shown: "", abort, stats: null, thinking: "",
   });
-  if (TOUR.stage) TOUR.stage.onTour(true, "start");
+  if (TOUR.stage) {
+    TOUR.stage.onTour(true, "start");
+    TOUR.stage.onPage(tourPage());
+  }
 }
 
 /* called on every chunk of the tour reply with the raw text so far, and once
@@ -974,7 +1166,7 @@ function tourFeed(raw, final) {
   TOUR.steps = splitTourSteps(raw, final);
   if (final) TOUR.streaming = false;
   if (TOUR.index === -1 || TOUR.waiting) tourAdvance();
-  else if (TOUR.stage) TOUR.stage.onStep(TOUR.index, TOUR.steps.length, TOUR.streaming);
+  else if (TOUR.stage) TOUR.stage.onPage(tourPage());
 }
 
 function tourDeliver() {
@@ -985,50 +1177,98 @@ function tourDeliver() {
     stage.speak(TOUR.pending);
     TOUR.pending = null;
   }
-  stage.onStep(TOUR.index, TOUR.steps.length, TOUR.streaming);
+  stage.onPage(tourPage());
 }
 
-function tourAdvance() {
-  if (!TOUR.running) return;
-  clearTimeout(TOUR.timer);
-  const next = TOUR.index + 1;
-  const step = TOUR.steps[next];
-  if (!step || !step.done) {
-    if (TOUR.streaming) {
-      TOUR.waiting = true; // the rest is on its way
-      return;
-    }
-    tourEnd("done");
-    return;
-  }
+/* show stop i: move the page behind the caption, say the words. The
+   transcript (what the model sees later, what a reload restores) grows only
+   when a NEW stop is reached, so going back never duplicates a line. */
+function tourShow(i) {
+  const step = TOUR.steps[i];
+  if (!step) return;
+  TOUR.index = i;
   TOUR.waiting = false;
-  TOUR.index = next;
-  const to = step.act ? resolveAction(step.act, { skillIds: SKILL_IDS_ALL, projectRefs: PROJECT_REFS }) : null;
-  TOUR.shown = TOUR.shown ? TOUR.shown + "\n\n" + step.text : step.text;
-  if (TOUR.transcript && TOUR.replyAt < TOUR.transcript.length) {
-    TOUR.transcript = TOUR.transcript.slice();
-    TOUR.transcript[TOUR.replyAt] = { role: "assistant", content: TOUR.shown };
-    tourPersist();
+  if (i > TOUR.maxShown) {
+    TOUR.maxShown = i;
+    TOUR.shown = TOUR.shown ? TOUR.shown + "\n\n" + step.text : step.text;
   }
+  tourRecord();
+  const to = step.act ? resolveAction(step.act, { skillIds: SKILL_IDS_ALL, projectRefs: PROJECT_REFS }) : null;
   const here = window.location.pathname + window.location.hash;
   /* leaving or returning to "/" swaps heads: the words wait for the new one */
   const crosses = !!to && (window.location.pathname === "/") !== (to.split("#")[0] === "/");
   TOUR.pending = step.text;
   if (to && to !== here && TOUR.stage) TOUR.stage.navigate(to);
   if (!crosses) tourDeliver();
-  TOUR.timer = setTimeout(tourAdvance, tourPause(step.text));
+}
+
+/* the next stop, by the clock or by "next" */
+function tourAdvance() {
+  if (!TOUR.running || TOUR.ended) return;
+  clearTimeout(TOUR.timer);
+  const next = TOUR.index + 1;
+  const step = TOUR.steps[next];
+  if (!step || !step.done) {
+    if (TOUR.streaming) {
+      TOUR.waiting = true; // the rest is on its way
+      if (TOUR.stage) TOUR.stage.onPage(tourPage());
+      return;
+    }
+    tourFinish();
+    return;
+  }
+  tourShow(next);
+  if (!TOUR.manual) TOUR.timer = setTimeout(tourAdvance, tourPause(step.text));
+}
+
+/* the last stop has had its time: the caption stays, with back and close,
+   until the visitor dismisses it or asks something else */
+function tourFinish() {
+  clearTimeout(TOUR.timer);
+  TOUR.ended = true;
+  if (TOUR.stage) TOUR.stage.onPage(tourPage());
+  tourRecord();
+}
+
+/* a tour left earlier, reopened from its card in the transcript at the stop
+   it was on; the visitor drives it from there (no clock until "next") */
+function tourResume(transcript, replyAt) {
+  const m = transcript[replyAt];
+  if (!m || !m.tour || !m.tour.steps.length) return;
+  if (TOUR.running) tourEnd("stop");
+  clearTimeout(TOUR.timer);
+  const steps = m.tour.steps.map((st) => ({ act: st.act, text: st.text, done: true }));
+  Object.assign(TOUR, {
+    running: true, streaming: false, steps, index: -1, maxShown: steps.length - 1, waiting: false, manual: true,
+    ended: false, timer: 0, pending: null, transcript, replyAt, shown: m.content, abort: null,
+    stats: m.stats || null, thinking: m.thinking || "",
+  });
+  if (TOUR.stage) TOUR.stage.onTour(true, "resume");
+  tourShow(Math.min(steps.length - 1, Math.max(0, m.tour.index || 0)));
 }
 
 function tourNext() {
-  if (TOUR.running) tourAdvance();
+  if (!TOUR.running || TOUR.ended) return;
+  TOUR.manual = false;
+  tourAdvance();
+}
+
+function tourBack() {
+  if (!TOUR.running || TOUR.index <= 0) return;
+  clearTimeout(TOUR.timer);
+  TOUR.manual = true; // the visitor is driving now
+  TOUR.ended = false;
+  tourShow(TOUR.index - 1);
 }
 
 function tourEnd(reason) {
   if (!TOUR.running) return;
   clearTimeout(TOUR.timer);
+  tourRecord(); // where it was left, for the card in the transcript
   TOUR.running = false;
   TOUR.streaming = false;
   TOUR.waiting = false;
+  TOUR.ended = false;
   TOUR.pending = null;
   if (TOUR.abort && reason !== "done") {
     try {
@@ -1038,8 +1278,10 @@ function tourEnd(reason) {
     }
   }
   TOUR.abort = null;
-  tourPersist();
-  if (TOUR.stage) TOUR.stage.onTour(false, reason);
+  if (TOUR.stage) {
+    if (TOUR.transcript) TOUR.stage.setMsgs(TOUR.transcript.slice());
+    TOUR.stage.onTour(false, reason);
+  }
 }
 
 function tourRegister(stage) {
@@ -1140,7 +1382,7 @@ export default function FloatingHead({
      straight into it */
   const [open, setOpen] = useState(() => TOUR.running);
   const [tour, setTour] = useState(() => TOUR.running);
-  const [tourPos, setTourPos] = useState({ i: -1, n: 0, more: false });
+  const [tourPage, setTourPage] = useState({ i: -1, n: 0, more: false, waiting: false, ended: false, text: "" });
   const [lookEpoch, setLookEpoch] = useState(0); // bumped when a look changes, so layout() re-decides the draw path
   const navigate = useNavigate(); // action tokens open pages from the chat
   const navigateRef = useRef(navigate);
@@ -1163,6 +1405,7 @@ export default function FloatingHead({
   });
   const [wkOpen, setWkOpen] = useState({}); // which pipeline steps are unfolded
   const [wkFocus, setWkFocus] = useState(null); // a particular reply's workings, by index in msgs; null = the latest
+  const [help, setHelp] = useState(false); // the "what I can do" sheet
   /* live timing while a reply is in flight: when the request went out, when
      the reasoning started, when the first word landed */
   const phaseRef = useRef({ sendAt: 0, thinkAt: 0, textAt: 0 });
@@ -2291,7 +2534,7 @@ export default function FloatingHead({
         if (!s.voicePitch) s.voicePitch = 0.95 + Math.random() * 0.2;
         ensureAudio();
       },
-      onStep: (i, n, more) => setTourPos({ i, n, more }),
+      onPage: (page) => setTourPage(page),
       onTour: (on, reason) => {
         setTour(on);
         if (on) setOpen(true);
@@ -2354,9 +2597,10 @@ export default function FloatingHead({
     return look ? { path, hovered, look } : { path, hovered };
   };
 
-  const send = async (e) => {
-    e.preventDefault();
-    const question = draft.trim();
+  const send = async (e, asked) => {
+    if (e) e.preventDefault();
+    const question = (asked != null ? asked : draft).trim();
+    let before = msgs; // the transcript the question follows
     if (TOUR.running) {
       /* a word to the tour rather than a question: Enter or "next" moves
          on, "stop" ends it with the chat still open; anything else ends it
@@ -2367,21 +2611,28 @@ export default function FloatingHead({
         tourNext();
         return;
       }
+      if (cmd === "back") {
+        setDraft("");
+        tourBack();
+        return;
+      }
       if (cmd === "stop") {
         setDraft("");
         tourEnd("stop");
         return;
       }
       tourEnd("question");
+      if (TOUR.transcript) before = TOUR.transcript; // the tour's record, which the state may not hold yet
     } else if (busy) {
       return;
     }
     if (!question) return;
+    setHelp(false);
     const seq = ++sendSeq.current; // an aborted tour reply must not clear a newer question's busy state
 
     /* the transcript keeps each reply's stats and reasoning; only the copy
        sent to the worker is stripped to role and content */
-    const history = msgs.concat({ role: "user", content: question });
+    const history = before.concat({ role: "user", content: question });
     setMsgs(history.concat({ role: "assistant", content: "" }));
     setDraft("");
     setBusy(true);
@@ -2669,6 +2920,7 @@ export default function FloatingHead({
       flow(true);
       if (tourMode) {
         // the controller owns the rest: the stops, the moves, the transcript
+        tourMeta(gotStats, thought);
       } else if (acc.trim()) {
         replace(acc); // once more, so the reasoning and the stats ride with the message
       } else if (!acc.trim()) {
@@ -2792,6 +3044,9 @@ export default function FloatingHead({
 
   if (!capable) return null;
 
+  /* on a tour the caption shows the question and the current stop only */
+  const tourAsked = tour ? [...msgs].reverse().find((m) => m.role === "user") : null;
+
   /* what the workings drawer shows: the reply in flight, else the last
      answered one (restored transcripts carry their stats and reasoning) */
   const lastAnswer = [...msgs].reverse().find((m) => m.role === "assistant" && (m.stats || m.thinking));
@@ -2806,6 +3061,18 @@ export default function FloatingHead({
   /* "reply 3 of 5": which answered message the drawer is about */
   const answered = msgs.map((m, i) => (m.role === "assistant" && m.stats ? i : -1)).filter((i) => i >= 0);
   const wkAbout = focused ? answered.indexOf(wkFocus) + 1 : answered.length;
+  /* the whole conversation, added up */
+  const session = answered.reduce(
+    (t, i) => {
+      const st = msgs[i].stats;
+      t.n += 1;
+      t.ms += typeof st.ms === "number" ? st.ms : 0;
+      t.cents += typeof st.cents === "number" ? st.cents : 0;
+      if (st.provider && st.provider !== "anthropic") t.backup += 1;
+      return t;
+    },
+    { n: 0, ms: 0, cents: 0, backup: 0 }
+  );
   const wkIsLatest = !focused || wkFocus === answered[answered.length - 1];
   const wkStats = wk ? wk.stats : null;
   const wkBusy = busy && !wkStats;
@@ -3008,6 +3275,21 @@ export default function FloatingHead({
           >
             ×
           </button>
+          {CHAT_ENDPOINT && !tour && (
+            <button
+              type="button"
+              className={"fh-close fh-help-btn" + (help ? " on" : "")}
+              onClick={(e) => {
+                e.stopPropagation();
+                setHelp((v) => !v);
+              }}
+              aria-expanded={help}
+              aria-label="What this can do"
+              title="What this can do"
+            >
+              ?
+            </button>
+          )}
           <div
             className="fh-stage"
             ref={stageRef}
@@ -3266,11 +3548,57 @@ export default function FloatingHead({
                       </div>
                     ))}
                   </div>
+                  {answered.length > 0 && (
+                    <p className="fh-wk-session fh-tip" tabIndex={0} aria-describedby="fh-tip-session">
+                      <span className="fh-wk-k">
+                        session<i className="fh-q" aria-hidden="true">?</i>
+                      </span>
+                      <span className="fh-wk-val">
+                        {session.n + (session.n === 1 ? " reply" : " replies")}
+                        <span className="fh-wk-gloss">
+                          {" · " + secs(session.ms)}
+                          {session.cents > 0 ? " · " + usd(session.cents) : ""}
+                          {session.backup ? " · " + session.backup + " backup" : ""}
+                        </span>
+                      </span>
+                      <span role="tooltip" id="fh-tip-session" className="fh-tip-text">
+                        {WK_TIPS.session}
+                      </span>
+                    </p>
+                  )}
                 </section>
               )}
-              {msgs.length > 0 && (
+              {help && !tour && (
+                <HelpSheet
+                  onTry={(q) => send(null, q)}
+                  onWorkings={() => {
+                    setHelp(false);
+                    if (!workings) toggleWorkings();
+                  }}
+                  onClose={() => setHelp(false)}
+                />
+              )}
+              {msgs.length > 0 && !help && (
                 <div className="fh-log" ref={logRef}>
-                  {(showAll ? msgs : msgs.slice(-2)).map((m, i, shown) => {
+                  {tour && (
+                    <>
+                      {tourAsked && (
+                        <p className="fh-msg fh-user">
+                          <span className="fh-who">you</span>
+                          {emailifyText(tourAsked.content)}
+                        </p>
+                      )}
+                      <p key={"tour-page-" + tourPage.i} className="fh-msg fh-assistant fh-live fh-tour-page">
+                        <span className="fh-who">hyder</span>
+                        {tourPage.text ? (
+                          renderReply(tourPage.text, dismiss, true)
+                        ) : (
+                          <span className="fh-cue fh-cue-wait" role="status" aria-label="thinking" />
+                        )}
+                      </p>
+                    </>
+                  )}
+                  {!tour && (showAll ? msgs : msgs.slice(-2)).map((m, i, shown) => {
                     const last = i === shown.length - 1;
                     const base = showAll ? 0 : Math.max(0, msgs.length - 2); // index into msgs
                     /* the reply being delivered: words fade in as they arrive
@@ -3281,9 +3609,28 @@ export default function FloatingHead({
                         <span className="fh-who">
                           {m.role === "user" ? "you" : "hyder"}
                         </span>
-                        {m.role === "assistant"
-                          ? renderReply(m.content, dismiss, live)
-                          : emailifyText(m.content)}
+                        {m.role === "assistant" && m.tour && m.tour.steps.length ? (
+                          <button
+                            type="button"
+                            className="fh-tour-card"
+                            onClick={() => tourResume(msgs, base + i)}
+                            aria-label="Back to the guided tour"
+                          >
+                            <span className="fh-tour-card-t">
+                              guided tour · {m.tour.steps.length + (m.tour.steps.length === 1 ? " stop" : " stops")}
+                              {m.tour.ended || m.tour.index >= m.tour.steps.length - 1
+                                ? " · seen"
+                                : m.tour.index >= 0
+                                  ? " · left at " + (m.tour.index + 1)
+                                  : ""}
+                            </span>
+                            <span className="fh-tour-card-go">back to the tour ›</span>
+                          </button>
+                        ) : m.role === "assistant" ? (
+                          renderReply(m.content, dismiss, live)
+                        ) : (
+                          emailifyText(m.content)
+                        )}
                         {m.role === "assistant" && last && busy ? (
                           <span
                             className={"fh-cue" + (m.content ? "" : " fh-cue-wait")}
@@ -3296,9 +3643,16 @@ export default function FloatingHead({
                             type="button"
                             className={"fh-msg-meta" + (workings && wkFocus === base + i ? " on" : "")}
                             onClick={() => {
+                              /* the line under the answer is a toggle: open on
+                                 this reply, or close if it is already showing */
+                              if (workings && wkFocus === base + i) {
+                                toggleWorkings();
+                                return;
+                              }
                               setWkFocus(base + i);
                               if (!workings) toggleWorkings();
                             }}
+                            aria-expanded={workings && wkFocus === base + i}
                             aria-label="How this reply was made"
                           >
                             {[secs(m.stats.ms), usd(m.stats.cents), "workings"].filter(Boolean).join(" · ")}
@@ -3319,16 +3673,26 @@ export default function FloatingHead({
               )}
               {tour && (
                 <div className="fh-tour-bar">
+                  <button type="button" className="fh-tour-btn" disabled={tourPage.i <= 0} onClick={() => tourBack()}>
+                    ‹ back
+                  </button>
                   <span className="fh-tour-pos">
-                    {tourPos.i < 0
-                      ? "starting the tour"
-                      : "stop " + (tourPos.i + 1) + (tourPos.more ? "" : " of " + tourPos.n)}
+                    {tourPage.ended
+                      ? "end of the tour"
+                      : tourPage.i < 0
+                        ? "starting the tour"
+                        : "stop " + (tourPage.i + 1) + (tourPage.more ? "" : " of " + tourPage.n) + (tourPage.waiting ? " · next is on its way" : "")}
                   </span>
-                  <button type="button" className="fh-tour-btn" onClick={() => tourNext()}>
+                  <button
+                    type="button"
+                    className="fh-tour-btn"
+                    disabled={tourPage.ended || (tourPage.waiting && tourPage.more) || tourPage.i < 0}
+                    onClick={() => tourNext()}
+                  >
                     next ›
                   </button>
                   <button type="button" className="fh-tour-btn" onClick={() => tourEnd("stop")}>
-                    stop
+                    {tourPage.ended ? "done" : "stop"}
                   </button>
                 </div>
               )}
@@ -3341,9 +3705,14 @@ export default function FloatingHead({
                   onKeyDown={(e) => {
                     /* an empty Enter cannot submit while the Ask button is
                        disabled, so on a tour it is caught here: next stop */
-                    if (e.key === "Enter" && TOUR.running && !draft.trim()) {
-                      e.preventDefault();
-                      tourNext();
+                    if (TOUR.running && !draft.trim()) {
+                      if (e.key === "Enter" || e.key === "ArrowRight") {
+                        e.preventDefault();
+                        tourNext();
+                      } else if (e.key === "ArrowLeft") {
+                        e.preventDefault();
+                        tourBack();
+                      }
                     }
                   }}
                   placeholder={tour ? "next · stop · or ask something" : "Ask me about my work"}
@@ -3359,7 +3728,7 @@ export default function FloatingHead({
                 </button>
               </form>
               <p className="fh-hint">
-                {tour ? "enter for the next stop · esc stops the tour" : "drag to rotate · esc to close"}
+                {tour ? "← → move between stops · esc closes" : "drag to rotate · esc to close"}
                 {model ? " · " + model : ""}
                 {!tour && wk && wk.stats && typeof wk.stats.ms === "number" ? " · " + (wk.stats.ms / 1000).toFixed(1) + " s" : ""}
               </p>

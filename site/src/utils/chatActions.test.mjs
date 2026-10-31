@@ -142,6 +142,8 @@ const ok = (n) => { passed++; console.log("  pass:", n); };
   assert.equal(tourCommand("stop"), "stop");
   assert.equal(tourCommand("Stop the tour."), "stop");
   assert.equal(tourCommand("enough"), "stop");
+  assert.equal(tourCommand("back"), "back");
+  assert.equal(tourCommand("Go back"), "back");
   assert.equal(tourCommand("what is next?"), null, "a question is a question");
   assert.equal(tourCommand(""), null);
   ok("tour pacing and controls");

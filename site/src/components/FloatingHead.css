@@ -123,6 +123,175 @@
   color: #9ed8ff;
   border-color: rgba(158, 216, 255, 0.55);
 }
+/* the "?" beside the cross: what the head can do */
+.fh-help-btn {
+  right: 66px;
+  font-size: 0.95rem;
+  font-family: var(--font-mono);
+}
+.fh-help-btn.on {
+  color: #78ffa8;
+  border-color: rgba(120, 255, 168, 0.55);
+}
+.fh-help {
+  padding: 10px 12px 9px;
+  border: 1px solid rgba(70, 78, 96, 0.5);
+  border-radius: 10px;
+  background: rgba(8, 11, 16, 0.86);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: #c9cfdd;
+  max-height: 52vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.fh-help-head {
+  margin: 0 0 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #6f788f;
+  letter-spacing: 0.05em;
+}
+.fh-help-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+/* a tile is a button: its colour comes in on --chip (chipStyle) */
+.fh-help-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px 7px;
+  border: 1px solid rgba(70, 78, 96, 0.45);
+  border-radius: 10px;
+  background: rgba(14, 18, 26, 0.7);
+  color: #c9cfdd;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.fh-help-tile:hover,
+.fh-help-tile:focus-visible {
+  border-color: var(--chip-border, rgba(158, 216, 255, 0.5));
+  background: var(--chip-bg, rgba(158, 216, 255, 0.08));
+  outline: none;
+}
+.fh-help-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.fh-help-ic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid var(--chip-border, rgba(158, 216, 255, 0.45));
+  background: var(--chip-bg, rgba(158, 216, 255, 0.1));
+  color: var(--chip, #9ed8ff);
+}
+.fh-help-t {
+  color: #eaf6ff;
+  font-weight: 560;
+  letter-spacing: 0.04em;
+}
+.fh-help-d {
+  color: #8f98ad;
+  font-size: 0.68rem;
+}
+.fh-help-try {
+  color: var(--chip, #9ed8ff);
+  font-size: 0.68rem;
+  opacity: 0.85;
+}
+.fh-help-tile:hover .fh-help-try {
+  opacity: 1;
+}
+/* the looks: a row of swatches, each the words that ask for it */
+.fh-help-looks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(70, 78, 96, 0.35);
+}
+.fh-help-label {
+  margin-right: 4px;
+  color: #6f788f;
+  letter-spacing: 0.05em;
+}
+.fh-help-look {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px 2px 6px;
+  border: 1px solid rgba(70, 78, 96, 0.5);
+  border-radius: 999px;
+  background: rgba(14, 18, 26, 0.7);
+  color: #c9cfdd;
+  font: inherit;
+  font-size: 0.68rem;
+  cursor: pointer;
+  transition: border-color 0.18s ease, color 0.18s ease;
+}
+.fh-help-look:hover,
+.fh-help-look:focus-visible {
+  color: #c3a6ff;
+  border-color: rgba(195, 166, 255, 0.6);
+  outline: none;
+}
+.fh-help-note {
+  flex-basis: 100%;
+  margin-top: 2px;
+  color: #6f788f;
+  font-size: 0.64rem;
+}
+.fh-help-keys {
+  margin: 8px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  color: #6f788f;
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+}
+.fh-help-keys kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0 5px;
+  border: 1px solid rgba(120, 130, 150, 0.5);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: rgba(14, 18, 26, 0.9);
+  color: #c9cfdd;
+  font: inherit;
+  text-align: center;
+  line-height: 1.5;
+}
+.fh-help-keys kbd + kbd {
+  margin-left: -3px;
+}
+.fh-help-drag {
+  margin-left: auto;
+}
+@media (max-width: 640px) {
+  .fh-help-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .fh-help-d {
+    display: none;
+  }
+}
 
 .fh-hint {
   position: absolute;
@@ -520,10 +689,12 @@
 .fh-proj-link {
   display: inline;
   padding: 0.02em 0.46em 0.06em;
-  border: 1px solid rgba(158, 216, 255, 0.3);
+  /* a project chip is tinted with its card's colour (chipStyle sets the
+     variables); page links keep the site blue */
+  border: 1px solid var(--chip-border, rgba(158, 216, 255, 0.3));
   border-radius: 999px;
-  background: rgba(158, 216, 255, 0.07);
-  color: #bfe1ff;
+  background: var(--chip-bg, rgba(158, 216, 255, 0.07));
+  color: var(--chip, #bfe1ff);
   text-decoration: none;
   white-space: nowrap;
   -webkit-box-decoration-break: clone;
@@ -532,9 +703,10 @@
 }
 .fh-proj-link:hover,
 .fh-proj-link:focus-visible {
-  color: #eaf6ff;
-  border-color: rgba(158, 216, 255, 0.75);
-  background: rgba(158, 216, 255, 0.15);
+  color: var(--chip, #eaf6ff);
+  border-color: var(--chip, rgba(158, 216, 255, 0.75));
+  background: var(--chip-bg, rgba(158, 216, 255, 0.15));
+  filter: brightness(1.15);
 }
 /* an e-mail address stays a plain underlined address - and OUR anchor, see
    EMAIL_RX in FloatingHead.js for why that matters on iPhones */
@@ -1050,6 +1222,56 @@
   color: #9ed8ff;
   outline: none;
 }
+/* the whole conversation, one line at the foot of the drawer */
+.fh-wk-session {
+  position: relative;
+  margin: 0;
+  padding-top: 6px;
+  border-top: 1px solid rgba(70, 78, 96, 0.35);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #6f788f;
+  letter-spacing: 0.05em;
+}
+.fh-wk-session .fh-wk-val {
+  color: #c9cfdd;
+  letter-spacing: 0;
+  white-space: normal;
+  overflow: visible;
+}
+/* a tour in the transcript: one card that reopens it, not the stops stacked */
+.fh-tour-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin: 2px 0 0;
+  padding: 7px 12px;
+  border: 1px solid rgba(120, 255, 168, 0.28);
+  border-radius: 10px;
+  background: rgba(120, 255, 168, 0.06);
+  color: #c9cfdd;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.fh-tour-card:hover,
+.fh-tour-card:focus-visible {
+  border-color: rgba(120, 255, 168, 0.7);
+  background: rgba(120, 255, 168, 0.12);
+  outline: none;
+}
+.fh-tour-card-t {
+  letter-spacing: 0.04em;
+}
+.fh-tour-card-go {
+  flex: 0 0 auto;
+  color: #78ffa8;
+  font-size: 0.74rem;
+}
 /* not enough room beside the column: a strip above the transcript, two metrics abreast */
 @media (max-width: 1300px) {
   .fh-workings {
@@ -1074,7 +1296,8 @@
     align-items: start;
   }
   .fh-wk-about,
-  .fh-wk-backup {
+  .fh-wk-backup,
+  .fh-wk-session {
     grid-column: 1 / -1;
   }
   .fh-wk-grid {
@@ -1156,14 +1379,28 @@
   background: rgba(10, 13, 19, 0.96);
 }
 .fh-tour-head {
+  position: relative;
   width: 124px;
   height: 124px;
   margin: -72px auto -8px;
   pointer-events: none;
-  filter: drop-shadow(0 0 20px rgba(0, 0, 0, 0.7));
+}
+/* a blurred dark disc behind the portrait, feathered at the rim, so the
+   head reads over whatever the page is showing */
+.fh-tour-head::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(8, 11, 16, 0.9) 0%, rgba(8, 11, 16, 0.8) 55%, rgba(8, 11, 16, 0) 72%);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  -webkit-mask-image: radial-gradient(circle, #000 58%, transparent 74%);
+  mask-image: radial-gradient(circle, #000 58%, transparent 74%);
 }
 .fh-tour-head .fh-canvas {
-  position: static;
+  position: relative;
+  z-index: 1;
   transform: none;
   width: 100%;
   height: 100%;
@@ -1179,6 +1416,10 @@
 .fh-tour-pos {
   flex: 1 1 auto;
   letter-spacing: 0.05em;
+}
+.fh-tour-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 .fh-tour-btn {
   padding: 4px 12px;

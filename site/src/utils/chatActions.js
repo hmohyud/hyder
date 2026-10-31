@@ -168,10 +168,11 @@ export function tourPause(text) {
 }
 
 /** A word typed during a tour that is a tour control rather than a question:
- *  "next" | "stop" | null. */
+ *  "next" | "back" | "stop" | null. */
 export function tourCommand(text) {
   const t = String(text || "").trim().toLowerCase().replace(/[.!]+$/, "");
   if (/^(next|skip|continue|go on|onwards?|carry on|more|ok|okay)$/.test(t)) return "next";
+  if (/^(back|previous|go back|last one|before)$/.test(t)) return "back";
   if (/^(stop|end|enough|quit|exit|cancel|done|that's enough|stop the tour|end the tour)$/.test(t)) return "stop";
   return null;
 }
