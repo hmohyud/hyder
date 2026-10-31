@@ -1,10 +1,10 @@
 // Offline checks for the chat action tokens - run by `npm run test:chat`.
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { parseActToken, couldBeToken, tokenCap, resolveAction } from "./chatActions.js";
+import { parseActToken, couldBeToken, tokenCap, resolveAction, stripExtraTokens } from "./chatActions.js";
 
 const data = JSON.parse(fs.readFileSync(new URL("../../public/skillsData.json", import.meta.url), "utf8"));
-const skillIds = (data.skillNodes || []).map((n) => String(n.id)).filter((id) => id.length >= 3);
+const skillIds = (data.skillNodes || []).map((n) => String(n.id)); // every id, as the page passes them
 assert.ok(skillIds.length > 10, "skills data loaded");
 const [idA, idB] = skillIds;
 const projectRefs = [
@@ -37,7 +37,7 @@ const ok = (n) => { passed++; console.log("  pass:", n); };
   for (const h of ["Hello", "[[ghost]] hi there", "[[act:page:about]] Opening", "I [[", "[[act:page:about]]x"]) {
     assert.ok(!couldBeToken(h), "provably not a token: " + JSON.stringify(h));
   }
-  assert.equal(tokenCap("[[act:project:Compassion"), 160);
+  assert.equal(tokenCap("[[act:project:Compassion"), 280);
   assert.equal(tokenCap("[[gho"), 18);
   assert.equal(tokenCap("Hel"), 18);
   ok("hold-back guard");
@@ -50,6 +50,8 @@ const ok = (n) => { passed++; console.log("  pass:", n); };
   assert.equal(resolveAction(parseActToken("[[act:page:Skills ]]"), opts), "/skills");
   assert.equal(resolveAction(parseActToken("[[act:page:home]]"), opts), "/");
   assert.equal(resolveAction(parseActToken("[[act:page:admin]]"), opts), null, "unknown page: nothing happens");
+  assert.equal(resolveAction(parseActToken("[[act:page:constructor]]"), opts), null, "no prototype keys");
+  assert.equal(resolveAction(parseActToken("[[act:page:toString]]"), opts), null);
   assert.equal(resolveAction(parseActToken("[[act:doc:diploma]]"), opts), "/resume#diploma");
   assert.equal(resolveAction(parseActToken("[[act:doc:the diploma]]"), opts), "/resume#diploma");
   assert.equal(resolveAction(parseActToken("[[act:doc:my resume]]"), opts), "/resume");
@@ -65,6 +67,11 @@ const ok = (n) => { passed++; console.log("  pass:", n); };
   assert.equal(many.split(",").length, 6, "capped at six");
   const dup = resolveAction(parseActToken(`[[act:skills:${idA}, ${idA}]]`), opts);
   assert.equal(dup, "/skills#sel=" + encodeURIComponent(idA), "deduplicated");
+  const longest = [...skillIds].sort((a, b) => b.length - a.length).slice(0, 6);
+  const six = resolveAction(parseActToken(`[[act:skills:${longest.join(", ")}]] Six of them.`), opts);
+  assert.ok(six && six.split(",").length === 6, "the six longest ids still fit the token: " + six);
+  const short = skillIds.find((id) => id.length < 3);
+  if (short) assert.equal(resolveAction(parseActToken(`[[act:skills:${short}]]`), opts), "/skills#sel=" + encodeURIComponent(short), "short ids like C work for exact matches");
   ok("skills selection");
 }
 {
@@ -76,6 +83,15 @@ const ok = (n) => { passed++; console.log("  pass:", n); };
   assert.equal(resolveAction(parseActToken("[[act:project:Something Else Entirely]]"), opts), "/projects", "unknown: the page");
   assert.equal(resolveAction(parseActToken("[[act:project:Simone]]"), opts), "/projects", "'Simone' does not become Simon");
   ok("project targets");
+}
+
+// extra tokens after the first never reach the visitor
+{
+  assert.equal(stripExtraTokens("[[act:page:about]] hi"), "hi");
+  assert.equal(stripExtraTokens("[[spin]] [[act:page:about]]  there"), "there");
+  assert.equal(stripExtraTokens("plain text [[act:page:about]]"), "plain text [[act:page:about]]", "only at the start");
+  assert.equal(stripExtraTokens(""), "");
+  ok("extra leading tokens stripped");
 }
 
 console.log(`ALL ${passed} ACTION CHECKS PASSED`);

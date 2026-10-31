@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import { projects, projectSlug, projectShortName } from "../pages/Projects";
-import { parseActToken, resolveAction, couldBeToken, tokenCap } from "../utils/chatActions";
+import { parseActToken, resolveAction, couldBeToken, tokenCap, stripExtraTokens } from "../utils/chatActions";
 import * as THREE from "three";
 import "./FloatingHead.css";
 /* Hand-painted point regions (eyes, mouth seam, jaw) exported from
@@ -496,6 +496,7 @@ const PAGE_REFS = [
    renders from - fetched lazily when the chat opens; until it arrives (or
    if it never does) skills links stay plain /skills, which always works. */
 let SKILL_IDS = [];
+let SKILL_IDS_ALL = []; // every id, for exact matches (action tokens)
 let skillIdsRequested = false;
 const ensureSkillIds = () => {
   if (skillIdsRequested) return;
@@ -503,10 +504,10 @@ const ensureSkillIds = () => {
   fetch(process.env.PUBLIC_URL + "/skillsData.json")
     .then((r) => r.json())
     .then((j) => {
-      SKILL_IDS = (j.skillNodes || [])
-        .map((n) => String(n.id))
-        /* "C" alone would fire on any stray capital letter */
-        .filter((id) => id.length >= 3);
+      const ids = (j.skillNodes || []).map((n) => String(n.id));
+      SKILL_IDS_ALL = ids;
+      /* "C" alone would fire on any stray capital letter in prose */
+      SKILL_IDS = ids.filter((id) => id.length >= 3);
     })
     .catch(() => {});
 };
@@ -1772,29 +1773,40 @@ export default function FloatingHead({
       let held = "";
       let decided = false;
       let acted = false;
+      let pendingAct = null;
+      let pendingNav = null;
       let muteVoice = false;
       let firstText = false;
       const flow = (final) => {
         if (!decided) {
-          const m = held.match(/^\[\[(ghost|spin|fire|tint:#[0-9a-fA-F]{6})\]\]\s*/);
-          const act = m ? null : parseActToken(held);
+          /* leading whitespace decides nothing: some models put a space or a
+             newline before a token */
+          const probe = held.replace(/^\s+/, "");
+          const m = probe.match(/^\[\[(ghost|spin|fire|tint:#[0-9a-fA-F]{6})\]\]\s*/);
+          const act = m ? null : parseActToken(probe);
           if (m) {
             if (m[1] === "fire") muteVoice = true; // the scream replaces the narration
             fireTrick(m[1]);
-            held = held.slice(m[0].length);
+            held = stripExtraTokens(probe.slice(m[0].length));
             decided = true;
           } else if (act) {
-            /* an action token: open the thing on the site, then let the words
-               through. A target that cannot be resolved is dropped silently -
-               the sentence still reads as an answer. */
-            const to = resolveAction(act, { skillIds: SKILL_IDS, projectRefs: PROJECT_REFS });
+            /* an action token. The page opens when the chat steps aside after
+               the sentence, not now: the words get read first, and a head
+               rendered by the landing page is not unmounted mid-reply by its
+               own navigation. A target that cannot be resolved is dropped
+               silently - the sentence still reads as an answer. */
+            const to = resolveAction(act, { skillIds: SKILL_IDS_ALL, projectRefs: PROJECT_REFS });
             if (to) {
-              navigate(to);
+              pendingAct = act;
+              pendingNav = to;
               acted = true;
             }
-            held = held.slice(act.length);
+            held = stripExtraTokens(probe.slice(act.length));
             decided = true;
-          } else if (final || held.length >= tokenCap(held) || !couldBeToken(held)) {
+          } else if (!probe) {
+            if (final) decided = true; // nothing but whitespace
+          } else if (final || probe.length >= tokenCap(probe) || !couldBeToken(probe)) {
+            held = probe;
             decided = true; // provably not a directive - let it all through
           }
         }
@@ -1833,9 +1845,15 @@ export default function FloatingHead({
         }
       }
       if (acted) {
-        /* what the token opened is behind this overlay: give the sentence a
-           moment to be read, then step aside so the page shows */
-        setTimeout(() => setOpen(false), 2000);
+        /* give the sentence a moment to be read, then open the page and step
+           aside. Resolved again here in case the skills list arrived late. */
+        const act = pendingAct;
+        const first = pendingNav;
+        setTimeout(() => {
+          const to = resolveAction(act, { skillIds: SKILL_IDS_ALL, projectRefs: PROJECT_REFS }) || first;
+          if (to) navigate(to);
+          setOpen(false);
+        }, 1500);
       }
     } catch (err) {
       const said = String((err && err.message) || "");

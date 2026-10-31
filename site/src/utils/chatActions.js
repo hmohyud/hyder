@@ -10,7 +10,7 @@
  * Pure functions, tested offline by src/utils/chatActions.test.mjs.
  */
 
-const ACT_RX = /^\[\[act:(page|skills|doc|project):([^\]]{1,120})\]\]\s*/i;
+const ACT_RX = /^\[\[act:(page|skills|doc|project):([^\]]{1,240})\]\]\s*/i;
 
 /** The action at the very start of `text`, or null. `length` is how much to strip. */
 export function parseActToken(text) {
@@ -26,10 +26,29 @@ export function couldBeToken(held) {
 
 /** How many characters to hold before deciding the opening is plain text. */
 export function tokenCap(held) {
-  return /^\[\[act:/i.test(held) ? 160 : 18;
+  return /^\[\[act:/i.test(held) ? 280 : 18;
 }
 
-const PAGES = { home: "/", skills: "/skills", projects: "/projects", about: "/about", resume: "/resume" };
+/** Drop any further complete tokens at the start of the text: one token per
+ *  reply is the rule, and a second one must not reach the visitor. */
+export function stripExtraTokens(text) {
+  let t = String(text || "");
+  for (;;) {
+    const m = t.match(/^\[\[[^\]]{1,240}\]\]\s*/);
+    if (!m) break;
+    t = t.slice(m[0].length);
+  }
+  return t;
+}
+
+// a Map, not an object: "[[act:page:constructor]]" must find nothing
+const PAGES = new Map([
+  ["home", "/"],
+  ["skills", "/skills"],
+  ["projects", "/projects"],
+  ["about", "/about"],
+  ["resume", "/resume"],
+]);
 
 /* accent-free, lower-case, one space between words; keeps + and # for C++ / C# */
 const norm = (s) =>
@@ -49,7 +68,7 @@ const norm = (s) =>
 export function resolveAction(act, { skillIds = [], projectRefs = [] } = {}) {
   if (!act) return null;
   const arg = act.arg || "";
-  if (act.kind === "page") return PAGES[norm(arg)] || null;
+  if (act.kind === "page") return PAGES.get(norm(arg)) || null;
   if (act.kind === "doc") {
     const k = norm(arg);
     if (k.includes("diploma")) return "/resume#diploma";
