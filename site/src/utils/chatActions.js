@@ -7,6 +7,14 @@
  *   [[act:doc:diploma]]              the diploma (or doc:resume)
  *   [[act:page:about]]               a page: home, skills, projects, about, resume
  * The page turns the token into navigation before the words are shown.
+ *
+ * A guided tour is the one reply allowed more than one token. It opens with
+ * [[tour]] and is then a sequence of stops, each an action token followed by
+ * the sentence or two said at that stop:
+ *   [[tour]][[act:project:SPIM]] First stop... [[act:skills:PyTorch]] Then...
+ * The page plays the stops one at a time (splitTourSteps), navigating at each
+ * and pausing long enough for the sentence to be read (tourPause). Nothing
+ * here is shown or spoken: the tokens are stage directions.
  * Pure functions, tested offline by src/utils/chatActions.test.mjs.
  */
 
@@ -39,6 +47,73 @@ export function stripExtraTokens(text) {
     t = t.slice(m[0].length);
   }
   return t;
+}
+
+/* ---------- guided tours ---------- */
+
+const TOUR_RX = /^\[\[tour\]\]\s*/i;
+/* the same grammar as ACT_RX, anywhere in the text, used to cut a tour into stops */
+const STEP_RX = /\[\[act:(page|skills|doc|project):([^\]]{1,240})\]\]/gi;
+/* a selection, not a slideshow: a tour that runs past this is cut, so the
+   model's "three to five stops" rule has a hard edge behind it */
+export const MAX_TOUR_STOPS = 7;
+
+/** The tour token at the very start of `text`, or null. `length` is how much to strip. */
+export function parseTourToken(text) {
+  const m = String(text || "").match(TOUR_RX);
+  return m ? { length: m[0].length } : null;
+}
+
+/**
+ * Cut the body of a tour reply (everything after [[tour]]) into stops.
+ * Each stop is { act, text, done }: `act` is the parsed action token that
+ * opens it (null for an opening line before the first token, which is
+ * spoken without navigating), `text` what the head says there, and `done`
+ * whether that text is complete - true once the next token has arrived,
+ * or once the stream has ended (`final`). Called on every chunk while the
+ * reply streams, so a stop can start playing before the next has arrived.
+ * A dangling, unfinished token at the end of a finished reply is dropped
+ * rather than shown. Blank stops are dropped; the list is capped.
+ */
+export function splitTourSteps(body, final = false) {
+  const text = String(body || "");
+  const cuts = [];
+  STEP_RX.lastIndex = 0;
+  let m;
+  while ((m = STEP_RX.exec(text))) {
+    cuts.push({ at: m.index, end: m.index + m[0].length, act: { kind: m[1].toLowerCase(), arg: m[2].trim() } });
+  }
+  const steps = [];
+  const clean = (s, last) => {
+    let t = s;
+    // an incomplete token still arriving, or left over at the end: never shown
+    if (last) t = t.replace(/\[\[[^\]]*$/, "");
+    return t.replace(/\s+/g, " ").trim();
+  };
+  const intro = clean(text.slice(0, cuts.length ? cuts[0].at : text.length), !cuts.length);
+  if (intro) steps.push({ act: null, text: intro, done: cuts.length > 0 || final });
+  cuts.forEach((c, i) => {
+    const last = i === cuts.length - 1;
+    const t = clean(text.slice(c.end, last ? text.length : cuts[i + 1].at), last);
+    steps.push({ act: c.act, text: t, done: !last || final });
+  });
+  return steps.filter((s) => s.text || !s.done).slice(0, MAX_TOUR_STOPS);
+}
+
+/** How long a stop stays on screen, in ms: long enough to read the sentence
+ *  and watch the page behind it settle, never a slideshow nobody asked for. */
+export function tourPause(text) {
+  const n = String(text || "").length;
+  return Math.max(6000, Math.min(9000, 4200 + 28 * n));
+}
+
+/** A word typed during a tour that is a tour control rather than a question:
+ *  "next" | "stop" | null. */
+export function tourCommand(text) {
+  const t = String(text || "").trim().toLowerCase().replace(/[.!]+$/, "");
+  if (/^(next|skip|continue|go on|onwards?|carry on|more|ok|okay)$/.test(t)) return "next";
+  if (/^(stop|end|enough|quit|exit|cancel|done|that's enough|stop the tour|end the tour)$/.test(t)) return "stop";
+  return null;
 }
 
 // a Map, not an object: "[[act:page:constructor]]" must find nothing

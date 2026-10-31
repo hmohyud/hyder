@@ -488,16 +488,211 @@
   }
 }
 
-/* project names inside a reply lead to their write-up */
+/* ── reply typography ──
+   A reply is set, not dumped: words fade in as the stream delivers them, the
+   first clause of each paragraph sits a shade brighter than the reasoning
+   that follows it, project and page names are chips that lead to their
+   write-up, and a small cue at the end of the words breathes with the mouth
+   (--fh-mouth is written by the render loop) until the head has said them.
+   Restrained on purpose: one face, one weight step, the site's own blue. */
+.fh-w {
+  transition: color 0.45s ease;
+}
+.fh-lead {
+  color: #eaeef7;
+  font-weight: 560;
+}
+.fh-in {
+  animation: fhWordIn 0.34s ease-out both;
+}
+@keyframes fhWordIn {
+  from {
+    opacity: 0;
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    filter: none;
+  }
+}
+
+/* project and page names inside a reply lead to their write-up */
 .fh-proj-link {
+  display: inline;
+  padding: 0.02em 0.46em 0.06em;
+  border: 1px solid rgba(158, 216, 255, 0.3);
+  border-radius: 999px;
+  background: rgba(158, 216, 255, 0.07);
+  color: #bfe1ff;
+  text-decoration: none;
+  white-space: nowrap;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+.fh-proj-link:hover,
+.fh-proj-link:focus-visible {
+  color: #eaf6ff;
+  border-color: rgba(158, 216, 255, 0.75);
+  background: rgba(158, 216, 255, 0.15);
+}
+/* an e-mail address stays a plain underlined address - and OUR anchor, see
+   EMAIL_RX in FloatingHead.js for why that matters on iPhones */
+.fh-mail {
   color: inherit;
   text-decoration: underline;
   text-decoration-color: rgba(158, 216, 255, 0.5);
   text-underline-offset: 2px;
   transition: color 0.18s ease, text-decoration-color 0.18s ease;
 }
-.fh-proj-link:hover,
-.fh-proj-link:focus-visible {
+.fh-mail:hover,
+.fh-mail:focus-visible {
   color: #9ed8ff;
   text-decoration-color: #9ed8ff;
+}
+
+/* the typing cue: a small bar that opens with the lips */
+.fh-cue {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.95em;
+  margin-left: 0.32em;
+  vertical-align: -0.14em;
+  border-radius: 2px;
+  background: #78ffa8;
+  opacity: calc(0.22 + 0.78 * var(--fh-mouth, 0));
+  transform: scaleY(calc(0.5 + 0.5 * var(--fh-mouth, 0)));
+  transform-origin: 50% 100%;
+  transition: opacity 0.07s linear, transform 0.07s linear;
+}
+/* before the first word: three dots, waiting */
+.fh-cue-wait {
+  width: 0.32em;
+  height: 0.32em;
+  margin-left: 0.2em;
+  vertical-align: 0.05em;
+  border-radius: 50%;
+  transform: none;
+  opacity: 0.8;
+  box-shadow: 0.62em 0 0 0 #78ffa8, 1.24em 0 0 0 #78ffa8;
+  animation: fhCueWait 1.2s ease-in-out infinite;
+}
+@keyframes fhCueWait {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+/* ── guided tour ──
+   The page behind the chat is the exhibit, so the backdrop goes away and the
+   pointer passes through to it; the chat shrinks to a caption with a small
+   portrait above the words, and keeps its own dark card so each stop can be
+   read over whatever the page is doing. */
+.fh-overlay.fh-tour {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  pointer-events: none;
+  animation: none;
+}
+.fh-overlay.fh-tour::before {
+  display: none;
+}
+.fh-tour .fh-stage {
+  display: none;
+}
+.fh-tour .fh-close,
+.fh-tour .fh-chat {
+  pointer-events: auto;
+}
+/* one dark card for the whole caption - words, controls, input - so every
+   stop reads over whatever the page behind is showing; the portrait sits
+   half above its top edge, the speaker above the caption */
+.fh-tour .fh-chat {
+  width: min(600px, calc(100vw - 40px));
+  gap: 8px;
+  padding: 10px 12px 8px;
+  border: 1px solid rgba(120, 255, 168, 0.22);
+  border-radius: 14px;
+  background: rgba(8, 11, 16, 0.94);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+}
+.fh-tour .fh-log {
+  max-height: 30vh;
+  padding: 4px 4px 2px;
+  border: none;
+  background: transparent;
+}
+.fh-tour .fh-ask input,
+.fh-tour .fh-ask button {
+  background: rgba(10, 13, 19, 0.96);
+}
+.fh-tour-head {
+  width: 124px;
+  height: 124px;
+  margin: -72px auto -8px;
+  pointer-events: none;
+  filter: drop-shadow(0 0 20px rgba(0, 0, 0, 0.7));
+}
+.fh-tour-head .fh-canvas {
+  position: static;
+  transform: none;
+  width: 100%;
+  height: 100%;
+}
+.fh-tour-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: -2px 6px 0;
+  font-size: 0.74rem;
+  color: #6f788f;
+}
+.fh-tour-pos {
+  flex: 1 1 auto;
+  letter-spacing: 0.05em;
+}
+.fh-tour-btn {
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 130, 150, 0.4);
+  background: rgba(12, 16, 22, 0.92);
+  color: #cfd4e0;
+  font: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease;
+}
+.fh-tour-btn:hover,
+.fh-tour-btn:focus-visible {
+  color: #78ffa8;
+  border-color: rgba(120, 255, 168, 0.55);
+}
+
+@media (max-width: 640px) {
+  .fh-overlay.fh-tour {
+    justify-content: flex-end;
+  }
+  .fh-tour-head {
+    width: 84px;
+    height: 84px;
+    margin: -50px auto -6px;
+  }
+  .fh-tour .fh-log {
+    max-height: 32vh;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fh-in,
+  .fh-cue-wait {
+    animation: none;
+  }
+  .fh-w {
+    transition: none;
+  }
 }

@@ -2,7 +2,11 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import { projects, projectSlug, projectShortName } from "../pages/Projects";
-import { parseActToken, resolveAction, couldBeToken, tokenCap, stripExtraTokens } from "../utils/chatActions";
+import {
+  parseActToken, resolveAction, couldBeToken, tokenCap, stripExtraTokens,
+  parseTourToken, splitTourSteps, tourPause, tourCommand,
+} from "../utils/chatActions";
+import { getAttention } from "../utils/chatContext";
 import * as THREE from "three";
 import "./FloatingHead.css";
 /* Hand-painted point regions (eyes, mouth seam, jaw) exported from
@@ -574,7 +578,7 @@ function emailifyText(text) {
   if (parts.length === 1) return text;
   return parts.map((part, i) =>
     i % 2 === 1 ? (
-      <a key={i} href={"mailto:" + part} className="fh-proj-link">
+      <a key={i} href={"mailto:" + part} className="fh-mail">
         {part}
       </a>
     ) : (
@@ -583,12 +587,16 @@ function emailifyText(text) {
   );
 }
 
-function linkifyReply(text, onNavigate) {
-  if (!text) return text;
+/* The reply cut into plain text, site links and e-mail addresses, in order:
+   [{ text, to? , mailto? }]. The pieces concatenate back to the exact text,
+   which is what lets renderReply keep character offsets while it wraps
+   words. Same matching as before: longest name first, word-bounded, accent-
+   blind; a skills-map link carries the skills the reply names. */
+function linkParts(text) {
   const parts = String(text).split(REF_RX);
   const out = [];
   let skillsHash = null; // computed once per reply, only if a skills link exists
-  parts.forEach((part, i) => {
+  parts.forEach((part) => {
     if (!part) return;
     const hit = LINK_ENTRIES.find((e) => e.key === refKey(part));
     if (hit) {
@@ -597,28 +605,247 @@ function linkifyReply(text, onNavigate) {
         if (skillsHash === null) skillsHash = skillsHashFor(String(text));
         to = "/skills" + skillsHash;
       }
-      out.push(
-        <Link key={i} to={to} className="fh-proj-link" onClick={onNavigate}>
-          {part}
-        </Link>
-      );
+      out.push({ text: part, to });
       return;
     }
     const sub = part.split(EMAIL_RX);
     for (let j = 0; j < sub.length; j++) {
       if (!sub[j]) continue;
-      if (j % 2 === 1) {
-        out.push(
-          <a key={i + "-" + j} href={"mailto:" + sub[j]} className="fh-proj-link">
-            {sub[j]}
-          </a>
-        );
-      } else {
-        out.push(sub[j]);
-      }
+      if (j % 2 === 1) out.push({ text: sub[j], mailto: sub[j] });
+      else out.push({ text: sub[j] });
     }
   });
   return out;
+}
+
+/* ---------- reply typography ----------
+   The first clause of each paragraph is set a shade brighter: the opening
+   is where the answer is, the rest is the reasoning. A clause is text up to
+   the first sentence end, or the first comma/colon/dash past the sixteenth
+   character, within ninety; a paragraph with no boundary yet is left
+   undecided while it streams (so nothing brightens and then dims as more
+   arrives - the emphasis settles once, when the clause is known), and
+   settled at a word boundary near 72 once the reply is complete.
+   Returns [start, end) ranges in text offsets. */
+const BOUNDARY_RX = /[.!?](?=\s|$)|[:;,](?=\s)|\s[-\u2013\u2014]\s/g;
+function leadRanges(text, settled) {
+  const ranges = [];
+  const rx = /\n\s*\n/g;
+  let at = 0;
+  const paras = [];
+  let m;
+  while ((m = rx.exec(text))) {
+    paras.push([at, m.index]);
+    at = m.index + m[0].length;
+  }
+  paras.push([at, text.length]);
+  paras.forEach(([start, end], i) => {
+    const para = text.slice(start, end);
+    const last = i === paras.length - 1;
+    let lead = -1;
+    BOUNDARY_RX.lastIndex = 0;
+    let b;
+    while ((b = BOUNDARY_RX.exec(para))) {
+      if (b.index < 16) continue;
+      lead = b.index <= 90 ? b.index + (b[0].length === 1 ? 1 : 0) : 0;
+      break;
+    }
+    if (lead === -1) {
+      if (!settled && last && para.length <= 90) return; // undecided for now
+      if (para.length <= 72) lead = para.length;
+      else {
+        const cut = para.lastIndexOf(" ", 72);
+        lead = cut > 16 ? cut : 72;
+      }
+    }
+    if (lead > 0) ranges.push([start, start + lead]);
+  });
+  return ranges;
+}
+
+/* Words are wrapped one by one so each can fade in as it arrives (the
+   stream delivers them a few at a time, which is pacing enough - the mouth
+   follows behind at speaking speed), project and page names become chips
+   that lead to their write-up, and e-mail addresses are OUR anchors, which
+   is what keeps WebKit's data detectors from injecting their own into text
+   React owns (see EMAIL_RX). Whitespace is left as-is so pre-wrap keeps the
+   paragraph breaks. Only a reply still being spoken animates: a restored
+   transcript renders settled. */
+function renderReply(text, onNavigate, live) {
+  if (!text) return null;
+  const leads = leadRanges(String(text), !live);
+  const isLead = (at) => leads.some(([a, b]) => at >= a && at < b);
+  const out = [];
+  let pos = 0;
+  let key = 0;
+  const fade = live ? " fh-in" : "";
+  for (const part of linkParts(text)) {
+    if (part.to) {
+      out.push(
+        <Link key={"l" + key++} to={part.to} className={"fh-proj-link" + fade} onClick={onNavigate}>
+          {part.text}
+        </Link>
+      );
+    } else if (part.mailto) {
+      out.push(
+        <a key={"m" + key++} href={"mailto:" + part.mailto} className={"fh-mail" + fade}>
+          {part.text}
+        </a>
+      );
+    } else {
+      for (const piece of part.text.split(/(\s+)/)) {
+        if (!piece) continue;
+        if (/^\s+$/.test(piece)) {
+          out.push(piece);
+        } else {
+          out.push(
+            <span key={"w" + key++} className={"fh-w" + (isLead(pos) ? " fh-lead" : "") + fade}>
+              {piece}
+            </span>
+          );
+        }
+        pos += piece.length;
+      }
+      continue;
+    }
+    pos += part.text.length;
+  }
+  return out;
+}
+
+/* ---------- guided tours ----------
+   A tour is one reply played as a sequence of stops: at each, the page
+   behind the chat opens something (a project card, the skills map with a
+   selection, the diploma, a page) and the head says a sentence or two about
+   it, then moves on after a pause - or when the visitor presses Enter, or
+   "next" - and stops on Escape, a click on the page, or "stop".
+   The controller lives OUTSIDE React on purpose. Moving between the landing
+   page and any other route swaps which FloatingHead is mounted (Landing
+   renders its own, App.js the corner one), so the instance that started the
+   tour is often gone by the second stop. The controller keeps the stops,
+   the timer and the transcript; whichever head is mounted registers as its
+   stage and receives the words. The transcript is written to localStorage
+   before every move, which is how the next head wakes up mid-conversation. */
+const TOUR = {
+  running: false,
+  streaming: false, // the reply is still arriving; later stops may follow
+  steps: [],
+  index: -1,
+  waiting: false, // the pause has elapsed but the next stop is not complete yet
+  timer: 0,
+  stage: null, // the mounted head: { navigate, setMsgs, speak, onStep, onTour }
+  pending: null, // words for the next stage to speak, when a move swaps heads
+  transcript: null,
+  replyAt: -1,
+  shown: "",
+  abort: null,
+};
+
+/* the model that answered last, kept across head instances for the same
+   reason: the hint line should not forget who is talking after a move */
+let LAST_MODEL = "";
+
+const tourPersist = () => {
+  try {
+    if (TOUR.transcript) localStorage.setItem(CHAT_LOG_KEY, JSON.stringify(TOUR.transcript.slice(-40)));
+  } catch (err) {
+    // private mode, or the quota is full
+  }
+};
+
+function tourStart(transcript, replyAt, abort) {
+  clearTimeout(TOUR.timer);
+  Object.assign(TOUR, {
+    running: true, streaming: true, steps: [], index: -1, waiting: false, timer: 0,
+    pending: null, transcript, replyAt, shown: "", abort,
+  });
+  if (TOUR.stage) TOUR.stage.onTour(true, "start");
+}
+
+/* called on every chunk of the tour reply with the raw text so far, and once
+   more with final=true: a stop can begin before the next one has arrived */
+function tourFeed(raw, final) {
+  if (!TOUR.running) return;
+  TOUR.steps = splitTourSteps(raw, final);
+  if (final) TOUR.streaming = false;
+  if (TOUR.index === -1 || TOUR.waiting) tourAdvance();
+  else if (TOUR.stage) TOUR.stage.onStep(TOUR.index, TOUR.steps.length, TOUR.streaming);
+}
+
+function tourDeliver() {
+  const stage = TOUR.stage;
+  if (!stage) return;
+  if (TOUR.transcript) stage.setMsgs(TOUR.transcript.slice());
+  if (TOUR.pending) {
+    stage.speak(TOUR.pending);
+    TOUR.pending = null;
+  }
+  stage.onStep(TOUR.index, TOUR.steps.length, TOUR.streaming);
+}
+
+function tourAdvance() {
+  if (!TOUR.running) return;
+  clearTimeout(TOUR.timer);
+  const next = TOUR.index + 1;
+  const step = TOUR.steps[next];
+  if (!step || !step.done) {
+    if (TOUR.streaming) {
+      TOUR.waiting = true; // the rest is on its way
+      return;
+    }
+    tourEnd("done");
+    return;
+  }
+  TOUR.waiting = false;
+  TOUR.index = next;
+  const to = step.act ? resolveAction(step.act, { skillIds: SKILL_IDS_ALL, projectRefs: PROJECT_REFS }) : null;
+  TOUR.shown = TOUR.shown ? TOUR.shown + "\n\n" + step.text : step.text;
+  if (TOUR.transcript && TOUR.replyAt < TOUR.transcript.length) {
+    TOUR.transcript = TOUR.transcript.slice();
+    TOUR.transcript[TOUR.replyAt] = { role: "assistant", content: TOUR.shown };
+    tourPersist();
+  }
+  const here = window.location.pathname + window.location.hash;
+  /* leaving or returning to "/" swaps heads: the words wait for the new one */
+  const crosses = !!to && (window.location.pathname === "/") !== (to.split("#")[0] === "/");
+  TOUR.pending = step.text;
+  if (to && to !== here && TOUR.stage) TOUR.stage.navigate(to);
+  if (!crosses) tourDeliver();
+  TOUR.timer = setTimeout(tourAdvance, tourPause(step.text));
+}
+
+function tourNext() {
+  if (TOUR.running) tourAdvance();
+}
+
+function tourEnd(reason) {
+  if (!TOUR.running) return;
+  clearTimeout(TOUR.timer);
+  TOUR.running = false;
+  TOUR.streaming = false;
+  TOUR.waiting = false;
+  TOUR.pending = null;
+  if (TOUR.abort && reason !== "done") {
+    try {
+      TOUR.abort.abort(); // the rest of the reply is not wanted
+    } catch (err) {
+      // already finished
+    }
+  }
+  TOUR.abort = null;
+  tourPersist();
+  if (TOUR.stage) TOUR.stage.onTour(false, reason);
+}
+
+function tourRegister(stage) {
+  TOUR.stage = stage;
+  if (TOUR.running) {
+    stage.onTour(true, "resume");
+    tourDeliver();
+  }
+}
+function tourUnregister(stage) {
+  if (TOUR.stage === stage) TOUR.stage = null;
 }
 
 /* Any render crash inside the chat would otherwise unmount the WHOLE app -
@@ -700,8 +927,19 @@ export default function FloatingHead({
     wantTint: null,
     hovering: false,
   });
-  const [open, setOpen] = useState(false);
+  /* a head mounted while a tour is running (the move swapped heads) opens
+     straight into it */
+  const [open, setOpen] = useState(() => TOUR.running);
+  const [tour, setTour] = useState(() => TOUR.running);
+  const [tourPos, setTourPos] = useState({ i: -1, n: 0, more: false });
   const navigate = useNavigate(); // action tokens open pages from the chat
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
+  const chatRef = useRef(null);
+  const tourHeadRef = useRef(null);
+  const sendSeq = useRef(0);
+  /* the mouth is mid-word: the reply's typing cue pulses with it */
+  const [speaking, setSpeaking] = useState(false);
   const [ready, setReady] = useState(false);
   // Phone gets a plain button instead of a WebGL portrait, so the scene is
   // only built there once the lightbox is actually opened.
@@ -725,7 +963,7 @@ export default function FloatingHead({
      reads as a broken site unless the page owns the delay in words */
   const [slowNote, setSlowNote] = useState(false);
   // which model answered last, for the hint line under the input
-  const [model, setModel] = useState("");
+  const [model, setModel] = useState(LAST_MODEL);
   /* bumped to remount the ChatShield after a crash reset */
   const [chatEpoch, setChatEpoch] = useState(0);
   const logRef = useRef(null);
@@ -756,6 +994,12 @@ export default function FloatingHead({
     if (!open || !CHAT_ENDPOINT) return undefined;
     const input = inputRef.current;
     if (!input) return undefined;
+    if (tour) {
+      /* set here, after the previous run's cleanup has had its say - React
+         wrote the prop before that cleanup reset the attribute */
+      input.placeholder = "next · stop · or ask something";
+      return undefined;
+    }
     if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)
       return undefined;
     let alive = true;
@@ -795,7 +1039,7 @@ export default function FloatingHead({
       clearTimeout(timer);
       input.placeholder = "Ask me about my work";
     };
-  }, [open]);
+  }, [open, tour]);
 
   /* corner shows a subset; the lightbox shows every point */
   const applyDrawRange = useCallback(() => {
@@ -1391,6 +1635,10 @@ export default function FloatingHead({
         if (s.talkPos == null) s.talkPos = 0;
         if (buf.length - s.talkPos > 120) s.talkPos = buf.length - 120;
         const talking = s.talkPos < buf.length;
+        if (talking !== !!s.wasTalking) {
+          s.wasTalking = talking; // twice per reply, not per frame
+          setSpeaking(talking);
+        }
         if (talking && t >= (s.talkNext || 0)) {
           const dw = DIGIT_WORDS[buf.charAt(s.talkPos)];
           if (dw) {
@@ -1438,6 +1686,12 @@ export default function FloatingHead({
         material.uniforms.uBlink.value = blink;
         material.uniforms.uMouth.value = mouth;
         material.uniforms.uMouthW.value = mouthW;
+        /* the typing cue in the transcript breathes with the same number
+           the lips use, so text and mouth read as one performance */
+        if (chatRef.current && Math.abs(mouth - (s.cueMouth || 0)) > 0.02) {
+          s.cueMouth = mouth;
+          chatRef.current.style.setProperty("--fh-mouth", mouth.toFixed(2));
+        }
       }
 
       renderer.render(scene, camera);
@@ -1576,7 +1830,7 @@ export default function FloatingHead({
     }
     const world = worldRef.current;
     if (!world) return;
-    const host = open ? stageRef.current : miniRef.current;
+    const host = open ? (tour && tourHeadRef.current) || stageRef.current : miniRef.current;
     if (!host) return;
     if (world.canvas.parentElement !== host) host.appendChild(world.canvas);
     const box = miniRef.current ? miniRef.current.clientWidth || 100 : 100;
@@ -1587,7 +1841,7 @@ export default function FloatingHead({
     world.canvas.style.width = w + "px";
     world.canvas.style.height = h + "px";
     world.camera.aspect = w / h;
-    const z = open ? 5.6 : MINI_Z;
+    const z = open ? (tour ? 4.4 : 5.6) : MINI_Z;
     world.camera.position.z = z;
     world.camera.updateProjectionMatrix();
     const fov = (world.camera.fov * Math.PI) / 180;
@@ -1595,7 +1849,7 @@ export default function FloatingHead({
     const targetPx = Math.max(1.3, 0.0044 * headPx);
     world.material.uniforms.uSize.value = targetPx * z;
     applyDrawRange();
-  }, [open, applyDrawRange]);
+  }, [open, tour, applyDrawRange]);
 
   useEffect(() => {
     stateRef.current.open = open;
@@ -1622,15 +1876,63 @@ export default function FloatingHead({
        parented to a detached node - a head that silently vanishes. These deps
        are what re-runs the re-parent. */
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, ready, layout, mode, missionEl]);
+  }, [open, ready, layout, mode, missionEl, tour]);
+
+  /* closing the chat by any route - Escape, the cross, a chip, the backdrop -
+     also ends a running tour: a tour with no chat on screen is just a page
+     changing by itself */
+  const dismiss = useCallback(() => {
+    if (TOUR.running) tourEnd("closed");
+    setOpen(false);
+  }, []);
 
   useEffect(() => {
     if (!open) return undefined;
     const onKey = (e) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") dismiss();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
+  }, [open, dismiss]);
+
+  /* this head is the tour's stage while it is mounted: it navigates, shows
+     the transcript the controller keeps, and speaks each stop's words */
+  useEffect(() => {
+    const stage = {
+      navigate: (to) => navigateRef.current(to),
+      setMsgs: (m) => setMsgs(m),
+      speak: (text) => {
+        const s = stateRef.current;
+        s.talkBuf = text; // each stop is spoken from its first word
+        s.talkPos = 0;
+        s.talkNext = 0;
+        if (!s.voicePitch) s.voicePitch = 0.95 + Math.random() * 0.2;
+        ensureAudio();
+      },
+      onStep: (i, n, more) => setTourPos({ i, n, more }),
+      onTour: (on, reason) => {
+        setTour(on);
+        if (on) setOpen(true);
+        else if (reason !== "stop" && reason !== "question") setOpen(false);
+      },
+    };
+    tourRegister(stage);
+    return () => tourUnregister(stage);
+  }, []);
+
+  /* during a tour the page behind the chat is live, and a click on it is
+     the visitor taking over: the tour stops and the click goes through */
+  useEffect(() => {
+    if (!tour) return undefined;
+    const onClick = (e) => {
+      if (e.target && e.target.closest && e.target.closest(".fh-chat, .fh-close")) return;
+      tourEnd("click");
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [tour]);
+  useEffect(() => {
+    if (!open && TOUR.running) tourEnd("closed");
   }, [open]);
 
   useEffect(() => {
@@ -1644,10 +1946,55 @@ export default function FloatingHead({
     if (open && mode !== "phone" && inputRef.current) inputRef.current.focus();
   }, [open]);
 
+  /* where the visitor is, for the worker: the route, and on the projects
+     page the card under the pointer or last clicked (Projects.js notes it),
+     else the one a deep link opened; on the landing page the hovered card */
+  const pageContext = () => {
+    const path = window.location.pathname + window.location.hash;
+    let hovered = "";
+    const att = getAttention();
+    if (path.startsWith("/projects")) {
+      if (att && att.kind === "project") hovered = att.name;
+      else if (window.location.hash.length > 1) {
+        let slug = "";
+        try {
+          slug = decodeURIComponent(window.location.hash.slice(1));
+        } catch (err) {
+          slug = "";
+        }
+        const ref = PROJECT_REFS.find((p) => p.to === "/projects#" + slug);
+        if (ref) hovered = ref.name;
+      }
+    } else if (path === "/" && hoveredCard) {
+      hovered = { 1: "Skills", 2: "Projects", 3: "About", 4: "Resume" }[hoveredCard] || "";
+    }
+    return { path, hovered };
+  };
+
   const send = async (e) => {
     e.preventDefault();
     const question = draft.trim();
-    if (!question || busy) return;
+    if (TOUR.running) {
+      /* a word to the tour rather than a question: Enter or "next" moves
+         on, "stop" ends it with the chat still open; anything else ends it
+         and is answered as usual */
+      const cmd = tourCommand(question);
+      if (!question || cmd === "next") {
+        setDraft("");
+        tourNext();
+        return;
+      }
+      if (cmd === "stop") {
+        setDraft("");
+        tourEnd("stop");
+        return;
+      }
+      tourEnd("question");
+    } else if (busy) {
+      return;
+    }
+    if (!question) return;
+    const seq = ++sendSeq.current; // an aborted tour reply must not clear a newer question's busy state
 
     const history = msgs.concat({ role: "user", content: question });
     setMsgs(history.concat({ role: "assistant", content: "" }));
@@ -1744,11 +2091,16 @@ export default function FloatingHead({
     const ctrl = new AbortController();
     const killT = setTimeout(() => ctrl.abort(), 70000);
     const slowT = setTimeout(() => setSlowNote(true), 9000);
+    const context = pageContext();
+    /* a tour reply is not shown as it streams: the raw text, tokens and all,
+       goes to the tour controller, which plays it stop by stop */
+    let tourMode = false;
+    let raw = "";
     try {
       const res = await fetch(CHAT_ENDPOINT, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ messages: history }),
+        body: JSON.stringify({ messages: history, context }),
         signal: ctrl.signal,
       });
       /* The worker explains refusals in the body — the daily cap, an unknown
@@ -1762,7 +2114,10 @@ export default function FloatingHead({
       }
       if (!res.body) throw new Error("no body");
       const served = res.headers.get("x-chat-model");
-      if (served) setModel(prettyModel(served));
+      if (served) {
+        LAST_MODEL = prettyModel(served);
+        setModel(LAST_MODEL);
+      }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       /* A trick token can arrive SPLIT across stream chunks, so the head of
@@ -1778,10 +2133,30 @@ export default function FloatingHead({
       let muteVoice = false;
       let firstText = false;
       const flow = (final) => {
+        if (tourMode) {
+          /* a tour: nothing is shown here. The controller cuts the raw text
+             into stops as it arrives and plays them at its own pace. */
+          raw += held;
+          held = "";
+          tourFeed(raw, final);
+          return;
+        }
         if (!decided) {
           /* leading whitespace decides nothing: some models put a space or a
              newline before a token */
           const probe = held.replace(/^\s+/, "");
+          const tourTok = parseTourToken(probe);
+          if (tourTok) {
+            tourMode = true;
+            decided = true;
+            firstText = true;
+            clearTimeout(slowT);
+            setSlowNote(false);
+            tourStart(history.concat({ role: "assistant", content: "" }), replyAt, ctrl);
+            held = probe.slice(tourTok.length);
+            flow(final);
+            return;
+          }
           const m = probe.match(/^\[\[(ghost|spin|fire|tint:#[0-9a-fA-F]{6})\]\]\s*/);
           const act = m ? null : parseActToken(probe);
           if (m) {
@@ -1834,7 +2209,9 @@ export default function FloatingHead({
         flow(false);
       }
       flow(true);
-      if (!acc.trim()) {
+      if (tourMode) {
+        // the controller owns the rest: the stops, the moves, the transcript
+      } else if (!acc.trim()) {
         if (trickFired || acted) {
           // token-only reply: drop the empty bubble - the trick IS the answer
           setMsgs((prev) => prev.filter((_, i) => i !== replyAt));
@@ -1856,22 +2233,31 @@ export default function FloatingHead({
         }, 1500);
       }
     } catch (err) {
-      const said = String((err && err.message) || "");
-      const msg = said.startsWith("said:")
-        ? said.slice(5)
-        : "I couldn't reach the model just now — email hyder.mohyuddin@gmail.com and you'll get a real reply.";
-      replace(msg);
-      /* refusals and failures go through the same mouth as answers - the head
-         apologising in silence while text appears reads as broken, and the
-         daily-cap message is the one visitors most deserve to be told out
-         loud. The buffer was reset at send, so this voices exactly this. */
-      stateRef.current.talkBuf += msg;
+      if (tourMode) {
+        /* the visitor stopped the tour mid-reply (the request was aborted),
+           or the stream broke: the stops already shown stay as they are and
+           whatever arrived in full still plays */
+        if (TOUR.running) tourFeed(raw, true);
+      } else {
+        const said = String((err && err.message) || "");
+        const msg = said.startsWith("said:")
+          ? said.slice(5)
+          : "I couldn't reach the model just now — email hyder.mohyuddin@gmail.com and you'll get a real reply.";
+        replace(msg);
+        /* refusals and failures go through the same mouth as answers - the head
+           apologising in silence while text appears reads as broken, and the
+           daily-cap message is the one visitors most deserve to be told out
+           loud. The buffer was reset at send, so this voices exactly this. */
+        stateRef.current.talkBuf += msg;
+      }
     } finally {
       clearTimeout(killT);
       clearTimeout(slowT);
-      setSlowNote(false);
-      stateRef.current.busy = false;
-      setBusy(false);
+      if (sendSeq.current === seq) {
+        setSlowNote(false);
+        stateRef.current.busy = false;
+        setBusy(false);
+      }
     }
   };
 
@@ -2008,23 +2394,23 @@ export default function FloatingHead({
       {open &&
         createPortal(
           <div
-            className="fh-overlay"
+            className={"fh-overlay" + (tour ? " fh-tour" : "")}
             ref={overlayRef}
           role="dialog"
-          aria-modal="true"
+          aria-modal={tour ? "false" : "true"}
           aria-label="3D portrait"
           onClick={() => {
             if (stateRef.current.moved > 6) {
               stateRef.current.moved = 0;
               return;
             }
-            setOpen(false);
+            dismiss();
           }}
         >
           <button
             type="button"
             className="fh-close"
-            onClick={() => setOpen(false)}
+            onClick={dismiss}
             aria-label="Close"
           >
             ×
@@ -2047,13 +2433,17 @@ export default function FloatingHead({
             >
             <div
               className="fh-chat"
+              ref={chatRef}
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
             >
+              {/* on a tour the portrait shrinks to a caption-sized host above
+                  the words, so the page behind can be seen changing */}
+              {tour && <div className="fh-tour-head" ref={tourHeadRef} aria-hidden="true" />}
               {/* Outside the log on purpose: inside it, it scrolled away with
                   the transcript, so collapsing a long conversation meant
                   scrolling up to find the control that collapses it. */}
-              {msgs.length > 2 && (
+              {msgs.length > 2 && !tour && (
                 <button
                   type="button"
                   className="fh-more"
@@ -2070,19 +2460,29 @@ export default function FloatingHead({
               )}
               {msgs.length > 0 && (
                 <div className="fh-log" ref={logRef}>
-                  {(showAll ? msgs : msgs.slice(-2)).map((m, i, shown) => (
-                    <p key={i} className={"fh-msg fh-" + m.role}>
-                      <span className="fh-who">
-                        {m.role === "user" ? "you" : "hyder"}
-                      </span>
-                      {m.role === "assistant"
-                        ? linkifyReply(m.content, () => setOpen(false))
-                        : emailifyText(m.content)}
-                      {!m.content && busy && i === shown.length - 1
-                        ? "thinking…"
-                        : ""}
-                    </p>
-                  ))}
+                  {(showAll ? msgs : msgs.slice(-2)).map((m, i, shown) => {
+                    const last = i === shown.length - 1;
+                    /* the reply being delivered: words fade in as they arrive
+                       and a cue breathes with the mouth until it has said them */
+                    const live = m.role === "assistant" && last && (busy || speaking || tour);
+                    return (
+                      <p key={i} className={"fh-msg fh-" + m.role + (live ? " fh-live" : "")}>
+                        <span className="fh-who">
+                          {m.role === "user" ? "you" : "hyder"}
+                        </span>
+                        {m.role === "assistant"
+                          ? renderReply(m.content, dismiss, live)
+                          : emailifyText(m.content)}
+                        {m.role === "assistant" && last && (busy || speaking) ? (
+                          <span
+                            className={"fh-cue" + (m.content ? "" : " fh-cue-wait")}
+                            role={m.content ? undefined : "status"}
+                            aria-label={m.content ? undefined : "thinking"}
+                          />
+                        ) : null}
+                      </p>
+                    );
+                  })}
                   {busy && slowNote && (
                     <p className="fh-msg fh-assistant fh-slownote">
                       <span className="fh-who">hyder</span>
@@ -2093,13 +2493,36 @@ export default function FloatingHead({
                   )}
                 </div>
               )}
+              {tour && (
+                <div className="fh-tour-bar">
+                  <span className="fh-tour-pos">
+                    {tourPos.i < 0
+                      ? "starting the tour"
+                      : "stop " + (tourPos.i + 1) + (tourPos.more ? "" : " of " + tourPos.n)}
+                  </span>
+                  <button type="button" className="fh-tour-btn" onClick={() => tourNext()}>
+                    next ›
+                  </button>
+                  <button type="button" className="fh-tour-btn" onClick={() => tourEnd("stop")}>
+                    stop
+                  </button>
+                </div>
+              )}
               <form className="fh-ask" ref={askRef} onSubmit={send}>
                 <input
                   ref={inputRef}
                   type="text"
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
-                  placeholder="Ask me about my work"
+                  onKeyDown={(e) => {
+                    /* an empty Enter cannot submit while the Ask button is
+                       disabled, so on a tour it is caught here: next stop */
+                    if (e.key === "Enter" && TOUR.running && !draft.trim()) {
+                      e.preventDefault();
+                      tourNext();
+                    }
+                  }}
+                  placeholder={tour ? "next · stop · or ask something" : "Ask me about my work"}
                   aria-label="Ask a question"
                   maxLength={1500}
                   /* Deliberately not disabled while a reply streams. Disabling
@@ -2112,7 +2535,8 @@ export default function FloatingHead({
                 </button>
               </form>
               <p className="fh-hint">
-                drag to rotate · esc to close{model ? " · " + model : ""}
+                {tour ? "enter for the next stop · esc stops the tour" : "drag to rotate · esc to close"}
+                {model ? " · " + model : ""}
               </p>
             </div>
             </ChatShield>

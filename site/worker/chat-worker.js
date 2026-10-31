@@ -2,8 +2,16 @@
  * Cloudflare Worker backing the site chat.
  *
  * Contract (shared with chat-dev-server.mjs so the UI never changes):
- *   POST /chat  { messages: [{ role: "user" | "assistant", content: string }] }
+ *   POST /chat  { messages: [{ role: "user" | "assistant", content: string }],
+ *                 context?: { path: string, hovered?: string } }
  *   -> streams plain UTF-8 text chunks, no SSE framing for the client to parse.
+ *   `context` is what the page knows about where the visitor is - the route,
+ *   and on the projects page the card they are looking at - so "tell me about
+ *   this one" has a referent. It is validated and clipped here (chatContext),
+ *   then handed to the model OUTSIDE the cached system prompt: as a
+ *   mid-conversation system message on Claude, as a bracketed prefix on the
+ *   last user turn for the providers without one. The system block itself
+ *   stays byte-identical on every request, which is what keeps it cached.
  *
  * Backends, tried in this order, each only if it is bound:
  *   - env.ANTHROPIC_KEY -> Claude Sonnet on the Anthropic API, under a daily dollar
@@ -53,6 +61,67 @@ const GEMINI_MAX_CANDIDATES = 6;
 
 const MAX_TURNS = 12;
 const MAX_CHARS = 1500;
+
+/* ---- page context ----
+   Where the visitor is, as the page reports it. Untrusted input like any
+   other: the path must look like one of the site's own, the hovered name is
+   clipped and stripped of brackets (so it can never spell a token) and
+   control characters, and anything else is dropped rather than repaired. */
+const PATH_RX = /^\/[A-Za-z0-9\-_.~/#?=&,%+]{0,159}$/;
+const PAGE_NAMES = [
+  [/^\/$/, "the landing page"],
+  [/^\/projects/, "the projects page"],
+  [/^\/skills/, "the skills map"],
+  [/^\/about/, "the about page"],
+  [/^\/resume/, "the resume page"],
+  [/^\/art/, "the art gallery"],
+];
+
+function chatContext(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  let path = typeof raw.path === "string" ? raw.path.trim() : "";
+  if (!PATH_RX.test(path)) path = "";
+  const hovered =
+    typeof raw.hovered === "string"
+      ? raw.hovered
+          .replace(/[\u0000-\u001f\u007f[\]]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 80)
+      : "";
+  if (!path && !hovered) return null;
+  return { path, hovered };
+}
+
+/* One sentence of fact, then the rule for using it. The rule rides along
+   with every context line rather than living only in the cached prompt, so
+   even the providers that see it as user text know it is not conversation. */
+function contextLine(context) {
+  const page = PAGE_NAMES.find(([rx]) => rx.test(context.path || ""));
+  let where = page ? page[1] : context.path ? "the page " + context.path : "the site";
+  if (/^\/resume[^#]*#diploma/.test(context.path || "")) where += ", with the diploma open";
+  let line = "The visitor is on " + where + (context.path ? " (" + context.path + ")" : "") + ".";
+  if (context.hovered) {
+    const card = /^\/projects/.test(context.path || "") ? "the project card for " : "the card for ";
+    line += " They are looking at " + card + context.hovered + ".";
+  }
+  return (
+    "Page context, from the site itself: " +
+    line +
+    ' Use it silently to resolve "this", "this one", "here" and "where am I"; ' +
+    "never mention it, the page or the card unless they ask."
+  );
+}
+
+/* for the providers without a system role mid-conversation: the context
+   rides at the top of the last user turn, bracketed so it reads as a note */
+function withContextPrefix(messages, context) {
+  if (!context) return messages;
+  const out = messages.slice();
+  const i = out.length - 1;
+  out[i] = { role: out[i].role, content: "(" + contextLine(context) + ")\n\n" + out[i].content };
+  return out;
+}
 
 /* The free providers have no site-wide daily budget. An invented ceiling only
    ever turned people away while free quota sat unused; the providers already
@@ -394,6 +463,7 @@ export default {
     if (!messages.length || messages[messages.length - 1].role !== "user") {
       return new Response("no question", { status: 400, headers: cors });
     }
+    const context = chatContext(body.context);
 
     /* Crude per-visitor daily cap, and only when a KV namespace is bound and
        a cap is configured - with no cap there is no KV read and no KV write
@@ -434,13 +504,13 @@ export default {
     if (env.ANTHROPIC_KEY) {
       chain.push({
         name: "anthropic",
-        run: () => anthropicStream(env, messages, ctx),
+        run: () => anthropicStream(env, messages, ctx, context),
         gate: () => anthropicWithinBudget(env),
         counts: false, // anthropicStream records its own count, with the cost
       });
     }
-    if (env.GEMINI_KEY) chain.push({ name: "gemini", run: () => geminiStream(env, messages) });
-    if (env.AI) chain.push({ name: "workers-ai", run: () => workersAiStream(env, messages) });
+    if (env.GEMINI_KEY) chain.push({ name: "gemini", run: () => geminiStream(env, messages, context) });
+    if (env.AI) chain.push({ name: "workers-ai", run: () => workersAiStream(env, messages, context) });
 
     try {
       let lastError = null;
@@ -521,9 +591,9 @@ export default {
 };
 
 /* ---- Workers AI: SSE in, plain text out ---- */
-async function workersAiStream(env, messages) {
+async function workersAiStream(env, messages, context) {
   const sse = await env.AI.run(WORKERS_AI_MODEL, {
-    messages: [{ role: "system", content: PROMPT }, ...messages],
+    messages: [{ role: "system", content: PROMPT }, ...withContextPrefix(messages, context)],
     stream: true,
     max_tokens: 600,
   });
@@ -572,8 +642,12 @@ async function workersAiStream(env, messages) {
    the input price instead of being paid in full each time. Visitors arrive
    minutes apart, which is exactly the gap the 5-minute default cache would miss.
    Every response's token usage is priced and added to today's spend record,
-   which is what anthropicWithinBudget reads. */
-async function anthropicStream(env, messages, ctx) {
+   which is what anthropicWithinBudget reads.
+   Page context, when the page sent any, goes in as a mid-conversation
+   system message AFTER the last user turn (the operator channel Claude
+   Sonnet 5.5 accepts inside `messages`, no beta needed): it sits behind the
+   cached prefix instead of changing it. */
+async function anthropicStream(env, messages, ctx, context) {
   const upstream = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -590,7 +664,7 @@ async function anthropicStream(env, messages, ctx) {
       // daily meter is the spend cap, so headroom here is cheap insurance
       max_tokens: 4096,
       system: [{ type: "text", text: PROMPT, cache_control: { type: "ephemeral", ttl: "1h" } }],
-      messages,
+      messages: context ? messages.concat({ role: "system", content: contextLine(context) }) : messages,
       output_config: { effort: "low" },
       fallbacks: "default",
       stream: true,
@@ -825,10 +899,10 @@ async function anthropicWithinBudget(env) {
 }
 
 /* ---- Google AI Studio: SSE in, plain text out ---- */
-async function geminiStream(env, messages) {
+async function geminiStream(env, messages, context) {
   const body = JSON.stringify({
     systemInstruction: { parts: [{ text: PROMPT }] },
-    contents: messages.map((m) => ({
+    contents: withContextPrefix(messages, context).map((m) => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{ text: m.content }],
     })),

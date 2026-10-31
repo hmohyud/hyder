@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { noteAttention, clearAttention } from "../utils/chatContext";
 import { Link, useLocation } from "react-router-dom";
 
 // ---------- Helper: build an array of images in /public/projects ----------
@@ -148,6 +149,16 @@ export const projects = [
     title: "SPIM (Salavon's Pathology Inducing Machine)",
     color: "#00ff88",
     tags: ["web", "software"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 5,
+      role: "solo - ~96% of the code, over two-ish years alongside my degree, for Jason Salavon's studio",
+      stack: ["Python", "PyTorch", "Stable Diffusion / A1111 internals", "React", "distributed GPU servers I built and ran"],
+      scale: "800+ commits; live tensor surgery on a running model; the studio's production tool, with a museum show made on it",
+      fit: ["AI/ML research", "ML infrastructure", "backend", "frontend", "systems"],
+      hardest: "hot-editing a diffusion model's tensors mid-generation while LoRA, ControlNet and AnimateDiff keep working",
+    },
     images: SPIM_IMAGES,
     description: [
       "A research platform for understanding diffusion models from the inside: modify a model's internal tensors mid-generation and study how its output — and human perception of it — changes. Off-manifold, dreamlike imagery is the observable result, not the goal.",
@@ -250,6 +261,16 @@ export const projects = [
     title: "PokeCompare — Pokémon TCG Price Aggregator",
     color: "#ffcb05",
     tags: ["web", "software"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 5,
+      role: "solo, built and run as a product, then archived as a $0-forever site",
+      stack: ["Next.js 15", "TypeScript", "libSQL (Turso)", "Cloudflare R2", "GitHub Actions pipelines", "FTS5 search"],
+      scale: "151k printings resolved into 65.6k cards; 4.2M price snapshots; 96k images; eight scheduled pipelines under a budget gate",
+      fit: ["data engineering", "data science", "backend", "frontend", "product"],
+      hardest: "card identity across six sources that never agree, and a price-prediction evaluation rebuilt leak-free after it caught my own best result",
+    },
     images: POKE_IMAGES,
     description: [
       "A solo-built answer to a deceptively messy question: what is this Pokémon card actually worth? It resolves ~151,000 per-language printings into ~65,600 canonical cards and blends six disagreeing price sources into one market index per card — preserved as a live, browsable read-only archive.",
@@ -388,6 +409,16 @@ export const projects = [
     aliases: ["Compassion Course"],
     color: "#f4a261",
     tags: ["web", "software", "art"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 4,
+      role: "built and run solo for a client, in production",
+      stack: ["React", "TypeScript", "Firebase (Auth, Firestore, Storage, Functions)", "Three.js", "ElevenLabs TTS"],
+      scale: "50,000+ participants, 120+ countries, 20 languages; 52 scheduled lessons; a custom CMS the team publishes with",
+      fit: ["full-stack product", "frontend", "backend", "client work"],
+      hardest: "a four-mode lesson editor that writes edits back structure-preserving, with live safety checks and self-rebuilding narration",
+    },
     images: CC_IMAGES,
     description: [
       "Built and run the platform for Thom Bond's Compassion Course — a year-long Nonviolent Communication program with 50,000+ participants across 120+ countries in 20 languages. Thom is the Director of Education at NYCNVC, a UN Civil Society Organization.",
@@ -420,6 +451,16 @@ export const projects = [
     title: "Lavoët — Brand Revival & Pattern Studio",
     color: "#b8925a",
     tags: ["web", "software", "art"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 3,
+      role: "solo, for a client reviving the brand",
+      stack: ["zero-dependency HTML/SVG/JS", "computer vision (registration, deconvolution, contour tracing)"],
+      scale: "an interactive engraved catalogue plus a parametric pattern studio that refreshes in ~1 ms",
+      fit: ["frontend", "design", "computer vision", "client work"],
+      hardest: "rebuilding the 1930s monogram from one photograph, then rendering the whole repeating field as a single SVG pattern",
+    },
     images: LAVOET_IMAGES,
     description: [
       "Brand development for Lavoët, a dormant Parisian trunk-maker founded 1869, being revived as a working brand: a catalogue-raisonné site plus production design software — each a single zero-dependency HTML file.",
@@ -453,6 +494,15 @@ export const projects = [
     title: "Soulful Expressions — Art Therapy",
     color: "#c67b5c",
     tags: ["web", "art"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 2,
+      role: "solo, for a client",
+      stack: ["vanilla HTML/CSS/JS"],
+      fit: ["frontend", "client work"],
+      hardest: "making a framework-free page feel hands-on and experiential, like the therapy it describes",
+    },
     images: SOUL_IMAGES,
     description: [
       "Designed and built the site for Soulful Expressions — Fatema Qutbuddin's art-therapy practice in Thane, offering one-on-one sessions and group workshops.",
@@ -468,6 +518,17 @@ export const projects = [
     title: "Environmental Data Globe (Booth School of Business)",
     color: "#00d1ff",
     tags: ["software"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 4,
+      when: "Dec 2023 - Nov 2024",
+      role: "software project lead on a university research team",
+      stack: ["JavaScript", "Three.js", "Leaflet", "Python pipelines", "SQL on legacy servers"],
+      scale: "200GB+ of environmental readings browsable in a browser",
+      fit: ["data engineering", "data visualisation", "backend", "team lead"],
+      hardest: "a recursive lat/long index with a summary at every depth, so 200GB stays fast at every zoom level",
+    },
     images: GLOBE_IMAGES,
     description: [
       "Built the interactive globe behind Booth's “Corporate Footprints” research — 200GB+ of environmental readings explorable in the browser with JavaScript + Three.js, dynamic cluster filtering, and switchable palettes.",
@@ -489,6 +550,16 @@ export const projects = [
     title: "Aerospace Part Finder (Async Scraper + Local LLM)",
     color: "#c3ff7f",
     tags: ["software"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 3,
+      role: "solo, a personal convenience tool for a client's workflow",
+      stack: ["Python asyncio", "Playwright", "trafilatura", "llama.cpp (local LLM)"],
+      scale: "multi-strategy scraping with a local model reviewing results as structured JSON",
+      fit: ["LLM integration", "automation", "backend"],
+      hardest: "staying resilient to blocks and timeouts while a local model turns messy pages into structured JSON",
+    },
     images: SPEC_IMAGES,
     description: [
       `Personal convenience tool to search suppliers for exact aerospace part numbers and officially documented equivalents.`,
@@ -511,6 +582,16 @@ export const projects = [
     title: "Typometry — Absurdly Detailed Typing Stats",
     color: "#e2b714",
     tags: ["web", "software", "art"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 4,
+      role: "solo, made for fun",
+      stack: ["React", "Vite", "Postgres triggers and views", "WebSockets", "hand-rolled SVG"],
+      scale: "thirty-odd metrics per keystroke; global percentiles computed by database triggers; live multiplayer races",
+      fit: ["frontend", "data", "backend", "real-time"],
+      hardest: "computing global percentiles and records inside Postgres triggers instead of app code",
+    },
     images: TYPO_IMAGES,
     description: [
       "Made purely for fun. Typing analysis that goes absurdly past WPM — every keystroke timed at sub-millisecond precision, then ranked against every other player. React + Vite, dark theme inspired by MonkeyType.",
@@ -561,6 +642,15 @@ export const projects = [
     title: "AutoLens — Visual Vehicle ID (Expo)",
     color: "#6bff9d",
     tags: ["software"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 2,
+      role: "solo, contract",
+      stack: ["Expo", "React Native", "server-side model inference"],
+      fit: ["mobile", "AI/ML"],
+      hardest: "on-device pre- and post-processing around a server-side model, with a results UI worth looking at",
+    },
     image: `${PU}/projects/AUTO_STANDIN.png`,
     description: [
       "Mobile app that identifies cars from a photo (or live camera) and breaks down model trims, years, and key specs.",
@@ -581,6 +671,15 @@ export const projects = [
     title: "Simon — a Talking Bust",
     color: "#e8c66a",
     tags: ["web", "software", "art"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 2,
+      role: "solo, built in a day for a friend",
+      stack: ["Three.js physically-based materials", "Qwen 3.6 27B via GroqCloud"],
+      fit: ["frontend", "LLM integration"],
+      hardest: "convincing porcelain, stone and bronze in the browser, and a personality to match the pedestal",
+    },
     minor: true,
     images: SIMON_IMAGES,
     description: [
@@ -597,6 +696,15 @@ export const projects = [
     aliases: ["Jar Jar bot"],
     color: "#ff6b9d",
     tags: ["software"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 2,
+      role: "solo",
+      stack: ["Python", "X API", "AI image generation"],
+      fit: ["automation", "AI/ML"],
+      hardest: "scheduling, retries, rate limits and moderation around a post that has to land every single day",
+    },
     minor: true,
     images: JARJAR_IMAGES,
     description: [
@@ -610,6 +718,15 @@ export const projects = [
     title: "Humrahe Khair — Together for Good",
     color: "#439184ff",
     tags: ["web"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 2,
+      role: "solo, for a charity run by my extended family",
+      stack: ["HTML/CSS/JS", "a nomination and registration pipeline"],
+      fit: ["frontend", "client work"],
+      hardest: "a nomination pipeline that non-technical organisers could run",
+    },
     image: `${PU}/projects/CHARITY_1.jpg`,
     description: [
       `Designed and built the landing page and nomination/registration pipeline for Zahra Hasanaat's 2025 initiative—a charity run by my extended family.`,
@@ -624,6 +741,15 @@ export const projects = [
     title: "Motām — Poetry Collection",
     color: "#ffd166",
     tags: ["web", "art"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 1,
+      role: "solo, for my grandmother's poetry",
+      stack: ["HTML/CSS"],
+      fit: ["frontend", "design", "typography"],
+      hardest: "typography and accessibility that stay out of the poems' way",
+    },
     image: `${PU}/projects/MOTAM_1.jpg`,
     description: [
       `Designed and built a quiet website to present my grandmother's poetry collection across the years.`,
@@ -638,6 +764,15 @@ export const projects = [
     title: "Join the Dots",
     color: "#9BAA8F",
     tags: ["web", "art"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 2,
+      role: "solo, for a community",
+      stack: ["vanilla HTML/CSS/JS", "data-driven rendering", "full RTL support"],
+      fit: ["frontend", "client work", "internationalisation"],
+      hardest: "trilingual content with proper right-to-left Urdu throughout",
+    },
     images: DOT_IMAGES,
     description: [
       "A trilingual (English, Hindi, Urdu) static site for a Nonviolent Communication community — event listings, a 12-week compassion course, curated resources with a canvas audio visualizer, and a community blog.",
@@ -652,6 +787,15 @@ export const projects = [
     title: "Glo Pop — Product Landing Site",
     color: "#ff1493",
     tags: ["web", "art"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 1,
+      role: "solo, contract",
+      stack: ["vanilla HTML/CSS/JS", "no build step"],
+      fit: ["frontend", "client work", "brand sites"],
+      hardest: "a hot-pink, high-energy identity that still loads instantly",
+    },
     images: GLOWPOP_IMAGES,
     description: [
       "Contracted to design and build the landing site for Glo Pop, a collagen-lollipop brand marketed to a young female audience — the hot-pink, high-energy identity is built for exactly that demographic. Ingredient flip cards, a supplement comparison table, FAQ, and full social link-preview cards; vanilla HTML/CSS/JS, no framework, no build step.",
@@ -665,6 +809,15 @@ export const projects = [
     title: "Gorilla Greens — Super Greens Landing Site",
     color: "#3FA75C",
     tags: ["web", "art"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 1,
+      role: "solo, contract, for the client behind Glo Pop",
+      stack: ["vanilla HTML/CSS/JS", "no build step"],
+      fit: ["frontend", "client work", "brand sites"],
+      hardest: "the opposite identity to its sibling site, for the opposite demographic",
+    },
     images: GG_IMAGES,
     description: [
       "A second brand build for the client behind Glo Pop — this time a dark, high-intensity identity for Gorilla Greens, a super-greens gummy pitched at men who train. Same framework-free approach (vanilla HTML/CSS/JS, no build step), tuned for a completely different demographic than its hot-pink sibling."
@@ -678,6 +831,13 @@ export const projects = [
     title: "High School Art Portfolio",
     color: "#ff9ae0",
     tags: ["art"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 1,
+      role: "my own work",
+      fit: ["art"],
+    },
     images: ART_IMAGES,          // light webp thumbs for the carousel
     lightboxImages: ART_FULL,    // full-res originals for the zoom view
     description: [
@@ -691,6 +851,16 @@ export const projects = [
     title: "The Echoes of the Colorful Shadows",
     color: "#4b7f96ff",
     tags: ["art"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 2,
+      role: "solo, a course final project",
+      stack: ["early AI image tools", "print layout"],
+      scale: "~2,000 generations curated to 130 panels in ~28 hours",
+      fit: ["art", "generative AI"],
+      hardest: "curating two thousand generations into a readable comic in a little over a day",
+    },
     minor: true,
     images: COMIC_IMAGES,
     description: [
@@ -720,6 +890,15 @@ export const projects = [
     title: "Pocket Sous Chef",
     color: "#b3fff2ff",
     tags: ["art"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 3,
+      role: "solo, shipped on the App Store",
+      stack: ["SwiftUI", "SwiftData", "OpenAI proxy (text + vision)"],
+      fit: ["mobile", "AI/ML", "product"],
+      hardest: "pantry photos to step-by-step recipes with no account and everything saved on the device",
+    },
     images: COOK_IMAGES,
     description: [
       "iOS recipe assistant that turns pantry photos or typed ingredients into step-by-step recipes.",
@@ -742,6 +921,17 @@ export const projects = [
     title: "Educational Tech & Curriculum",
     color: "#ff8888",
     tags: ["other"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 2,
+      when: "2016 - present",
+      role: "instructor, tutor, curriculum author",
+      stack: ["MIT App Inventor", "curriculum design"],
+      scale: "1,000+ hours of tutoring; a bootcamp cohort of 30 veterans; 40 high-schoolers",
+      fit: ["teaching", "mentoring", "communication"],
+      hardest: "getting complete beginners to ship a working app before syntax got in the way",
+    },
     images: TEACH_IMAGES,
     description: [
       "Nearly a decade of teaching programming and STEM — bootcamps, nonprofits, and 1,000+ hours of one-on-one tutoring.",
@@ -785,6 +975,17 @@ export const projects = [
     title: "IT Support & Deployment Automation",
     color: "#bbbbbb",
     tags: ["other"],
+    /* chat ranking facts (build-chat-knowledge.mjs): effort is a 1-5 difficulty
+       rating, fit the kinds of work the project is evidence for - tune freely */
+    facts: {
+      effort: 2,
+      when: "2018 - 2021",
+      role: "part-time technology support assistant",
+      stack: ["OS imaging", "deployment scripting", "security setup"],
+      scale: "100+ machines kept imaged and healthy",
+      fit: ["sysadmin", "automation", "IT support"],
+      hardest: "scripting the university's mandatory stack so a fresh machine came up configured by itself",
+    },
     image: `${PU}/projects/IT_STANDIN.png`,
     description: [
       "Three years part-time as a Technology Support Assistant at the University of Chicago's Humanities Computing (2018–2021) — my first sysadmin work.",
@@ -1231,6 +1432,8 @@ export default function Projects() {
   const [activeFilter, setActiveFilter] = useState("all");
   const [qrOpen, setQrOpen] = useState(null); // { title, data, color } | null
   const [lightbox, setLightbox] = useState(null); // { title, color, images, index }
+  /* leaving the page forgets the card: "this one" means nothing elsewhere */
+  useEffect(() => () => clearAttention(), []);
 
   /* Deep link from the chat: the head links project names to /projects#slug.
      Keyed on the location, not on mount, because clicking such a link while
@@ -1461,6 +1664,10 @@ export default function Projects() {
           <div
             key={i}
             id={projectSlug(proj.title)}
+            /* the chat's "tell me about this one": the card under the
+               pointer, or last clicked, is what "this" means */
+            onMouseEnter={() => noteAttention({ kind: "project", name: projectShortName(proj.title), slug: projectSlug(proj.title) })}
+            onClickCapture={() => noteAttention({ kind: "project", name: projectShortName(proj.title), slug: projectSlug(proj.title) })}
             style={{
               scrollMarginTop: "84px",
               overflow: "hidden",
@@ -1677,6 +1884,8 @@ export default function Projects() {
                 <div
                   key={proj.title}
                   id={projectSlug(proj.title)}
+                  onMouseEnter={() => noteAttention({ kind: "project", name: projectShortName(proj.title), slug: projectSlug(proj.title) })}
+                  onClickCapture={() => noteAttention({ kind: "project", name: projectShortName(proj.title), slug: projectSlug(proj.title) })}
                   style={{
                     scrollMarginTop: "84px",
                     display: "flex",

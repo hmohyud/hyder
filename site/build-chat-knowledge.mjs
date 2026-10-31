@@ -111,6 +111,42 @@ for (const p of projects) {
   lines.push("");
 }
 
+/* ---------- ranking facts ----------
+   One deterministic line per project, hardest first, from each card's
+   `facts` field: the raw material for "which was hardest", "rank your three
+   most relevant projects for a data role" and "compare X and Y". The prose
+   above says what each project IS; this says, in the same words every build,
+   how big, how hard, and what kind of work it is evidence for. The effort
+   rating and the fit tags are the owner's own calls, kept with the card so
+   they can never drift from it. A card without `facts` is simply absent
+   from the block - the model still has its write-up. */
+const shortName = (title) => String(title).split(/\s+[—–(]/)[0].trim();
+const list = (v) => (Array.isArray(v) ? v.filter(Boolean).join(", ") : v ? String(v) : "");
+const ranked = projects
+  .map((p, i) => ({ p, i }))
+  .filter(({ p }) => p.facts && typeof p.facts === "object")
+  .sort((a, b) => (Number(b.p.facts.effort) || 0) - (Number(a.p.facts.effort) || 0) || a.i - b.i);
+if (ranked.length) {
+  lines.push("## Ranking facts");
+  lines.push(
+    "One line per project, hardest first, for comparisons and rankings. effort is my own 1-5 rating of " +
+      "how hard the project was to build (5 = the hardest things I have built); fit lists the kinds of " +
+      "work or role each project is evidence for; when and role say how long and in what capacity."
+  );
+  for (const { p } of ranked) {
+    const f = p.facts;
+    const parts = [`effort ${Number(f.effort) || 0}/5`];
+    if (f.when) parts.push("when: " + f.when);
+    if (f.role) parts.push("role: " + f.role);
+    if (f.stack) parts.push("stack: " + list(f.stack));
+    if (f.scale) parts.push("scale: " + f.scale);
+    if (f.fit) parts.push("fit: " + list(f.fit));
+    if (f.hardest) parts.push("hardest part: " + f.hardest);
+    lines.push(`- ${shortName(p.title)}${p.minor ? " (smaller piece)" : ""} - ` + parts.join(" - "));
+  }
+  lines.push("");
+}
+
 const text = lines.join("\n").replace(/\n{3,}/g, "\n\n");
 
 fs.writeFileSync(

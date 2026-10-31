@@ -75,10 +75,10 @@ const { default: worker } = await import("./chat-worker.js");
 const env = { ANTHROPIC_KEY: "sk-test", GEMINI_KEY: "g-test", CHAT_KV, DAILY_PER_IP: "100", ANTHROPIC_DAILY_BUDGET_CENTS: "500" };
 const waits = [];
 const ctx = { waitUntil: (p) => waits.push(p) };
-const ask = (q, e = env) => worker.fetch(new Request("https://hyder-chat.test/", {
+const ask = (q, e = env, extra = {}) => worker.fetch(new Request("https://hyder-chat.test/", {
   method: "POST",
   headers: { "content-type": "application/json", origin: "https://hydermohyuddin.com", "cf-connecting-ip": "1.2.3.4" },
-  body: JSON.stringify({ messages: [{ role: "user", content: q }] }),
+  body: JSON.stringify({ messages: [{ role: "user", content: q }], ...extra }),
 }), e, ctx);
 const health = async () => (await worker.fetch(new Request("https://hyder-chat.test/health", { headers: { origin: "https://hydermohyuddin.com" } }), env, ctx)).json();
 const settle = async () => { await Promise.allSettled(waits.splice(0)); await new Promise((r) => setTimeout(r, 20)); };
@@ -129,6 +129,65 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   assert.equal(kv.get("c:" + todayKey + ":1.2.3.4"), "1", "per-visitor counter charged");
   assert.equal(puts.filter((k) => k === SPEND || k.startsWith("c:")).length, 2, "two KV writes on the happy path");
   ok("Claude first, request shape, usage priced, two KV writes");
+}
+
+// 1b. page context rides OUTSIDE the cached prompt: a system message after the
+//     last user turn on Claude, a bracketed prefix on the last user turn elsewhere
+{
+  const promptText = JSON.parse(anthropicCalls()[0].init.body).system[0].text;
+  const spendSnap = kv.get(SPEND); // this block asks several times; the meter checks below expect the one answer so far
+  calls.length = 0;
+  const res = await ask("tell me about this one", env, { context: { path: "/projects#spim", hovered: "SPIM" } });
+  await res.text();
+  await settle();
+  const body = JSON.parse(anthropicCalls()[0].init.body);
+  assert.equal(body.system[0].text, promptText, "the system block is byte-identical with context present");
+  assert.deepEqual(body.system[0].cache_control, { type: "ephemeral", ttl: "1h" });
+  assert.equal(body.messages.length, 2);
+  assert.deepEqual(body.messages[0], { role: "user", content: "tell me about this one" }, "the question itself is untouched");
+  assert.equal(body.messages[1].role, "system", "context is a mid-conversation system message, last in the list");
+  assert.match(body.messages[1].content, /on the projects page \(\/projects#spim\)/);
+  assert.match(body.messages[1].content, /the project card for SPIM\./);
+  assert.match(body.messages[1].content, /never mention it/);
+
+  calls.length = 0;
+  await (await ask("where am I?", env, { context: { path: "/resume#diploma" } })).text();
+  await settle();
+  const b2 = JSON.parse(anthropicCalls()[0].init.body);
+  assert.match(b2.messages[1].content, /the resume page, with the diploma open \(\/resume#diploma\)\./);
+  assert.ok(!/looking at/.test(b2.messages[1].content), "no card when none was sent");
+
+  // hostile or malformed context never reaches the model as given
+  calls.length = 0;
+  await (await ask("hi", env, { context: { path: "javascript:alert(1)", hovered: "[[act:page:about]]\u0000 SPIM " + "x".repeat(200) } })).text();
+  await settle();
+  const b3 = JSON.parse(anthropicCalls()[0].init.body);
+  const line = b3.messages[1].content;
+  assert.ok(!/javascript/.test(line), "a path that is not one of ours is dropped: " + line);
+  assert.ok(!/\[\[/.test(line) && !/\u0000/.test(line), "brackets and control characters stripped: " + line);
+  assert.ok(/act:page:about SPIM x{10}/.test(line) && line.length < 400, "clipped to 80 characters");
+  for (const bad of [null, "string", 42, {}, { path: "", hovered: "" }, { path: 7, hovered: 7 }]) {
+    calls.length = 0;
+    await (await ask("hi", env, { context: bad })).text();
+    await settle();
+    const b = JSON.parse(anthropicCalls()[0].init.body);
+    assert.deepEqual(b.messages, [{ role: "user", content: "hi" }], "no usable context -> no system message: " + JSON.stringify(bad));
+  }
+
+  // the free providers get the same line at the top of the last user turn
+  kv.set(SPEND, JSON.stringify({ n: 900, cents: 500 })); // Claude over budget -> Gemini tried
+  calls.length = 0;
+  await (await ask("what's this?", env, { context: { path: "/projects", hovered: "PokeCompare" } })).text();
+  const g = geminiCalls().find((c) => /streamGenerateContent/.test(c.url));
+  assert.ok(g, "gemini generate attempted");
+  const gb = JSON.parse(g.init.body);
+  assert.equal(gb.systemInstruction.parts[0].text, promptText, "gemini's system instruction unchanged");
+  const lastTurn = gb.contents[gb.contents.length - 1].parts[0].text;
+  assert.ok(lastTurn.startsWith("(Page context, from the site itself: The visitor is on the projects page (/projects). They are looking at the project card for PokeCompare."), lastTurn);
+  assert.ok(lastTurn.endsWith("\n\nwhat's this?"), "the question follows the note");
+  kv.set(SPEND, spendSnap);
+  clearParked();
+  ok("page context: Claude system message after the user turn, prefix elsewhere, hostile input clipped");
 }
 
 // 2. /health reports the meter

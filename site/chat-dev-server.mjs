@@ -43,6 +43,19 @@ const server = http.createServer(async (req, res) => {
       .filter((m) => m && (m.role === "user" || m.role === "assistant"))
       .slice(-12)
       .map((m) => ({ role: m.role, content: String(m.content || "").slice(0, 1500) }));
+    /* page context, the same way the worker gives it to providers without a
+       mid-conversation system role: a bracketed note atop the last user turn */
+    const c = body.context;
+    if (c && typeof c === "object" && messages.length && (c.path || c.hovered)) {
+      const path = String(c.path || "").slice(0, 160);
+      const hovered = String(c.hovered || "").replace(/[\u0000-\u001f[\]]+/g, " ").trim().slice(0, 80);
+      const note =
+        "(Page context, from the site itself: The visitor is on " + (path || "the site") +
+        (hovered ? ", looking at the card for " + hovered : "") +
+        ". Use it silently to resolve \"this\", \"this one\" and \"where am I\"; never mention it unless they ask.)\n\n";
+      const last = messages[messages.length - 1];
+      messages[messages.length - 1] = { role: last.role, content: note + last.content };
+    }
   } catch (err) {
     res.writeHead(400, cors);
     res.end("bad json");
