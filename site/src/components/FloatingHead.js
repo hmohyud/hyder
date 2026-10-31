@@ -63,6 +63,19 @@ const ATTEND_TINT = [0.93, 0.95, 1.0];
 const CANVAS_SCALE = 3.6;
 const MINI_Z = 9.4;
 const MINI_POINTS = 9000;
+/* the tour caption's head is smaller than the portrait: all 16k points in
+   ~95px of head is several times the portrait's density and reads bright,
+   so it draws at the portrait's density instead - points per CSS pixel of
+   head area, from the 9000 points a 145px portrait shows */
+const SMALL_DENSITY = 9000 / (145 * 145);
+const smallPoints = (headCss) => Math.max(3500, Math.min(9000, Math.round(SMALL_DENSITY * headCss * headCss)));
+/* the occlusion shell sits this far behind the dots (view space). Along
+   grazing creases the shell at a pixel is a different, nearer patch of
+   surface than the dot's, and hides it; direct rendering buries the voids
+   in grain, the supersampled small heads average them into visible dark
+   paths, so those use a deeper setting. */
+const SHELL_BIAS = 0.06;
+const SHELL_BIAS_SMALL = 0.14; // from a bias sweep on 3x captures of the portrait: 0.10 still showed paths, 0.20 gained nothing
 
 // The head starts watching the cursor once it comes within 1.5x the radius of
 // the ring the background embers orbit at (90px in BgVariantB). Scaled down
@@ -99,20 +112,21 @@ const LOOK_KEY = "fh-look";
 function readLook() {
   try {
     const j = JSON.parse(localStorage.getItem(LOOK_KEY) || "{}");
-    return { ghost: !!(j && j.ghost), lattice: !!(j && j.lattice) };
+    return { ghost: !!(j && j.ghost), lattice: !!(j && j.lattice), wire: !!(j && j.wire) };
   } catch (err) {
-    return { ghost: false, lattice: false };
+    return { ghost: false, lattice: false, wire: false };
   }
 }
 function writeLook(look) {
   try {
-    if (look.ghost || look.lattice) localStorage.setItem(LOOK_KEY, JSON.stringify(look));
+    if (look.ghost || look.lattice || look.wire) localStorage.setItem(LOOK_KEY, JSON.stringify(look));
     else localStorage.removeItem(LOOK_KEY);
   } catch (err) {
     // private mode: the look lasts the visit
   }
 }
-const lookName = (look) => [look.ghost ? "ghost" : "", look.lattice ? "lattice" : ""].filter(Boolean).join("+");
+const lookName = (look) =>
+  [look.ghost ? "ghost" : "", look.lattice ? "lattice" : "", look.wire ? "wire" : ""].filter(Boolean).join("+");
 
 /* ---------- small-host rendering ----------
    At a hundred pixels the cloud's ~16k one-pixel dots crowd into a few
@@ -127,7 +141,100 @@ const LATTICE_GAIN = 2.2;
 const LATTICE_FILL = 0.85;
 const latticeCell = (headCss) => Math.max(3.5, Math.min(8, 0.02 * headCss)); // CSS px per grid cell
 const QUAD_VERT = "varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }";
-const COPY_FRAG = "uniform sampler2D tSrc; varying vec2 vUv; void main(){ gl_FragColor = texture2D(tSrc, vUv); }";
+/* The direct render saturates: dozens of additive sprites per pixel clamp at
+   white, and that clamping is part of how the lightbox head looks. Averaged
+   at 4x, far fewer sprites overlap per texel, nothing clamps, and the small
+   head comes out brighter than its big self. The copy pass scales it back. */
+const SMALL_EXPOSURE = 0.62;
+const COPY_FRAG =
+  "uniform sampler2D tSrc; uniform float uExposure; varying vec2 vUv; void main(){ gl_FragColor = texture2D(tSrc, vUv) * uExposure; }";
+
+/* ---------- the wire look ----------
+   The head's own surface (the occlusion shell) cut by three families of
+   planes, x = k*d, y = k*d, z = k*d: a cubic lattice drawn on the face.
+   Each triangle a plane crosses yields one segment between its two edge
+   crossings; the segment carries the triangle's normal so edges facing
+   away fade, and the shell's depth hides the far side. The shell is the
+   whole scan, neck and shoulder included, where the cloud was cut at the
+   neck, so segments are kept only where the cloud has points: `near` is a
+   voxel occupancy test built from the cloud, so the wire ends where the
+   dots do. Spacing is chosen per head size (layout) so lines sit a few
+   pixels apart at every size, and each spacing is sliced once and cached. */
+const VOX = 0.09; // cloud units; dot spacing is ~0.03, so a cell holds many
+function cloudOccupancy(pos) {
+  const set = new Set();
+  const key = (x, y, z) => x * 1048576 + y * 1024 + z;
+  for (let i = 0; i < pos.length; i += 3) {
+    const x = Math.floor(pos[i] / VOX) + 512, y = Math.floor(pos[i + 1] / VOX) + 512, z = Math.floor(pos[i + 2] / VOX) + 512;
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) set.add(key(x + dx, y + dy, z + dz));
+  }
+  return (x, y, z) => set.has(key(Math.floor(x / VOX) + 512, Math.floor(y / VOX) + 512, Math.floor(z / VOX) + 512));
+}
+function sliceShell(verts, idx, d, near) {
+  const tri = idx.length / 3;
+  const segs = [];
+  const nrm = [];
+  const col = [];
+  const v = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = 1; i < verts.length; i += 3) {
+    if (verts[i] < lo) lo = verts[i];
+    if (verts[i] > hi) hi = verts[i];
+  }
+  const span = Math.max(1e-6, hi - lo);
+  for (let t = 0; t < tri; t++) {
+    for (let k = 0; k < 3; k++) {
+      const i = idx[t * 3 + k];
+      v[k][0] = verts[i * 3];
+      v[k][1] = verts[i * 3 + 1];
+      v[k][2] = verts[i * 3 + 2];
+    }
+    if (near && !near(v[0][0], v[0][1], v[0][2]) && !near(v[1][0], v[1][1], v[1][2]) && !near(v[2][0], v[2][1], v[2][2])) continue;
+    const ax = v[1][0] - v[0][0], ay = v[1][1] - v[0][1], az = v[1][2] - v[0][2];
+    const bx = v[2][0] - v[0][0], by = v[2][1] - v[0][1], bz = v[2][2] - v[0][2];
+    let nx = ay * bz - az * by, ny = az * bx - ax * bz, nz = ax * by - ay * bx;
+    const nl = Math.hypot(nx, ny, nz) || 1;
+    nx /= nl; ny /= nl; nz /= nl;
+    for (let a = 0; a < 3; a++) {
+      const tlo = Math.min(v[0][a], v[1][a], v[2][a]);
+      const thi = Math.max(v[0][a], v[1][a], v[2][a]);
+      for (let kk = Math.ceil(tlo / d); kk * d <= thi; kk++) {
+        const c = kk * d;
+        const pts = [];
+        for (let e = 0; e < 3; e++) {
+          const p0 = v[e], p1 = v[(e + 1) % 3];
+          const s0 = p0[a] - c, s1 = p1[a] - c;
+          if ((s0 < 0 && s1 >= 0) || (s1 < 0 && s0 >= 0)) {
+            const tt = s0 / (s0 - s1);
+            pts.push([p0[0] + (p1[0] - p0[0]) * tt, p0[1] + (p1[1] - p0[1]) * tt, p0[2] + (p1[2] - p0[2]) * tt]);
+          }
+        }
+        if (pts.length !== 2) continue;
+        if (near && !near((pts[0][0] + pts[1][0]) * 0.5, (pts[0][1] + pts[1][1]) * 0.5, (pts[0][2] + pts[1][2]) * 0.5)) continue;
+        segs.push(pts[0][0], pts[0][1], pts[0][2], pts[1][0], pts[1][1], pts[1][2]);
+        nrm.push(nx, ny, nz, nx, ny, nz);
+        for (const q of pts) {
+          const band = Math.max(0, Math.min(3, Math.floor(((q[1] - lo) / span) * 4)));
+          const rgb = EMBERS[band];
+          col.push(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255);
+        }
+      }
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(segs), 3));
+  g.setAttribute("aNormal", new THREE.BufferAttribute(new Float32Array(nrm), 3));
+  g.setAttribute("aColor", new THREE.BufferAttribute(new Float32Array(col), 3));
+  return g;
+}
+const wireSpacing = (headCss) => Math.round(Math.max(0.08, Math.min(0.3, 7 / (Math.max(20, headCss) / 2.6))) * 100) / 100;
+const WIRE_VERT = [
+  "attribute vec3 aNormal; attribute vec3 aColor; varying vec3 vColor; varying float vA;",
+  "void main(){ vec3 n = normalize(normalMatrix * aNormal); float facing = smoothstep(-0.2, 0.6, n.z);",
+  "  vA = 0.12 + 0.88 * facing; vColor = aColor; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+].join("\n");
+const WIRE_FRAG = "uniform float uAlpha; varying vec3 vColor; varying float vA; void main(){ gl_FragColor = vec4(vColor, uAlpha * vA); }";
 /* GLSL3 for textureLod: the cell's tone is the average over its own area,
    read from the mip level that matches the cell. Premultiplied output: the
    canvas composites as premultiplied, and this pass does not blend. */
@@ -197,6 +304,7 @@ const GHOST_QUESTIONS = [
   "how many projects have you shipped?",
   "become a ghost",
   "show me the halftone version",
+  "show me the wireframe",
   "what are you looking for next?",
   "do you like teaching?",
   "can you work in the UK?",
@@ -450,6 +558,7 @@ const FRAG = [
   "uniform float uTintMix;",
   "uniform float uTintEdge;",
   "uniform float uGhost;",
+  "uniform float uAlpha;",
   "varying vec3 vColor;",
   "varying float vFacing;",
   "varying float vGlow;",
@@ -459,7 +568,7 @@ const FRAG = [
   // the back-face floor RISES while ghosted: the trick is showing the far
   // side, and at the solid-state floor of 2% there would be nothing to see
   "  float fl = 0.02 + 0.35 * uGhost;",
-  "  float a = t.a * (fl + (1.0 - fl) * vFacing);",
+  "  float a = t.a * (fl + (1.0 - fl) * vFacing) * uAlpha;",
   "  if (a < 0.012) discard;",
   // keep each point's own brightness when tinting, so the shading survives
   "  float lum = max(max(vColor.r, vColor.g), vColor.b);",
@@ -1106,9 +1215,12 @@ export default function FloatingHead({
   const applyDrawRange = useCallback(() => {
     const world = worldRef.current;
     if (!world || !world.total) return;
-    const shown = stateRef.current.open
-      ? world.total
-      : Math.min(world.total, MINI_POINTS);
+    const s = stateRef.current;
+    const shown = !s.open
+      ? Math.min(world.total, MINI_POINTS)
+      : s.tour
+        ? Math.min(world.total, smallPoints(s.headCss || 100))
+        : world.total;
     world.points.geometry.setDrawRange(0, shown);
   }, []);
   const drawRangeRef = useRef(applyDrawRange);
@@ -1184,6 +1296,7 @@ export default function FloatingHead({
         uTintMix: { value: 0 },
         uTintEdge: { value: 99 },
         uGhost: { value: 0 },
+        uAlpha: { value: 1 },
         uBlink: { value: 0 },
         uMouth: { value: 0 },
         uMouthW: { value: 1 },
@@ -1359,6 +1472,11 @@ export default function FloatingHead({
         if (y > maxY) maxY = y;
       }
       const span = Math.max(1e-6, maxY - minY);
+      /* the wire look clips to where the cloud has points; the procedural
+         stand-in counts too, until the real cloud replaces it */
+      const near = data.colorIndex ? cloudOccupancy(data.position) : null;
+      if (worldRef.current) worldRef.current.cloudNear = near;
+      else stateRef.current.pendingCloudNear = near;
       for (let i = 0; i < n; i++) {
         const idx = data.colorIndex
           ? data.colorIndex[i]
@@ -1390,7 +1508,7 @@ export default function FloatingHead({
     });
     const quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     const copyMat = new THREE.ShaderMaterial({
-      uniforms: { tSrc: { value: rt.texture } },
+      uniforms: { tSrc: { value: rt.texture }, uExposure: { value: SMALL_EXPOSURE } },
       vertexShader: QUAD_VERT, fragmentShader: COPY_FRAG,
       blending: THREE.NoBlending, depthTest: false, depthWrite: false, transparent: true,
     });
@@ -1406,9 +1524,36 @@ export default function FloatingHead({
     const quadScene = new THREE.Scene();
     const quadMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), copyMat);
     quadScene.add(quadMesh);
+    window.__fhExposure = (v) => { copyMat.uniforms.uExposure.value = v; }; // tuning hook
 
+    /* the wire look's lines: sliced from the shell once it arrives, per spacing */
+    const wireMat = new THREE.ShaderMaterial({
+      uniforms: { uAlpha: { value: 0.75 } },
+      vertexShader: WIRE_VERT, fragmentShader: WIRE_FRAG,
+      transparent: true, depthTest: true, depthWrite: false, blending: THREE.NormalBlending,
+    });
+    const wireLines = new THREE.LineSegments(new THREE.BufferGeometry(), wireMat);
+    wireLines.visible = false;
+    group.add(wireLines);
+    const wireCache = new Map();
+    const ensureWire = (d) => {
+      const world = worldRef.current;
+      if (!world || !world.shellVerts) return false;
+      const key = d.toFixed(2);
+      if (!wireCache.has(key)) wireCache.set(key, sliceShell(world.shellVerts, world.shellIdx, d, world.cloudNear || null));
+      const g = wireCache.get(key);
+      if (wireLines.geometry !== g) wireLines.geometry = g;
+      return true;
+    };
+
+    const resliceWire = () => {
+      for (const g of wireCache.values()) g.dispose();
+      wireCache.clear();
+      if (stateRef.current.look.wire) ensureWire(wireSpacing(stateRef.current.headCss || 100));
+    };
     worldRef.current = {
-      renderer, scene, camera, group, points, material, canvas, total: 0, rt, dpr,
+      renderer, scene, camera, group, points, material, canvas, total: 0, rt, dpr, wire: wireLines, ensureWire, resliceWire,
+      cloudNear: stateRef.current.pendingCloudNear, shellMat: shellMaterial,
     };
     setReady(true);
 
@@ -1444,6 +1589,7 @@ export default function FloatingHead({
         if (worldRef.current) {
           worldRef.current.total = n;
           drawRangeRef.current();
+          if (worldRef.current.resliceWire) worldRef.current.resliceWire();
         }
       } catch (err) {
         /* stand-in head stays */
@@ -1488,7 +1634,16 @@ export default function FloatingHead({
         }
         shellMesh = new THREE.Mesh(geo, shellMaterial);
         group.add(shellMesh);
-        if (worldRef.current) worldRef.current.shell = shellMesh;
+        if (worldRef.current) {
+          worldRef.current.shell = shellMesh;
+          worldRef.current.shellVerts = verts;
+          worldRef.current.shellIdx = idx;
+          wireCache.clear();
+          if (stateRef.current.look.wire) {
+            ensureWire(wireSpacing(stateRef.current.headCss || 100));
+            wireLines.visible = true;
+          }
+        }
       } catch (err) {
         /* no shell = no occlusion; the head still renders */
       }
@@ -1618,7 +1773,7 @@ export default function FloatingHead({
       const gS = s.ghost * s.ghost * (3 - 2 * s.ghost);
       /* 3.0 clears the head's depth extent at every reachable tilt (the
          cloud is 2.4 tall; pitched 40 degrees its view depth is ~2.9) */
-      shellMaterial.uniforms.uShellBias.value = 0.06 + gS * 3.0;
+      shellMaterial.uniforms.uShellBias.value = (s.shellBias ?? SHELL_BIAS) + gS * 3.0;
       material.uniforms.uGhost.value = gS;
 
       /* ---- fire breath simulation ---- */
@@ -1679,6 +1834,10 @@ export default function FloatingHead({
       material.uniforms.uTintEdge.value = s.trickTint ? (s.tintWave || 0) * 3.2 : 99;
       material.uniforms.uTintMix.value = s.tintMix;
       material.uniforms.uTint.value.set(s.tint[0], s.tint[1], s.tint[2]);
+      /* under the wire the cloud stays as a dim ground, so the mouth and the
+         blink still play through the lines */
+      s.cloudAlpha = (s.cloudAlpha ?? 1) + ((s.look.wire ? 0.28 : 1) - (s.cloudAlpha ?? 1)) * (1 - Math.exp(-5 * dt));
+      material.uniforms.uAlpha.value = s.cloudAlpha;
 
       /* ---- blink + talk ----
          Blink: a 160ms sine pulse at random 3-7s intervals, occasionally
@@ -1884,6 +2043,9 @@ export default function FloatingHead({
       copyMat.dispose();
       latticeMat.dispose();
       quadMesh.geometry.dispose();
+      for (const g of wireCache.values()) g.dispose();
+      wireMat.dispose();
+      window.__fhExposure = null;
       renderer.dispose();
       /* dispose() alone leaves the GL context alive until GC; fab-mode
          open/close cycles would pile contexts up to the browser's cap */
@@ -1977,7 +2139,17 @@ export default function FloatingHead({
       world.rt.setSize(Math.round(w * world.dpr * f), Math.round(h * world.dpr * f));
     }
     s.rtFactor = f;
+    s.shellBias = f ? SHELL_BIAS_SMALL : SHELL_BIAS;
+    s.tour = tour;
     world.material.uniforms.uDpr.value = world.dpr * (f || 1);
+    /* the shell's slope-scaled offset is per PIXEL: at f times the
+       resolution the per-pixel slope is f times smaller, so the factor
+       scales up with it, or the shell starts hiding surface dots along
+       creases - thin, patchy gaps */
+    if (world.shellMat) world.shellMat.polygonOffsetFactor = 2 * (f || 1);
+    if (world.wire) {
+      world.wire.visible = !!s.look.wire && world.ensureWire(wireSpacing(headPx));
+    }
     applyDrawRange();
   }, [open, tour, applyDrawRange]);
 
@@ -2201,14 +2373,14 @@ export default function FloatingHead({
          Changing the look re-runs layout() - the lattice needs the texture
          path at every size, and the path is chosen there. */
       if (kind === "cloud") {
-        s.look = { ghost: false, lattice: false };
+        s.look = { ghost: false, lattice: false, wire: false };
         writeLook(s.look);
         s.ghostTarget = 0;
         setLookEpoch((n) => n + 1);
         return;
       }
-      if (kind === "lattice") {
-        s.look = { ...s.look, lattice: true };
+      if (kind === "lattice" || kind === "wire") {
+        s.look = { ...s.look, [kind]: true };
         writeLook(s.look);
         setLookEpoch((n) => n + 1);
         return;
@@ -2292,7 +2464,7 @@ export default function FloatingHead({
             flow(final);
             return;
           }
-          const m = probe.match(/^\[\[(ghost|spin|fire|tint:#[0-9a-fA-F]{6}|lattice|cloud)\]\]\s*/);
+          const m = probe.match(/^\[\[(ghost|spin|fire|tint:#[0-9a-fA-F]{6}|lattice|wire|cloud)\]\]\s*/);
           const act = m ? null : parseActToken(probe);
           if (m) {
             if (m[1] === "fire") muteVoice = true; // the scream replaces the narration
