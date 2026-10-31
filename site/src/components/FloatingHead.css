@@ -853,16 +853,19 @@
 .fh-wk-grid {
   display: grid;
   grid-template-columns: 1fr;
-  row-gap: 5px;
+  row-gap: 4px;
 }
+/* every row in the drawer, metric or step, is 20px high and 4px from the
+   next, so the two columns of the strip layout share one rhythm */
 .fh-wk-item {
   position: relative;
   display: grid;
-  /* label column sized in characters: "complexity" plus its "?" circle */
-  grid-template-columns: 13ch 48px 1fr;
+  /* label column sized in characters: "complexity" plus its "?" circle,
+     never wrapping */
+  grid-template-columns: 12ch 48px 1fr;
   align-items: center;
   column-gap: 10px;
-  min-height: 16px;
+  min-height: 20px;
   border-radius: 4px;
 }
 .fh-wk-gloss {
@@ -872,10 +875,29 @@
   outline: 1px solid rgba(158, 216, 255, 0.5);
   outline-offset: 2px;
 }
+/* a label explains itself when hovered: dotted underline as the hint */
 .fh-wk-k {
   color: #6f788f;
   letter-spacing: 0.04em;
+  white-space: nowrap;
+  text-decoration: underline dotted rgba(120, 130, 150, 0.5);
+  text-underline-offset: 3px;
+  cursor: help;
 }
+/* the in/out token bar: how much was read fresh against how much was written */
+.fh-wk-io {
+  display: flex;
+  height: 5px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: rgba(120, 130, 150, 0.2);
+}
+.fh-wk-io i {
+  display: block;
+  min-width: 0;
+}
+.fh-wk-io i.in { background: #ff72a1; }
+.fh-wk-io i.out { background: #78ffa8; }
 .fh-wk-val {
   color: #c9cfdd;
   white-space: nowrap;
@@ -945,7 +967,8 @@
 }
 /* time: the bar spans the visual and value columns; the legend sits under it */
 .fh-wk-time {
-  grid-template-columns: 13ch 1fr auto;
+  grid-template-columns: 12ch 1fr auto;
+  align-items: center;
 }
 .fh-wk-tbar {
   display: flex;
@@ -975,24 +998,6 @@
 .fh-wk-secs {
   text-align: right;
 }
-.fh-wk-legend {
-  grid-column: 2 / -1;
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 2px 4px;
-  color: #6f788f;
-  font-size: 0.62rem;
-}
-.fh-wk-legend i {
-  width: 6px;
-  height: 6px;
-  border-radius: 2px;
-  margin-right: 2px;
-}
-.fh-wk-legend i.s { background: #6f788f; }
-.fh-wk-legend i.k { background: #b48bff; margin-left: 8px; }
-.fh-wk-legend i.w { background: #78ffa8; margin-left: 8px; }
 /* tooltips: on hover or keyboard focus */
 .fh-tip-text {
   position: absolute;
@@ -1015,36 +1020,23 @@
   transform: translateY(3px);
   transition: opacity 0.15s ease, transform 0.15s ease;
 }
-.fh-tip:hover .fh-tip-text,
 .fh-tip:focus-visible .fh-tip-text,
 .fh-tip:focus-within .fh-tip-text {
   opacity: 1;
   transform: none;
 }
-/* "?" circles: the row explains itself on hover or focus */
-.fh-q {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 12px;
-  height: 12px;
-  margin-left: 5px;
-  border: 1px solid rgba(120, 130, 150, 0.55);
-  border-radius: 50%;
-  color: #6f788f;
-  font-size: 0.56rem;
-  font-style: normal;
-  line-height: 1;
-  vertical-align: 1px;
-  cursor: help;
-  position: relative;
+/* on its own line: a browser without :has() drops this rule, not the ones above */
+.fh-tip:has(.fh-wk-k:hover) .fh-tip-text {
+  opacity: 1;
+  transform: none;
 }
-.fh-tip:hover .fh-q,
-.fh-tip:focus-visible .fh-q,
-.fh-q:focus-visible {
-  border-color: rgba(158, 216, 255, 0.7);
-  color: #9ed8ff;
-  outline: none;
+.fh-tip:has(.fh-wk-slabel:hover) .fh-tip-text {
+  opacity: 1;
+  transform: none;
+}
+.fh-wk-slabel {
+  text-decoration: underline dotted rgba(120, 130, 150, 0.5);
+  text-underline-offset: 3px;
 }
 .fh-tip-right {
   left: auto;
@@ -1059,15 +1051,12 @@
   color: #c9cfdd;
   border-radius: 4px;
 }
-.fh-wk-backup .fh-q {
-  margin-left: 0;
-}
 /* the pipeline as an accordion: each step a row (dot | step | model | time | caret)
    with its "?" beside it, and its panel directly beneath when open */
 .fh-wk-steps-list {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   padding-top: 6px;
   border-top: 1px solid rgba(70, 78, 96, 0.35);
 }
@@ -1075,10 +1064,6 @@
   display: flex;
   align-items: center;
   gap: 4px;
-}
-.fh-wk-step-row > .fh-q {
-  flex: 0 0 auto;
-  margin-left: 0;
 }
 .fh-wk-step-btn {
   flex: 1 1 auto;
@@ -1088,7 +1073,8 @@
   align-items: center;
   column-gap: 8px;
   width: 100%;
-  padding: 3px 4px;
+  min-height: 20px;
+  padding: 0 4px;
   border: none;
   border-radius: 6px;
   background: transparent;
@@ -1168,39 +1154,6 @@
   color: #6f788f;
 }
 /* tokens: three small bars, inside the "wrote" step */
-.fh-wk-tokens {
-  display: grid;
-  grid-template-columns: 1fr;
-  row-gap: 3px;
-}
-.fh-wk-tok {
-  display: grid;
-  grid-template-columns: 3.6em 1fr 3.4em;
-  align-items: center;
-  column-gap: 8px;
-}
-.fh-wk-tok .fh-wk-t {
-  color: #8b93a7;
-}
-.fh-wk-v {
-  color: #c9cfdd;
-  text-align: right;
-}
-.fh-wk-bar {
-  height: 4px;
-  border-radius: 2px;
-  background: rgba(120, 130, 150, 0.2);
-  overflow: hidden;
-}
-.fh-wk-bar i {
-  display: block;
-  height: 100%;
-  border-radius: 2px;
-  transition: width 0.4s ease;
-}
-.fh-wk-bar i.in { background: #ff72a1; }
-.fh-wk-bar i.cached { background: #7fd3ff; }
-.fh-wk-bar i.out { background: #78ffa8; }
 /* each answered message says, quietly, what it took - and opens its own workings */
 .fh-msg-meta {
   display: block;
@@ -1239,6 +1192,12 @@
   letter-spacing: 0;
   white-space: normal;
   overflow: visible;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 5px;
+}
+.fh-wk-session .fh-wk-val > span {
+  white-space: nowrap; /* a wrap lands between figures, never inside one */
 }
 /* a tour in the transcript: one card that reopens it, not the stops stacked */
 .fh-tour-card {
@@ -1308,6 +1267,7 @@
     border-top: none;
     border-left: 1px solid rgba(70, 78, 96, 0.35);
     padding-left: 14px;
+    align-self: stretch;
   }
 }
 @media (max-width: 640px) {

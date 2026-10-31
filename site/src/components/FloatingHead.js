@@ -291,28 +291,19 @@ const KIND_WORDS = {
 };
 const EFFORT_WORDS = { low: "direct", medium: "weighed it", high: "thought hard", xhigh: "thought hard", max: "thought hard" };
 const WK_TIPS = {
-  complexity:
-    "Before answering, a small fast model (Claude Haiku) rates how much deliberation the question needs, " +
-    "1 for a greeting up to 5 for a subtle, multi-part question, and names the kind of question it is.",
-  effort:
-    "How hard the main model was asked to think before answering, set from the rating: low for 1-2, " +
-    "medium for 3, high for 4-5. More effort means more reasoning, more tokens and more time.",
-  cache:
-    "The site's knowledge prompt, about 21,000 tokens, is kept in a one-hour cache. A hit means it was read " +
-    "back at a tenth of the price instead of being sent in full.",
-  cost: "What this one reply cost in API fees, all in: the prompt read, the question, the reasoning, the answer and the sizing.",
-  time: "Where the time went: sizing is the small model's verdict, thinking is the main model's reasoning before its first word, writing is the answer itself.",
-  steps: "The three steps of the pipeline, each with the model that ran it. Open one for the detail.",
-  size: "A small, fast model (Claude Haiku) reads the question first and rates how much deliberation it needs, 1 to 5, and what kind of question it is. That rating sets how hard the main model thinks.",
-  think: "The main model (Claude Sonnet) reasons before it writes. What opens here is its own summary of that reasoning, streamed as it happened.",
-  write: "The main model writes the reply you read, word by word. The figures are the tokens it read and produced for it.",
-  backup:
-    "The main pipeline (Claude) is out for the day, or was unavailable, so this reply came from the backup model. " +
-    "The backup does not size the question, share its reasoning, or report cache and cost, so only its timing and token counts are shown.",
-  answer: "The backup model answered in one pass: no sizing, no shared reasoning.",
-  session:
-    "Totals for every reply in this conversation, which lives on this device: how many, how long they took " +
-    "all together, and what they cost in API fees. The line under each answer opens that one reply's workings.",
+  complexity: "A small, fast model (Claude Haiku) rates the question 1 to 5 before anyone answers.",
+  effort: "How hard the main model was told to think: low for 1-2, medium for 3, high for 4-5.",
+  cache: "The 21k-token site prompt is cached for an hour; a hit costs a tenth of a fresh read.",
+  cost: "API fees for this reply, all in: prompt, question, reasoning, answer and sizing.",
+  time: "Grey is sizing, purple thinking, green writing; the steps beside carry the same colours and seconds.",
+  steps: "The pipeline, step by step, with the model that ran each. Open one for the detail.",
+  size: "Haiku rates the question 1 to 5 and names its kind; that sets the effort.",
+  think: "Sonnet's own summary of its reasoning, as it streamed.",
+  write: "The answer itself: how long it is and whether it finished on its own.",
+  tokens: "In is what was read fresh (the question and page context); out is the answer written. The cached prompt is the row above.",
+  backup: "Claude was unavailable or over its daily cap, so a backup model answered: no sizing, reasoning, cache or cost to show.",
+  answer: "The backup answered in one pass: no sizing, no reasoning.",
+  session: "Every reply in this conversation added up: count, time waited, cost.",
 };
 
 /* the help sheet: what the head can do, as tiles. Each is a thing to try,
@@ -3111,25 +3102,6 @@ export default function FloatingHead({
     if (!wk) return [];
     const out = [];
     const ph = phaseRef.current;
-    const tokenBars = wkStats ? (
-      <div className="fh-wk-tokens">
-        {[
-          ["in", wkStats.in, 600, "in"],
-          ["cached", wkStats.cached, 24000, "cached"],
-          ["out", wkStats.out, 900, "out"],
-        ]
-          .filter(([, v]) => typeof v === "number")
-          .map(([label, v, ref, cls]) => (
-            <span key={label} className="fh-wk-tok" aria-label={label + " " + v + " tokens"}>
-              <span className="fh-wk-t">{label}</span>
-              <span className="fh-wk-bar" aria-hidden="true">
-                <i className={cls} style={{ width: Math.min(100, Math.round((100 * v) / ref)) + "%" }} />
-              </span>
-              <span className="fh-wk-v">{kfmt(v)}</span>
-            </span>
-          ))}
-      </div>
-    ) : null;
     if (wkBackup) {
       out.push({
         id: "write",
@@ -3139,7 +3111,13 @@ export default function FloatingHead({
         live: false,
         tip: WK_TIPS.answer,
         status: kfmt(wkStats.out) + " tokens out",
-        body: tokenBars,
+        body: (
+          <p className="fh-wk-body fh-wk-gloss">
+            <span className="fh-wk-raw">
+              {kfmt(wkStats.in || 0)} in · {kfmt(wkStats.out || 0)} out
+            </span>
+          </p>
+        ),
       });
       return out;
     }
@@ -3190,7 +3168,19 @@ export default function FloatingHead({
       live: wkBusy && !!ph.textAt,
       tip: WK_TIPS.write,
       status: wkStats ? kfmt(wkStats.out) + " tokens out" + (wkStats.stop && wkStats.stop !== "end_turn" ? " · " + wkStats.stop : "") : wkBusy && ph.textAt ? "writing…" : "",
-      body: wkStats ? tokenBars : <p className="fh-wk-body fh-wk-gloss">…</p>,
+      body: wkStats ? (
+        <p className="fh-wk-body fh-wk-gloss">
+          <span className="fh-wk-raw">{kfmt(wkStats.out || 0)} tokens</span>
+          {" · " +
+            (!wkStats.stop || wkStats.stop === "end_turn"
+              ? "finished on its own"
+              : wkStats.stop === "max_tokens"
+                ? "cut off at the length limit"
+                : "stopped: " + wkStats.stop)}
+        </p>
+      ) : (
+        <p className="fh-wk-body fh-wk-gloss">…</p>
+      ),
     });
     return out;
   })();
@@ -3403,9 +3393,9 @@ export default function FloatingHead({
                     <div className="fh-wk-backup fh-tip" tabIndex={0} aria-describedby="fh-tip-backup">
                       <i className="fh-wk-dot miss" aria-hidden="true" />
                       <span>
-                        backup model answered <span className="fh-wk-gloss">· {wkModel}</span>
+                        <span className="fh-wk-k">backup</span> model answered <span className="fh-wk-gloss">· {wkModel}</span>
                       </span>
-                      <i className="fh-q" aria-hidden="true">?</i>
+                      
                       <span role="tooltip" id="fh-tip-backup" className="fh-tip-text">
                         {WK_TIPS.backup}
                       </span>
@@ -3414,7 +3404,7 @@ export default function FloatingHead({
                     <div className="fh-wk-grid">
                       <div className="fh-wk-item fh-tip" tabIndex={0} aria-describedby="fh-tip-complexity">
                         <span className="fh-wk-k">
-                          complexity<i className="fh-q" aria-hidden="true">?</i>
+                          complexity
                         </span>
                         <span className={"fh-wk-dots" + (wkBusy && !wkSize ? " fh-wk-live" : "")} aria-hidden="true">
                           {[1, 2, 3, 4, 5].map((i) => (
@@ -3438,7 +3428,7 @@ export default function FloatingHead({
                       </div>
                       <div className="fh-wk-item fh-tip" tabIndex={0} aria-describedby="fh-tip-effort">
                         <span className="fh-wk-k">
-                          effort<i className="fh-q" aria-hidden="true">?</i>
+                          effort
                         </span>
                         <span className="fh-wk-steps" aria-hidden="true">
                           {[1, 2, 3].map((i) => (
@@ -3462,7 +3452,7 @@ export default function FloatingHead({
                       </div>
                       <div className="fh-wk-item fh-tip" tabIndex={0} aria-describedby="fh-tip-cache">
                         <span className="fh-wk-k">
-                          prompt<i className="fh-q" aria-hidden="true">?</i>
+                          prompt
                         </span>
                         <i className={"fh-wk-dot" + (wkStats && wkStats.cached > 0 ? " hit" : wkStats ? " miss" : "")} aria-hidden="true" />
                         <span className="fh-wk-val">
@@ -3479,9 +3469,28 @@ export default function FloatingHead({
                           {WK_TIPS.cache}
                         </span>
                       </div>
+                      <div className="fh-wk-item fh-tip" tabIndex={0} aria-describedby="fh-tip-tokens">
+                        <span className="fh-wk-k">tokens</span>
+                        <span className="fh-wk-io" aria-hidden="true">
+                          <i className="in" style={{ flexGrow: Math.max(1, (wkStats && wkStats.in) || 0) }} />
+                          <i className="out" style={{ flexGrow: Math.max(1, (wkStats && wkStats.out) || 0) }} />
+                        </span>
+                        <span className="fh-wk-val">
+                          {wkStats && typeof wkStats.in === "number" ? (
+                            <>
+                              {kfmt(wkStats.in)} in <span className="fh-wk-gloss">· {kfmt(wkStats.out || 0)} out</span>
+                            </>
+                          ) : (
+                            "…"
+                          )}
+                        </span>
+                        <span role="tooltip" id="fh-tip-tokens" className="fh-tip-text">
+                          {WK_TIPS.tokens}
+                        </span>
+                      </div>
                       <div className="fh-wk-item fh-tip" tabIndex={0} aria-describedby="fh-tip-cost">
                         <span className="fh-wk-k">
-                          cost<i className="fh-q" aria-hidden="true">?</i>
+                          cost
                         </span>
                         <span aria-hidden="true" />
                         <span className="fh-wk-val fh-wk-cost">{wkStats && typeof wkStats.cents === "number" ? usd(wkStats.cents) : "…"}</span>
@@ -3501,7 +3510,7 @@ export default function FloatingHead({
                         }
                       >
                         <span className="fh-wk-k">
-                          time<i className="fh-q" aria-hidden="true">?</i>
+                          time
                         </span>
                         <span className={"fh-wk-tbar" + (wkSeg.live ? " fh-wk-live" : "")} aria-hidden="true">
                           <i className="s" style={{ flexGrow: Math.max(0.02, wkSeg.s) }} />
@@ -3509,9 +3518,6 @@ export default function FloatingHead({
                           <i className="w" style={{ flexGrow: Math.max(0.001, wkSeg.w) }} />
                         </span>
                         <span className="fh-wk-val fh-wk-secs">{secs(wkSeg.total)}</span>
-                        <span className="fh-wk-legend" aria-hidden="true">
-                          <i className="s" /> sizing {secs(wkSeg.s)} <i className="k" /> thinking {secs(wkSeg.t)} <i className="w" /> writing {secs(wkSeg.w)}
-                        </span>
                         <span role="tooltip" id="fh-tip-time" className="fh-tip-text">
                           {WK_TIPS.time}
                         </span>
@@ -3521,13 +3527,14 @@ export default function FloatingHead({
                   <div className="fh-wk-steps-list">
                     {wkSteps.map((st) => (
                       <div key={st.id} className={"fh-wk-step" + (wkOpen[st.id] ? " open" : "")}>
-                        <div className="fh-wk-step-row">
+                        <div className="fh-wk-step-row fh-tip">
                           <button
                             type="button"
                             className={"fh-wk-step-btn" + (st.live ? " fh-wk-live" : "")}
                             id={"fh-wk-h-" + st.id}
                             aria-expanded={!!wkOpen[st.id]}
                             aria-controls={"fh-wk-p-" + st.id}
+                            aria-describedby={"fh-tip-step-" + st.id}
                             onClick={() => setWkOpen((o) => ({ ...o, [st.id]: !o[st.id] }))}
                           >
                             <i className={"fh-wk-sdot " + st.id} aria-hidden="true" />
@@ -3536,11 +3543,8 @@ export default function FloatingHead({
                             <span className="fh-wk-sms">{secs(st.ms)}</span>
                             <span className={"fh-caret" + (wkOpen[st.id] ? " open" : "")} aria-hidden="true">▸</span>
                           </button>
-                          <span className="fh-q fh-tip" tabIndex={0} aria-describedby={"fh-tip-step-" + st.id}>
-                            ?
-                            <span role="tooltip" id={"fh-tip-step-" + st.id} className="fh-tip-text fh-tip-right">
-                              {st.tip}
-                            </span>
+                          <span role="tooltip" id={"fh-tip-step-" + st.id} className="fh-tip-text">
+                            {st.tip}
                           </span>
                         </div>
                         {wkOpen[st.id] && (
@@ -3554,15 +3558,13 @@ export default function FloatingHead({
                   {answered.length > 0 && (
                     <p className="fh-wk-session fh-tip" tabIndex={0} aria-describedby="fh-tip-session">
                       <span className="fh-wk-k">
-                        session<i className="fh-q" aria-hidden="true">?</i>
+                        session
                       </span>
                       <span className="fh-wk-val">
-                        {session.n + (session.n === 1 ? " reply" : " replies")}
-                        <span className="fh-wk-gloss">
-                          {" · " + secs(session.ms)}
-                          {session.cents > 0 ? " · " + usd(session.cents) : ""}
-                          {session.backup ? " · " + session.backup + " backup" : ""}
-                        </span>
+                        <span>{session.n + (session.n === 1 ? " reply" : " replies")}</span>
+                        <span className="fh-wk-gloss">{"· " + secs(session.ms)}</span>
+                        {session.cents > 0 && <span className="fh-wk-gloss">{"· " + usd(session.cents)}</span>}
+                        {session.backup > 0 && <span className="fh-wk-gloss">{"· " + session.backup + " backup"}</span>}
                       </span>
                       <span role="tooltip" id="fh-tip-session" className="fh-tip-text">
                         {WK_TIPS.session}
