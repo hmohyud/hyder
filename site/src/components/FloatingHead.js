@@ -320,7 +320,7 @@ const WK_TIPS = {
 const HELP = [
   { id: "ask", c: "#9ed8ff", t: "ask", d: "projects, skills, how things were built", q: "what's the hardest thing you've built?" },
   { id: "rank", c: "#ffcb05", t: "rank", d: "a committed order, one reason each", q: "rank your three biggest projects" },
-  { id: "go", c: "#78ffa8", t: "go", d: "name a page or a project; it opens", q: "show me SPIM" },
+  { id: "go", c: "#b48bff", t: "go", d: "name a page or a project; it opens", q: "show me SPIM" },
   { id: "tour", c: "#78ffa8", t: "tour", d: "a few stops, one page at a time", q: "give me a tour" },
   { id: "here", c: "#ffb86b", t: "here", d: "hover a project card, then ask", q: "what's this one?" },
   { id: "work", c: "#c3a6ff", t: "workings", d: "how a reply was made, and its cost", q: null },
@@ -830,6 +830,8 @@ function chipStyle(hex) {
    linking them bare would pepper every reply with false links, so a page word
    only counts when it comes with page/section/map, or is distinctive on its
    own ("diploma", "resume"). */
+/* each page's chip wears its landing card's colour (Landing.css .card-N) */
+const PAGE_COLORS = { "/skills": "#ff72a1", "/projects": "#b48bff", "/about": "#7fd3ff", "/resume": "#78ffa8" };
 const PAGE_REFS = [
   { phrase: "skills map", to: "/skills" },
   { phrase: "skills page", to: "/skills" },
@@ -909,6 +911,7 @@ const LINK_ENTRIES = PROJECT_REFS.map((p) => ({
     PAGE_REFS.map((p) => ({
       key: refKey(p.phrase),
       to: p.to,
+      color: PAGE_COLORS[p.to.split("#")[0]],
       pattern: phrasePattern(p.phrase),
     }))
   )

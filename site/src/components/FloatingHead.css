@@ -1378,25 +1378,32 @@
 .fh-tour .fh-ask button {
   background: rgba(10, 13, 19, 0.96);
 }
+/* The portrait sits in a disc that is part of the card: the disc is the
+   card's own surface, centred on the card's top edge (the margin puts its
+   centre exactly on the border line: 73 = 62 radius + 10 padding + 1 border),
+   and the card's outline carries on over the disc's top half. */
 .fh-tour-head {
   position: relative;
   width: 124px;
   height: 124px;
-  margin: -72px auto -8px;
+  margin: -73px auto -8px;
   pointer-events: none;
 }
-/* a blurred dark disc behind the portrait, feathered at the rim, so the
-   head reads over whatever the page is showing */
 .fh-tour-head::before {
   content: "";
   position: absolute;
-  inset: 2px;
+  inset: 0;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(8, 11, 16, 0.9) 0%, rgba(8, 11, 16, 0.8) 55%, rgba(8, 11, 16, 0) 72%);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  -webkit-mask-image: radial-gradient(circle, #000 58%, transparent 74%);
-  mask-image: radial-gradient(circle, #000 58%, transparent 74%);
+  background: rgba(8, 11, 16, 0.94);
+}
+.fh-tour-head::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: 50%;
+  border: 1px solid rgba(120, 255, 168, 0.22);
+  clip-path: inset(0 0 50% 0);
 }
 .fh-tour-head .fh-canvas {
   position: relative;
@@ -1445,7 +1452,7 @@
   .fh-tour-head {
     width: 84px;
     height: 84px;
-    margin: -50px auto -6px;
+    margin: -53px auto -6px; /* 42 radius + 10 padding + 1 border */
   }
   .fh-tour .fh-log {
     max-height: 32vh;
