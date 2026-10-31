@@ -647,7 +647,7 @@
   position: absolute;
   left: calc(100% + 16px);
   bottom: 0;
-  width: 312px;
+  width: 330px;
   box-sizing: border-box;
   padding: 10px 12px 9px;
   border: 1px solid rgba(70, 78, 96, 0.5);
@@ -686,8 +686,8 @@
 .fh-wk-item {
   position: relative;
   display: grid;
-  /* label column sized in characters: "complexity" is the longest, 10 */
-  grid-template-columns: 10.5ch 48px 1fr;
+  /* label column sized in characters: "complexity" plus its "?" circle */
+  grid-template-columns: 13ch 48px 1fr;
   align-items: center;
   column-gap: 10px;
   min-height: 16px;
@@ -773,7 +773,7 @@
 }
 /* time: the bar spans the visual and value columns; the legend sits under it */
 .fh-wk-time {
-  grid-template-columns: 10.5ch 1fr auto;
+  grid-template-columns: 13ch 1fr auto;
 }
 .fh-wk-tbar {
   display: flex;
@@ -849,15 +849,68 @@
   opacity: 1;
   transform: none;
 }
-/* the pipeline as a small table: dot | step | model | time | caret */
+/* "?" circles: the row explains itself on hover or focus */
+.fh-q {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  margin-left: 5px;
+  border: 1px solid rgba(120, 130, 150, 0.55);
+  border-radius: 50%;
+  color: #6f788f;
+  font-size: 0.56rem;
+  font-style: normal;
+  line-height: 1;
+  vertical-align: 1px;
+  cursor: help;
+  position: relative;
+}
+.fh-tip:hover .fh-q,
+.fh-tip:focus-visible .fh-q,
+.fh-q:focus-visible {
+  border-color: rgba(158, 216, 255, 0.7);
+  color: #9ed8ff;
+  outline: none;
+}
+.fh-tip-right {
+  left: auto;
+  right: 0;
+}
+/* a backup provider: one plain line in place of the grid */
+.fh-wk-backup {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #c9cfdd;
+  border-radius: 4px;
+}
+.fh-wk-backup .fh-q {
+  margin-left: 0;
+}
+/* the pipeline as an accordion: each step a row (dot | step | model | time | caret)
+   with its "?" beside it, and its panel directly beneath when open */
 .fh-wk-steps-list {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 2px;
   padding-top: 6px;
   border-top: 1px solid rgba(70, 78, 96, 0.35);
 }
+.fh-wk-step-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.fh-wk-step-row > .fh-q {
+  flex: 0 0 auto;
+  margin-left: 0;
+}
 .fh-wk-step-btn {
+  flex: 1 1 auto;
+  min-width: 0;
   display: grid;
   grid-template-columns: 8px 7.5ch 1fr 6ch 1em;
   align-items: center;
@@ -879,8 +932,12 @@
   color: #c9cfdd;
   outline: none;
 }
-.fh-wk-step-btn.open {
+.fh-wk-step.open .fh-wk-step-btn {
   background: rgba(120, 130, 150, 0.08);
+}
+.fh-wk-verdict .fh-wk-raw {
+  color: #c9cfdd;
+  letter-spacing: 0.04em;
 }
 .fh-wk-sdot {
   width: 6px;
@@ -910,7 +967,8 @@
   text-align: center;
 }
 .fh-wk-step-panel {
-  padding: 6px 8px 7px 12px;
+  margin: 2px 0 4px 3px;
+  padding: 4px 8px 5px 12px;
   border-left: 2px solid rgba(120, 130, 150, 0.35);
 }
 .fh-wk-step-panel.size { border-left-color: #6f788f; }
@@ -1007,20 +1065,38 @@
   .fh-wk-time {
     grid-column: 1 / -1;
   }
-  .fh-wk-steps-list {
-    grid-template-columns: 1fr 1fr 1fr;
-    column-gap: 10px;
+  /* the strip: metrics on the left, the step accordion on the right */
+  .fh-workings {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 18px;
+    row-gap: 6px;
+    align-items: start;
   }
-  .fh-wk-step-btn {
-    grid-template-columns: 8px 7.5ch 1fr 6ch 1em;
+  .fh-wk-about,
+  .fh-wk-backup {
+    grid-column: 1 / -1;
   }
-}
-@media (max-width: 640px) {
   .fh-wk-grid {
     grid-template-columns: 1fr;
   }
   .fh-wk-steps-list {
-    grid-template-columns: 1fr;
+    padding-top: 0;
+    border-top: none;
+    border-left: 1px solid rgba(70, 78, 96, 0.35);
+    padding-left: 14px;
+  }
+}
+@media (max-width: 640px) {
+  .fh-workings {
+    display: flex;
+    flex-direction: column;
+  }
+  .fh-wk-steps-list {
+    border-left: none;
+    padding-left: 0;
+    padding-top: 6px;
+    border-top: 1px solid rgba(70, 78, 96, 0.35);
   }
 }
 @media (prefers-reduced-motion: reduce) {

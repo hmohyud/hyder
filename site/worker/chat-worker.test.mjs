@@ -84,6 +84,13 @@ globalThis.fetch = async (url, init) => {
     else events = [START(), ...THINK, ...TEXT(ANSWER), ...END("end_turn")];
     return new Response(sse(events), { status: 200, headers: { "content-type": "text/event-stream" } });
   }
+  if (mode === "gemini-ok" && /streamGenerateContent/.test(String(url))) {
+    const frames = [
+      { candidates: [{ content: { parts: [{ text: "Backup here. " }] } }] },
+      { candidates: [{ content: { parts: [{ text: "Dry enough." }] } }], usageMetadata: { promptTokenCount: 15000, candidatesTokenCount: 12, thoughtsTokenCount: 0 } },
+    ];
+    return new Response(frames.map((f) => "data: " + JSON.stringify(f) + "\n\n").join(""), { status: 200, headers: { "content-type": "text/event-stream" } });
+  }
   return new Response("nope", { status: 500 }); // gemini discovery + generate: unavailable
 };
 
@@ -322,6 +329,33 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   kv.set(SPEND, JSON.stringify({ n: 1, cents: 0.484 }));
   clearParked();
   ok("budget gate hands over to Gemini");
+}
+
+// 3a. the backup answers with the same envelope: no reasoning block, a stats
+//     record that names the provider, so the page can say "backup" instead of breaking
+{
+  mode = "gemini-ok";
+  kv.set(SPEND, JSON.stringify({ n: 900, cents: 500 }));
+  calls.length = 0;
+  const res = await ask("hello from the backup");
+  const text = await res.text();
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("x-chat-provider"), "gemini");
+  const e = envelope(text);
+  assert.equal(e.think, null, "no reasoning block from the backup");
+  assert.equal(e.body, "Backup here. Dry enough.");
+  assert.equal(e.stats.provider, "gemini");
+  assert.match(e.stats.model, /^gemini-/);
+  assert.equal(e.stats.in, 15000);
+  assert.equal(e.stats.out, 12);
+  assert.equal(e.stats.size, undefined, "the backup is not sized");
+  assert.equal(e.stats.effort, undefined);
+  assert.equal(anthropicCalls().length, 0);
+  assert.equal(sizerCalls().length, 0, "no sizer call on the backup path");
+  mode = "ok";
+  kv.set(SPEND, JSON.stringify({ n: 1, cents: 0.484 }));
+  clearParked();
+  ok("backup provider: same envelope, provider named, nothing sized");
 }
 
 // 3b. budget 0 switches Claude off; no KV binding also keeps Claude out
