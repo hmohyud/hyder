@@ -49,6 +49,7 @@ globalThis.fetch = async (url, init) => {
   if (String(url).startsWith("https://api.anthropic.com/")) {
     const err = (status, type, headers) => new Response(JSON.stringify({ type: "error", error: { type, message: type } }), { status, headers });
     if (mode === "400") return err(400, "invalid_request_error: fallbacks: unknown parameter");
+    if (mode === "spendlimit") return err(400, "You have reached your specified API usage limits; access resumes on the 1st");
     if (mode === "429") return err(429, "rate_limit_error");
     if (mode === "429ra") return err(429, "rate_limit_error", { "retry-after": "30" });
     let events;
@@ -269,6 +270,18 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   kv.delete("err:anthropic");
   mode = "ok";
   ok("400 -> lastError in /health, parked 5 min, Gemini tried, no repeat writes");
+}
+
+// 5b. the Console's monthly spend limit answers 400 with "usage limits": parked like a quota, not retried every 5 min
+{
+  mode = "spendlimit";
+  await (await ask("hello")).text();
+  assert.equal(kv.get("down:anthropic:" + todayKey), "quota");
+  assert.equal(ttls.get("down:anthropic:" + todayKey), 5400);
+  clearParked();
+  kv.delete("err:anthropic");
+  mode = "ok";
+  ok("Console spend limit -> parked as quota");
 }
 
 // 6. a 429 parks Claude as quota: 90 min without a hint, retry-after (clamped to a minute) with one

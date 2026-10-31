@@ -93,7 +93,9 @@ async function isParked(env, name) {
 
 async function park(env, name, err) {
   if (!env.CHAT_KV) return;
-  const quota = /\b429\b|quota|rate.?limit|exhaust/i.test(String(err && err.message));
+  // "usage limits" is the wording of Anthropic's Console spend limit, which
+  // answers 400 rather than 429 and lifts at the start of the month
+  const quota = /\b429\b|quota|rate.?limit|exhaust|usage limits?/i.test(String(err && err.message));
   /* A provider that says how long to wait (Anthropic's retry-after, usually a
      per-minute limit) is believed, within a minute-to-an-hour clamp; the
      durations below are the fallback for providers that do not say. */
