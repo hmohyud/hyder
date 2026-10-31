@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { projects, projectSlug, projectShortName } from "../pages/Projects";
+import { parseActToken, resolveAction, couldBeToken, tokenCap } from "../utils/chatActions";
 import * as THREE from "three";
 import "./FloatingHead.css";
 /* Hand-painted point regions (eyes, mouth seam, jaw) exported from
@@ -699,6 +700,7 @@ export default function FloatingHead({
     hovering: false,
   });
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate(); // action tokens open pages from the chat
   const [ready, setReady] = useState(false);
   // Phone gets a plain button instead of a WebGL portrait, so the scene is
   // only built there once the lightbox is actually opened.
@@ -1769,17 +1771,30 @@ export default function FloatingHead({
       let acc = "";
       let held = "";
       let decided = false;
+      let acted = false;
       let muteVoice = false;
       let firstText = false;
       const flow = (final) => {
         if (!decided) {
           const m = held.match(/^\[\[(ghost|spin|fire|tint:#[0-9a-fA-F]{6})\]\]\s*/);
+          const act = m ? null : parseActToken(held);
           if (m) {
             if (m[1] === "fire") muteVoice = true; // the scream replaces the narration
             fireTrick(m[1]);
             held = held.slice(m[0].length);
             decided = true;
-          } else if (final || held.length >= 18 || !/^\[\[?[a-z]*(:#?[0-9a-f]*)?\]?$/i.test(held)) {
+          } else if (act) {
+            /* an action token: open the thing on the site, then let the words
+               through. A target that cannot be resolved is dropped silently -
+               the sentence still reads as an answer. */
+            const to = resolveAction(act, { skillIds: SKILL_IDS, projectRefs: PROJECT_REFS });
+            if (to) {
+              navigate(to);
+              acted = true;
+            }
+            held = held.slice(act.length);
+            decided = true;
+          } else if (final || held.length >= tokenCap(held) || !couldBeToken(held)) {
             decided = true; // provably not a directive - let it all through
           }
         }
@@ -1808,7 +1823,7 @@ export default function FloatingHead({
       }
       flow(true);
       if (!acc.trim()) {
-        if (trickFired) {
+        if (trickFired || acted) {
           // token-only reply: drop the empty bubble - the trick IS the answer
           setMsgs((prev) => prev.filter((_, i) => i !== replyAt));
         } else {
@@ -1816,6 +1831,11 @@ export default function FloatingHead({
           replace(none);
           stateRef.current.talkBuf += none;
         }
+      }
+      if (acted) {
+        /* what the token opened is behind this overlay: give the sentence a
+           moment to be read, then step aside so the page shows */
+        setTimeout(() => setOpen(false), 2000);
       }
     } catch (err) {
       const said = String((err && err.message) || "");
