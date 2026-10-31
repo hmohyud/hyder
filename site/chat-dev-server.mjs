@@ -33,6 +33,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  const t0 = Date.now();
   let raw = "";
   for await (const chunk of req) raw += chunk;
 
@@ -109,6 +110,10 @@ const server = http.createServer(async (req, res) => {
       }
     }
     await guard.end();
+    /* the same closing record the worker sends, so the page's workings
+       drawer has something to show against a local model too */
+    res.write("
+[[stats:" + JSON.stringify({ provider: "ollama", model: MODEL, ms: Date.now() - t0 }) + "]]");
     res.end();
   } catch (err) {
     res.end("Local model unreachable — is Ollama running?");

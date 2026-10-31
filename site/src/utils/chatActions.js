@@ -49,6 +49,66 @@ export function stripExtraTokens(text) {
   return t;
 }
 
+/* ---------- the stream's envelope ----------
+   The worker wraps a reply: an optional [[think]]...[[/think]] block first
+   (the model's summarised reasoning, streamed as it thinks), then the reply,
+   then one [[stats:{json}]] record at the very end. Neither is shown or
+   spoken as text; both feed the workings drawer. */
+
+const THINK_OPEN_RX = /^\[\[think\]\]/i;
+const THINK_CLOSE = "[[/think]]";
+
+/** The reasoning block's opening at the very start of `text`, or null. */
+export function parseThinkOpen(text) {
+  const m = String(text || "").match(THINK_OPEN_RX);
+  return m ? { length: m[0].length } : null;
+}
+
+/**
+ * Inside the reasoning block: what of `text` is reasoning, whether the block
+ * closed, and what follows it. While open, a tail that could be the start of
+ * the closing marker is held back rather than shown.
+ */
+export function splitThink(text) {
+  const t = String(text || "");
+  const at = t.indexOf(THINK_CLOSE);
+  if (at >= 0) return { thought: t.slice(0, at), closed: true, rest: t.slice(at + THINK_CLOSE.length), hold: "" };
+  const lb = t.lastIndexOf("[[");
+  if (lb >= 0) {
+    const tail = t.slice(lb);
+    if (THINK_CLOSE.startsWith(tail)) return { thought: t.slice(0, lb), closed: false, rest: "", hold: tail };
+  }
+  if (t.endsWith("[")) return { thought: t.slice(0, -1), closed: false, rest: "", hold: "[" };
+  return { thought: t, closed: false, rest: "", hold: "" };
+}
+
+/** Where to stop releasing `text`: a trailing "[[stats:" (or what could become
+ *  one) is held back until the stream ends and parseStatsTail strips it. */
+export function tailHold(text) {
+  const t = String(text || "");
+  const lb = t.lastIndexOf("[[");
+  if (lb >= 0) {
+    const tail = t.slice(lb);
+    if (tail.startsWith("[[stats:") || "[[stats:".startsWith(tail)) return lb;
+  }
+  if (t.endsWith("[")) return t.length - 1;
+  return t.length;
+}
+
+/** The stats record at the end of a finished reply, stripped off. */
+export function parseStatsTail(text) {
+  const t = String(text || "");
+  const m = t.match(/\s*\[\[stats:([^\]]*)\]\]\s*$/); // anything bracket-free: a broken record is still stripped
+  if (!m) return { text: t, stats: null };
+  let stats = null;
+  try {
+    stats = JSON.parse(m[1]);
+  } catch (err) {
+    stats = null;
+  }
+  return { text: t.slice(0, m.index), stats };
+}
+
 /* ---------- guided tours ---------- */
 
 const TOUR_RX = /^\[\[tour\]\]\s*/i;

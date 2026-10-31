@@ -25,11 +25,20 @@ const clearParked = () => { for (const k of [...kv.keys()]) if (k.startsWith("do
 const sse = (events) => events.map((e) => `event: ${e.type}\ndata: ${JSON.stringify(e)}\n\n`).join("");
 const START = (usage) => ({ type: "message_start", message: { id: "msg_1", type: "message", role: "assistant", model: "claude-sonnet-5-5", content: [],
   usage: usage || { input_tokens: 420, cache_creation_input_tokens: 0, cache_read_input_tokens: 11000, output_tokens: 3 } } });
+const THOUGHT = "Checking the SPIM notes for the hard part.";
 const THINK = [
   { type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "" } },
-  { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: "" } },
+  { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: THOUGHT.slice(0, 12) } },
+  { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: THOUGHT.slice(12) } },
+  { type: "content_block_delta", index: 0, delta: { type: "signature_delta", signature: "sig" } },
   { type: "content_block_stop", index: 0 },
 ];
+/* the stream's envelope: an optional [[think]] block first, the reply, then one [[stats:{...}]] record */
+const envelope = (text) => {
+  const m = text.match(/^(?:\[\[think\]\]([\s\S]*?)\[\[\/think\]\])?([\s\S]*?)(?:\n\[\[stats:(\{[^\]]*\})\]\])?$/);
+  assert.ok(m, "envelope shape: " + JSON.stringify(text.slice(0, 80)));
+  return { think: m[1] === undefined ? null : m[1], body: m[2], stats: m[3] ? JSON.parse(m[3]) : null };
+};
 const TEXT = (text) => [
   { type: "content_block_start", index: 1, content_block: { type: "text", text: "" } },
   { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: text.slice(0, 10) } },
@@ -44,9 +53,16 @@ const ANSWER = "Dry answer, delivered flat and moved on from.";
 const LONG = "x".repeat(300) + " and that is the whole of it.";
 
 let mode = "ok";
+let sizer = "2 chat"; // what the fake Haiku sizer answers; "down" = 500
 globalThis.fetch = async (url, init) => {
   calls.push({ url: String(url), init });
   if (String(url).startsWith("https://api.anthropic.com/")) {
+    const asked = (() => { try { return JSON.parse(init.body); } catch (e) { return {}; } })();
+    if (asked.model === "claude-haiku-5-5") {
+      if (sizer === "down") return new Response("nope", { status: 500 });
+      if (sizer === "hang") return new Promise((resolve) => { init.signal.addEventListener("abort", () => resolve(new Response("", { status: 499 }))); });
+      return new Response(JSON.stringify({ content: [{ type: "text", text: sizer }], usage: { input_tokens: 150, output_tokens: 4 } }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     const err = (status, type, headers) => new Response(JSON.stringify({ type: "error", error: { type, message: type } }), { status, headers });
     if (mode === "400") return err(400, "invalid_request_error: fallbacks: unknown parameter");
     if (mode === "spendlimit") return err(400, "You have reached your specified API usage limits; access resumes on the 1st");
@@ -82,7 +98,8 @@ const ask = (q, e = env, extra = {}) => worker.fetch(new Request("https://hyder-
 }), e, ctx);
 const health = async () => (await worker.fetch(new Request("https://hyder-chat.test/health", { headers: { origin: "https://hydermohyuddin.com" } }), env, ctx)).json();
 const settle = async () => { await Promise.allSettled(waits.splice(0)); await new Promise((r) => setTimeout(r, 20)); };
-const anthropicCalls = () => calls.filter((c) => c.url.startsWith("https://api.anthropic.com/"));
+const anthropicCalls = () => calls.filter((c) => c.url.startsWith("https://api.anthropic.com/") && !/claude-haiku-5-5/.test(c.init.body));
+const sizerCalls = () => calls.filter((c) => c.url.startsWith("https://api.anthropic.com/") && /claude-haiku-5-5/.test(c.init.body));
 const geminiCalls = () => calls.filter((c) => /generativelanguage/.test(c.url));
 const spend = () => JSON.parse(kv.get(SPEND));
 let passed = 0;
@@ -98,17 +115,35 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   assert.equal(res.headers.get("x-chat-provider"), "anthropic");
   assert.equal(res.headers.get("x-chat-model"), "claude-sonnet-5-5");
   assert.match(res.headers.get("access-control-expose-headers") || "", /x-chat-model/, "page can read the model header");
-  assert.equal(text, ANSWER);
+  const env1 = envelope(text);
+  assert.equal(env1.think, THOUGHT, "the summarised reasoning opens the stream");
+  assert.equal(env1.body, ANSWER);
+  assert.equal(env1.stats.provider, "anthropic");
+  assert.equal(env1.stats.model, "claude-sonnet-5-5");
+  assert.equal(env1.stats.cached, 11000);
+  assert.equal(env1.stats.out, 180);
+  assert.equal(env1.stats.in, 420);
+  assert.equal(env1.stats.stop, "end_turn");
+  assert.equal(env1.stats.effort, "low");
+  assert.equal(env1.stats.think, THOUGHT.length);
+  assert.deepEqual({ ...env1.stats.size, ms: 0 }, { complexity: 2, kind: "chat", ms: 0 });
+  assert.ok(typeof env1.stats.ms === "number" && typeof env1.stats.ttfb === "number");
   assert.equal(geminiCalls().length, 0, "gemini must not be called when Claude answers");
   assert.equal(waits.length, 0);
+  assert.equal(sizerCalls().length, 1, "one sizer call");
+  const sz = JSON.parse(sizerCalls()[0].init.body);
+  assert.equal(sz.model, "claude-haiku-5-5");
+  assert.deepEqual(sz.thinking, { type: "disabled" });
+  assert.equal(sz.max_tokens, 12);
+  assert.match(sz.messages[0].content, /Question: What was hard about SPIM\?$/);
   const req = anthropicCalls()[0];
   const body = JSON.parse(req.init.body);
   assert.equal(body.model, "claude-sonnet-5-5");
   assert.equal(body.max_tokens, 4096);
   assert.equal(body.stream, true);
   assert.equal(body.fallbacks, "default");
-  assert.deepEqual(body.output_config, { effort: "low" });
-  assert.equal(body.thinking, undefined, "thinking is left at the model default (adaptive)");
+  assert.deepEqual(body.output_config, { effort: "low" }, "top-level effort stays pinned, so the cached prompt never splits");
+  assert.deepEqual(body.thinking, { type: "adaptive", display: "summarized" });
   assert.equal(body.temperature, undefined);
   assert.ok(Array.isArray(body.system) && body.system.length === 1);
   assert.deepEqual(body.system[0].cache_control, { type: "ephemeral", ttl: "1h" });
@@ -117,11 +152,12 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   assert.ok(body.system[0].text.includes("No humour at all in anything sincere or heavy"), "carve-out present");
   assert.deepEqual(body.messages, [{ role: "user", content: "What was hard about SPIM?" }]);
   assert.equal(req.init.headers["anthropic-version"], "2023-06-01");
-  assert.equal(req.init.headers["anthropic-beta"], "server-side-fallback-2026-07-01");
+  assert.equal(req.init.headers["anthropic-beta"], "server-side-fallback-2026-07-01,mid-conversation-output-config-2026-07-01");
   assert.equal(req.init.headers["x-api-key"], "sk-test");
   const rec = spend();
   assert.equal(rec.n, 1);
-  assert.ok(Math.abs(rec.cents - 0.484) < 1e-9, "cents " + rec.cents); // (420*2 + 11000*0.2 + 180*10) / 1e4
+  // (420*2 + 11000*0.2 + 180*10) / 1e4 for Sonnet, plus the sizer's (150*0.1 + 4*0.5) / 1e4
+  assert.ok(Math.abs(rec.cents - (0.484 + 0.0017)) < 1e-9, "cents " + rec.cents);
   assert.equal(rec.last.cacheRead, 11000);
   assert.equal(rec.last.output, 180);
   assert.equal(rec.last.stop, "end_turn");
@@ -202,6 +238,55 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   ok("page context: Claude system message after the user turn, prefix elsewhere, hostile input clipped");
 }
 
+// 1c. sizing: a hard question raises effort through a per-turn system message
+//     placed before the question, with the top-level effort untouched; a dead
+//     or slow sizer means low effort and no such message
+{
+  const spendSnap = kv.get(SPEND);
+  sizer = "4 compare";
+  calls.length = 0;
+  const res = await ask("compare SPIM and PokeCompare for a data role", env, { context: { path: "/projects" } });
+  const e = envelope(await res.text());
+  await settle();
+  const body = JSON.parse(anthropicCalls()[0].init.body);
+  assert.equal(body.messages.length, 3);
+  assert.deepEqual(body.messages[0], { role: "system", content: [], output_config: { effort: "high" } }, "effort message right before the question");
+  assert.equal(body.messages[1].role, "user");
+  assert.equal(body.messages[2].role, "system", "the context line stays last");
+  assert.deepEqual(body.output_config, { effort: "low" });
+  assert.equal(e.stats.effort, "high");
+  assert.deepEqual({ ...e.stats.size, ms: 0 }, { complexity: 4, kind: "compare", ms: 0 });
+
+  sizer = "3";
+  calls.length = 0;
+  await (await ask("what do you think of Rust?")).text();
+  await settle();
+  const b3 = JSON.parse(anthropicCalls()[0].init.body);
+  assert.deepEqual(b3.messages[0], { role: "system", content: [], output_config: { effort: "medium" } }, "a bare digit still sizes");
+
+  sizer = "down";
+  calls.length = 0;
+  const e2 = envelope(await (await ask("hello")).text());
+  await settle();
+  assert.deepEqual(JSON.parse(anthropicCalls()[0].init.body).messages, [{ role: "user", content: "hello" }], "sizer down: no effort message");
+  assert.equal(e2.stats.effort, "low");
+  assert.equal(e2.stats.size, null);
+
+  sizer = "hang";
+  calls.length = 0;
+  const t0 = Date.now();
+  const e3 = envelope(await (await ask("hello")).text());
+  await settle();
+  assert.ok(Date.now() - t0 < 4000, "a hanging sizer is abandoned at its timeout");
+  assert.equal(e3.stats.size, null);
+  assert.deepEqual(JSON.parse(anthropicCalls()[0].init.body).messages, [{ role: "user", content: "hello" }]);
+
+  sizer = "2 chat";
+  kv.set(SPEND, spendSnap);
+  clearParked();
+  ok("sizer: per-turn effort message for hard questions, soft failure, timeout");
+}
+
 // 2. /health reports the meter
 {
   const h = await health();
@@ -259,7 +344,8 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   const text = await res.text();
   await settle();
   assert.equal(res.headers.get("x-chat-provider"), "anthropic");
-  assert.equal(text, "That one I'll leave unanswered.");
+  assert.equal(envelope(text).body, "That one I'll leave unanswered.");
+  assert.equal(envelope(text).stats.stop, "refusal");
   assert.equal(spend().n, 2, "a refusal is still a priced request");
   assert.equal(spend().last.stop, "refusal");
   mode = "ok";
@@ -272,10 +358,10 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   const res = await ask("hm");
   const text = await res.text();
   await settle();
-  assert.equal(text, "That one I'll leave unanswered.", "fragment discarded: " + JSON.stringify(text));
+  assert.equal(envelope(text).body, "That one I'll leave unanswered.", "fragment discarded: " + JSON.stringify(text));
   mode = "long-refusal";
   const res2 = await ask("hm");
-  const text2 = await res2.text();
+  const text2 = envelope(await res2.text()).body;
   await settle();
   assert.ok(text2.startsWith("x".repeat(300)), "text already released stays as it was");
   assert.ok(!text2.includes("unanswered"), "nothing appended after released text");
@@ -289,7 +375,8 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   const res = await ask("explain everything");
   const text = await res.text();
   await settle();
-  assert.match(text, /ran out of room/);
+  assert.match(envelope(text).body, /ran out of room/);
+  assert.equal(envelope(text).stats.stop, "max_tokens");
   assert.equal(spend().last.stop, "max_tokens");
   assert.equal(spend().last.output, 4096);
   mode = "ok";
@@ -303,7 +390,7 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   const res = await ask("hello?");
   const text = await res.text();
   await settle();
-  assert.match(text, /Lost the thread/);
+  assert.match(envelope(text).body, /Lost the thread/);
   const err = JSON.parse(kv.get("err:anthropic"));
   assert.equal(err.status, 0);
   assert.match(err.body, /overloaded_error/);
@@ -321,8 +408,8 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   await res.text();
   await settle();
   const cents = spend().cents - before;
-  // (840*2 + 11000*4 + 11000*0.2 + 220*10) / 1e4 = 5.008
-  assert.ok(Math.abs(cents - 5.008) < 1e-6, "iterations summed: " + cents);
+  // (840*2 + 11000*4 + 11000*0.2 + 220*10) / 1e4 = 5.008, plus the sizer's 0.0017
+  assert.ok(Math.abs(cents - 5.0097) < 1e-6, "iterations summed: " + cents);
   mode = "ok";
   ok("fallback iterations priced in full");
 }
@@ -392,7 +479,7 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   const text = await res.text();
   await settle();
   assert.equal(res.headers.get("x-chat-provider"), "anthropic");
-  assert.equal(text, ANSWER);
+  assert.equal(envelope(text).body, ANSWER);
   ok("recovers once unparked");
 }
 
@@ -423,7 +510,7 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   const res = await ask("hello");
   const text = await res.text();
   await settle();
-  assert.equal(text, ANSWER, "the answer that hit the failed write was still delivered");
+  assert.equal(envelope(text).body, ANSWER, "the answer that hit the failed write was still delivered");
   assert.equal(JSON.parse(kv.get(SPEND)).n, 7, "record unchanged");
   failPut = null;
   calls.length = 0;

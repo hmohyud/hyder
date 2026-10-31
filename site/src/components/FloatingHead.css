@@ -587,6 +587,85 @@
   }
 }
 
+/* ── workings ──
+   Behind the curtain, on request: how the question was sized, what the model
+   thought (its own summary, streamed), and what it cost in tokens and time.
+   The same card as the transcript, a step quieter. */
+.fh-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 10px 0;
+}
+.fh-tools .fh-more {
+  margin: 0;
+}
+.fh-wk-btn .fh-caret {
+  margin-left: 6px;
+}
+.fh-workings {
+  padding: 10px 14px 11px;
+  border: 1px solid rgba(70, 78, 96, 0.5);
+  border-radius: 10px;
+  background: rgba(8, 11, 16, 0.82);
+  color: #8b93a7;
+  font-size: 0.74rem;
+  line-height: 1.55;
+}
+.fh-wk-line {
+  margin: 0 0 6px 0;
+  color: #9ed8ff;
+  letter-spacing: 0.03em;
+}
+.fh-wk-think {
+  margin: 0;
+  color: #aab2c5;
+  font-style: italic;
+  white-space: pre-wrap;
+  max-height: 18vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.fh-wk-label {
+  display: inline-block;
+  min-width: 5.2em;
+  color: #6f788f;
+  font-style: normal;
+  user-select: none;
+}
+.fh-cue-small {
+  width: 0.26em;
+  height: 0.26em;
+  vertical-align: 0.1em;
+}
+.fh-wk-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  margin: 8px 0 0 0;
+}
+.fh-wk-stats dt {
+  display: inline;
+  color: #6f788f;
+}
+.fh-wk-stats dt::after {
+  content: " ";
+}
+.fh-wk-stats dd {
+  display: inline;
+  margin: 0 0 0 0;
+  color: #c9cfdd;
+}
+@media (max-width: 640px) {
+  .fh-workings {
+    font-size: 0.72rem;
+  }
+  .fh-wk-think {
+    max-height: 22vh;
+  }
+}
+
 /* ── guided tour ──
    The page behind the chat is the exhibit, so the backdrop goes away and the
    pointer passes through to it; the chat shrinks to a caption with a small

@@ -5,6 +5,11 @@
  *   POST /chat  { messages: [{ role: "user" | "assistant", content: string }],
  *                 context?: { path: string, hovered?: string, look?: string } }
  *   -> streams plain UTF-8 text chunks, no SSE framing for the client to parse.
+ *   The stream may OPEN with [[think]]...[[/think]] - the model's summarised
+ *   reasoning, streamed as it thinks - and always CLOSES with one
+ *   [[stats:{json}]] record (provider, model, tokens, cache, timings, the
+ *   sizing). The page strips both and shows them in its "workings" drawer;
+ *   everything between is the reply as before.
  *   `context` is what the page knows about where the visitor is - the route,
  *   and on the projects page the card they are looking at - so "tell me about
  *   this one" has a referent. It is validated and clipped here (chatContext),
@@ -33,6 +38,21 @@ const NEWLINE = String.fromCharCode(10);
 
 const WORKERS_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const ANTHROPIC_MODEL = "claude-sonnet-5-5";
+/* Before Claude answers, a Haiku call sizes the question up (1-5) and the
+   effort for the answer follows from it. The top-level effort stays pinned
+   at "low" so the cached prompt never splits by effort; a harder question
+   gets a content-less system message that raises effort for that turn
+   (beta mid-conversation-output-config), which leaves the cache intact. */
+const SIZER_MODEL = "claude-haiku-5-5";
+const SIZER_PRICE = { input: 0.1, output: 0.5 }; // USD per million tokens
+const SIZER_TIMEOUT_MS = 1500;
+const SIZER_PROMPT =
+  "You size up the question just asked of a portfolio-site chatbot (a 3D head answering as the site's owner). " +
+  "Reply with exactly one digit and one word, nothing else. The digit is how much deliberation a good answer needs: " +
+  "1 greeting, small talk, a trick, a yes or no; 2 one fact to look up; 3 an explanation or an opinion drawn from a few facts; " +
+  "4 a comparison, ranking or recommendation that must weigh several things; 5 a multi-part or subtle question needing care. " +
+  "The word is the kind: chat, fact, explain, compare, tour, trick, other.";
+const EFFORT_FOR = { 1: "low", 2: "low", 3: "medium", 4: "high", 5: "high" };
 // Claude API list prices in USD per million tokens: uncached input, a 1-hour
 // cache write, a cache read, output (thinking tokens bill as output).
 const ANTHROPIC_PRICE = { input: 2, cacheWrite1h: 4, cacheRead: 0.2, output: 10 };
@@ -598,8 +618,62 @@ export default {
   },
 };
 
+/* ---- the question sizer ----
+   One short Haiku call: a digit for complexity and a word for kind. Any
+   failure, or anything slower than the timeout, means "no sizing" and the
+   answer runs at the pinned low effort - never a blocked reply. */
+async function sizeUp(env, messages) {
+  const t0 = Date.now();
+  const last = messages[messages.length - 1];
+  const prior = messages
+    .slice(-3, -1)
+    .map((m) => (m.role === "user" ? "visitor" : "head") + ": " + m.content.slice(0, 200))
+    .join(NEWLINE);
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), SIZER_TIMEOUT_MS);
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      signal: ctrl.signal,
+      headers: { "content-type": "application/json", "x-api-key": env.ANTHROPIC_KEY, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify({
+        model: SIZER_MODEL,
+        max_tokens: 12,
+        thinking: { type: "disabled" },
+        output_config: { effort: "low" },
+        system: SIZER_PROMPT,
+        messages: [{ role: "user", content: (prior ? "Earlier:" + NEWLINE + prior + NEWLINE + NEWLINE : "") + "Question: " + last.content }],
+      }),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const text = ((json.content || []).find((b) => b.type === "text") || {}).text || "";
+    const m = text.trim().match(/^([1-5])\s*[-:.,]?\s*([a-z]+)?/i);
+    if (!m) return null;
+    const u = json.usage || {};
+    return {
+      complexity: parseInt(m[1], 10),
+      kind: (m[2] || "other").toLowerCase().slice(0, 12),
+      ms: Date.now() - t0,
+      cents: (tokens(u.input_tokens) * SIZER_PRICE.input + tokens(u.output_tokens) * SIZER_PRICE.output) / 10000,
+    };
+  } catch (err) {
+    return null; // timed out or unreachable: unsized
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/* the closing record every reply carries. Flat on purpose, and without
+   arrays, so "]]" can never occur inside it and the page can find its end. */
+const statsToken = (fields) => NEWLINE + "[[stats:" + JSON.stringify(fields) + "]]";
+/* the model's reasoning is for the visitor's eyes, but never the prompt:
+   the same leak markers the guard uses, on the summary */
+const LEAK_RX = /you are hyder mohyuddin|everything you know about yourself|knowledge:|# hyder mohyuddin|voice: dry/i;
+
 /* ---- Workers AI: SSE in, plain text out ---- */
 async function workersAiStream(env, messages, context) {
+  const t0 = Date.now();
   const sse = await env.AI.run(WORKERS_AI_MODEL, {
     messages: [{ role: "system", content: PROMPT }, ...withContextPrefix(messages, context)],
     stream: true,
@@ -614,6 +688,7 @@ async function workersAiStream(env, messages, context) {
     const guard = createLeakGuard((text) => writer.write(encoder.encode(text)));
     const reader = sse.getReader();
     let buffer = "";
+    let usage = null;
     try {
       for (;;) {
         const { done, value } = await reader.read();
@@ -628,12 +703,24 @@ async function workersAiStream(env, messages, context) {
           try {
             const json = JSON.parse(payload);
             if (json.response) await guard.push(json.response);
+            if (json.usage) usage = json.usage;
           } catch (err) {
             /* skip malformed frame */
           }
         }
       }
       await guard.end();
+      await writer.write(
+        encoder.encode(
+          statsToken({
+            provider: "workers-ai",
+            model: WORKERS_AI_MODEL,
+            ms: Date.now() - t0,
+            in: tokens(usage && usage.prompt_tokens),
+            out: tokens(usage && usage.completion_tokens),
+          })
+        )
+      );
     } finally {
       await writer.close();
     }
@@ -656,6 +743,14 @@ async function workersAiStream(env, messages, context) {
    Sonnet 5.5 accepts inside `messages`, no beta needed): it sits behind the
    cached prefix instead of changing it. */
 async function anthropicStream(env, messages, ctx, context) {
+  const t0 = Date.now();
+  const size = await sizeUp(env, messages);
+  const effort = (size && EFFORT_FOR[size.complexity]) || "low";
+  /* the effort message sits right before the question it applies to; the
+     context line, when there is one, stays last */
+  const turns = messages.slice();
+  if (effort !== "low") turns.splice(turns.length - 1, 0, { role: "system", content: [], output_config: { effort } });
+  if (context) turns.push({ role: "system", content: contextLine(context) });
   const upstream = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -663,8 +758,9 @@ async function anthropicStream(env, messages, ctx, context) {
       "x-api-key": env.ANTHROPIC_KEY,
       "anthropic-version": "2023-06-01",
       // a safety-classifier decline is re-run server-side on the model Anthropic
-      // recommends for that category, instead of coming back as a blank reply
-      "anthropic-beta": "server-side-fallback-2026-07-01",
+      // recommends for that category, instead of coming back as a blank reply;
+      // the second beta is the per-turn effort message
+      "anthropic-beta": "server-side-fallback-2026-07-01,mid-conversation-output-config-2026-07-01",
     },
     body: JSON.stringify({
       model: ANTHROPIC_MODEL,
@@ -672,7 +768,9 @@ async function anthropicStream(env, messages, ctx, context) {
       // daily meter is the spend cap, so headroom here is cheap insurance
       max_tokens: 4096,
       system: [{ type: "text", text: PROMPT, cache_control: { type: "ephemeral", ttl: "1h" } }],
-      messages: context ? messages.concat({ role: "system", content: contextLine(context) }) : messages,
+      messages: turns,
+      // summarised reasoning comes back as thinking text, for the workings drawer
+      thinking: { type: "adaptive", display: "summarized" },
       output_config: { effort: "low" },
       fallbacks: "default",
       stream: true,
@@ -710,6 +808,14 @@ async function anthropicStream(env, messages, ctx, context) {
     let streamError = null;
     let emitted = 0;
     let buffer = "";
+    /* the reasoning goes straight to the page as it arrives, outside the
+       guard (which holds the opening of the ANSWER); its own leak check
+       swaps the rest of a summary that starts quoting the prompt */
+    let thinking = "";
+    let thinkOpen = false;
+    let thinkMuted = false;
+    let firstText = 0;
+    const raw = (text) => writer.write(encoder.encode(text));
     try {
       for (;;) {
         const { done, value } = await reader.read();
@@ -727,9 +833,32 @@ async function anthropicStream(env, messages, ctx, context) {
           } catch (err) {
             continue; // malformed frame
           }
-          if (json.type === "content_block_delta" && json.delta && json.delta.type === "text_delta") {
-            // thinking deltas (empty under the default display) and fallback
-            // blocks are skipped: only visible text reaches the page
+          if (json.type === "content_block_start" && json.content_block && json.content_block.type === "thinking") {
+            if (!thinkOpen) {
+              thinkOpen = true;
+              await raw("[[think]]");
+            }
+          } else if (json.type === "content_block_delta" && json.delta && json.delta.type === "thinking_delta") {
+            const piece = String(json.delta.thinking || "").replace(/\[\[/g, "[ [");
+            if (piece && thinkOpen && !thinkMuted) {
+              thinking += piece;
+              if (LEAK_RX.test(thinking)) {
+                thinkMuted = true;
+                await raw(" (the rest of this I keep to myself)");
+              } else {
+                await raw(piece);
+              }
+            }
+          } else if (json.type === "content_block_stop" && thinkOpen && !firstText) {
+            thinkOpen = false;
+            await raw("[[/think]]");
+          } else if (json.type === "content_block_delta" && json.delta && json.delta.type === "text_delta") {
+            // fallback blocks are skipped: only visible text reaches the page
+            if (thinkOpen) {
+              thinkOpen = false;
+              await raw("[[/think]]");
+            }
+            if (!firstText) firstText = Date.now() - t0;
             emitted += json.delta.text.length;
             await guard.push(json.delta.text);
           } else if (json.type === "message_start" && json.message && json.message.usage) {
@@ -757,7 +886,26 @@ async function anthropicStream(env, messages, ctx, context) {
       } else if (!emitted && !stopReason) {
         await guard.push("Lost the thread there - ask me that again.");
       }
+      if (thinkOpen) await raw("[[/think]]");
       await guard.end();
+      const cents = anthropicCents(usage) + ((size && size.cents) || 0);
+      await raw(
+        statsToken({
+          provider: "anthropic",
+          model: ANTHROPIC_MODEL,
+          ms: Date.now() - t0,
+          ttfb: firstText,
+          in: usage.input,
+          cached: usage.cacheRead,
+          cacheWrite: usage.cacheWrite,
+          out: usage.output,
+          think: thinking.length,
+          stop: stopReason || (streamError ? "error" : "unknown"),
+          effort,
+          size: size ? { complexity: size.complexity, kind: size.kind, ms: size.ms } : null,
+          cents: Math.round(cents * 100) / 100,
+        })
+      );
     } catch (gone) {
       // the visitor has left; nothing to say it to
     }
@@ -768,7 +916,7 @@ async function anthropicStream(env, messages, ctx, context) {
     }
     if (streamError) await noteAnthropicError(env, 0, JSON.stringify(streamError));
     try {
-      await recordAnthropicSpend(env, usage, stopReason || (streamError ? "error" : "unknown"));
+      await recordAnthropicSpend(env, usage, stopReason || (streamError ? "error" : "unknown"), (size && size.cents) || 0);
     } catch (bookkeeping) {
       // the meter has already shut the Claude gate for a few minutes
     }
@@ -874,12 +1022,12 @@ const anthropicCents = (u) =>
     u.output * ANTHROPIC_PRICE.output) /
   10000; // tokens x (USD per million) -> cents
 
-async function recordAnthropicSpend(env, usage, stop) {
+async function recordAnthropicSpend(env, usage, stop, extraCents = 0) {
   if (!env.CHAT_KV) return;
   try {
     const rec = await readSpend(env);
     if (!rec) throw new Error("spend record unreadable"); // never overwrite a day we cannot see
-    const cents = anthropicCents(usage);
+    const cents = anthropicCents(usage) + extraCents; // the sizer's Haiku call rides on the same meter
     const hit = usage.cacheRead > 0;
     const next = {
       n: rec.n + 1,
@@ -908,6 +1056,7 @@ async function anthropicWithinBudget(env) {
 
 /* ---- Google AI Studio: SSE in, plain text out ---- */
 async function geminiStream(env, messages, context) {
+  const t0 = Date.now();
   const body = JSON.stringify({
     systemInstruction: { parts: [{ text: PROMPT }] },
     contents: withContextPrefix(messages, context).map((m) => ({
@@ -989,6 +1138,7 @@ async function geminiStream(env, messages, context) {
     const guard = createLeakGuard((text) => writer.write(encoder.encode(text)));
     const reader = upstream.body.getReader();
     let buffer = "";
+    let meta = null;
     try {
       for (;;) {
         const { done, value } = await reader.read();
@@ -1012,12 +1162,25 @@ async function geminiStream(env, messages, context) {
                 if (part.text) await guard.push(part.text);
               }
             }
+            if (json.usageMetadata) meta = json.usageMetadata;
           } catch (err) {
             /* skip malformed frame */
           }
         }
       }
       await guard.end();
+      await writer.write(
+        encoder.encode(
+          statsToken({
+            provider: "gemini",
+            model: used,
+            ms: Date.now() - t0,
+            in: tokens(meta && meta.promptTokenCount),
+            out: tokens(meta && meta.candidatesTokenCount),
+            think: tokens(meta && meta.thoughtsTokenCount),
+          })
+        )
+      );
     } finally {
       await writer.close();
     }

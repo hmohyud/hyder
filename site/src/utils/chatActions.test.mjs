@@ -4,6 +4,7 @@ import fs from "node:fs";
 import {
   parseActToken, couldBeToken, tokenCap, resolveAction, stripExtraTokens,
   parseTourToken, splitTourSteps, tourPause, tourCommand, MAX_TOUR_STOPS,
+  parseThinkOpen, splitThink, tailHold, parseStatsTail,
 } from "./chatActions.js";
 
 const data = JSON.parse(fs.readFileSync(new URL("../../public/skillsData.json", import.meta.url), "utf8"));
@@ -144,6 +145,40 @@ const ok = (n) => { passed++; console.log("  pass:", n); };
   assert.equal(tourCommand("what is next?"), null, "a question is a question");
   assert.equal(tourCommand(""), null);
   ok("tour pacing and controls");
+}
+
+// the stream's envelope: reasoning block first, stats record last
+{
+  assert.deepEqual(parseThinkOpen("[[think]]Checking the notes.[[/think]]Yes."), { length: 9 });
+  assert.equal(parseThinkOpen("[[ghost]] boo"), null);
+  assert.equal(parseThinkOpen(" [[think]]"), null, "the caller trims; the token is at the very start");
+  for (const h of ["[", "[[", "[[t", "[[thin", "[[think"]) assert.ok(couldBeToken(h), "could still be the think token: " + h);
+  const a = splitThink("Checking the notes. Then the ");
+  assert.deepEqual(a, { thought: "Checking the notes. Then the ", closed: false, rest: "", hold: "" });
+  const b = splitThink("Checking the notes.[[/thi");
+  assert.deepEqual(b, { thought: "Checking the notes.", closed: false, rest: "", hold: "[[/thi" }, "a partial closer is held");
+  const c = splitThink("Checking the notes.[[/think]]Yes, SPIM.");
+  assert.deepEqual(c, { thought: "Checking the notes.", closed: true, rest: "Yes, SPIM.", hold: "" });
+  const d = splitThink("notes [1] and [2]");
+  assert.deepEqual(d.hold, "", "ordinary brackets in reasoning are not held");
+  assert.equal(splitThink("[[/think]]Straight to it.").thought, "", "an empty reasoning block");
+  ok("reasoning block parsing");
+}
+{
+  assert.equal(tailHold("Dry answer."), "Dry answer.".length);
+  assert.equal(tailHold("Dry answer.\n[[st"), "Dry answer.\n".length, "a possible stats opener is held");
+  assert.equal(tailHold("Dry answer.\n["), "Dry answer.\n".length);
+  assert.equal(tailHold("Dry answer.\n[[stats:{\"ms\":1"), "Dry answer.\n".length);
+  assert.equal(tailHold("Dry answer.\n[[stats:{\"ms\":1}]]"), "Dry answer.\n".length, "a complete record is held too, for the final strip");
+  assert.equal(tailHold("see [1] for it"), "see [1] for it".length, "a closed bracket is text");
+  assert.equal(tailHold("array [[1, 2]] here"), "array [[1, 2]] here".length);
+  const s1 = parseStatsTail("Dry answer.\n[[stats:{\"provider\":\"anthropic\",\"ms\":2345,\"size\":{\"complexity\":2,\"kind\":\"chat\"}}]]");
+  assert.equal(s1.text, "Dry answer.");
+  assert.deepEqual(s1.stats, { provider: "anthropic", ms: 2345, size: { complexity: 2, kind: "chat" } });
+  assert.deepEqual(parseStatsTail("No record here."), { text: "No record here.", stats: null });
+  assert.deepEqual(parseStatsTail("x\n[[stats:{broken]]"), { text: "x", stats: null }, "unparseable json: stripped, no stats");
+  assert.deepEqual(parseStatsTail(""), { text: "", stats: null });
+  ok("stats record held back and stripped");
 }
 
 console.log(`ALL ${passed} ACTION CHECKS PASSED`);

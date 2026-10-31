@@ -5,6 +5,7 @@ import { projects, projectSlug, projectShortName } from "../pages/Projects";
 import {
   parseActToken, resolveAction, couldBeToken, tokenCap, stripExtraTokens,
   parseTourToken, splitTourSteps, tourPause, tourCommand,
+  parseThinkOpen, splitThink, tailHold, parseStatsTail,
 } from "../utils/chatActions";
 import { getAttention } from "../utils/chatContext";
 import * as THREE from "three";
@@ -273,6 +274,10 @@ function prettyModel(id) {
   }
   return out.slice(0, 4).join(" ");
 }
+
+/* the workings drawer's numbers: compact, one decimal past a thousand */
+const kfmt = (n) => (typeof n !== "number" || !Number.isFinite(n) ? "-" : n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n));
+const WORKINGS_KEY = "fh-workings"; // the drawer stays the way the visitor left it
 
 /* Typed into the empty input as a cycling ghost placeholder - questions the
    bot genuinely answers well, so the suggestion is also a promise kept. */
@@ -1093,7 +1098,7 @@ export default function FloatingHead({
     hovering: false,
     look: readLook(), // persistent looks: { ghost, lattice }
     small: false, // the host is one of the small ones (portrait, tour head)
-    rtFactor: 1, // supersampling factor for the texture path, 0 = draw direct
+    rtFactor: -1, // supersampling factor for the texture path: 0 = draw direct, -1 = layout() has not decided yet
     headCss: 0, // the head's on-screen height, CSS px
   });
   /* a head mounted while a tour is running (the move swapped heads) opens
@@ -1110,6 +1115,26 @@ export default function FloatingHead({
   const sendSeq = useRef(0);
   /* the mouth is mid-word: the reply's typing cue pulses with it */
   const [speaking, setSpeaking] = useState(false);
+  /* behind the curtain: the model's summarised reasoning as it streams, and
+     the stats record each reply ends with; the drawer that shows them */
+  const [thinking, setThinking] = useState("");
+  const [stats, setStats] = useState(null);
+  const [workings, setWorkings] = useState(() => {
+    try {
+      return localStorage.getItem(WORKINGS_KEY) === "1";
+    } catch (err) {
+      return false;
+    }
+  });
+  const toggleWorkings = () =>
+    setWorkings((v) => {
+      try {
+        localStorage.setItem(WORKINGS_KEY, v ? "0" : "1");
+      } catch (err) {
+        // private mode
+      }
+      return !v;
+    });
   const [ready, setReady] = useState(false);
   // Phone gets a plain button instead of a WebGL portrait, so the scene is
   // only built there once the lightbox is actually opened.
@@ -1671,6 +1696,14 @@ export default function FloatingHead({
         return;
       }
       const dt = last ? Math.min(0.05, (t - last) / 1000) : 0.016;
+      const s = stateRef.current;
+      /* nothing is drawn until layout() has sized the host and chosen the
+         path: the first frames otherwise render direct, at the canvas's
+         default size, and flash before the real head appears */
+      if (s.rtFactor < 0) {
+        last = t;
+        return;
+      }
 
       if (last && !judged && t - firstFrameT > 900) {
         /* the first ~0.9s after a scene build is layout/upload jank on even
@@ -1691,7 +1724,6 @@ export default function FloatingHead({
       }
       last = t;
 
-      const s = stateRef.current;
       if (s.spinFeed) {
         // the spin trick's wind-up: smoothstepped delivery of the impulse
         const f = s.spinFeed;
@@ -2299,10 +2331,12 @@ export default function FloatingHead({
     if (!question) return;
     const seq = ++sendSeq.current; // an aborted tour reply must not clear a newer question's busy state
 
-    const history = msgs.concat({ role: "user", content: question });
+    const history = msgs.map(({ role, content }) => ({ role, content })).concat({ role: "user", content: question });
     setMsgs(history.concat({ role: "assistant", content: "" }));
     setDraft("");
     setBusy(true);
+    setThinking("");
+    setStats(null);
     stateRef.current.busy = true; // timer callbacks cannot see React state
     stateRef.current.talkBuf = "";
     stateRef.current.talkPos = 0;
@@ -2315,10 +2349,16 @@ export default function FloatingHead({
        streaming, and last-message indexing would overwrite the closer with
        stream chunks */
     const replyAt = history.length;
+    let thought = ""; // the reasoning, kept with the message once it is done
+    let gotStats = null;
     const replace = (content) =>
       setMsgs((prev) => {
         const copy = prev.slice();
-        if (replyAt < copy.length) copy[replyAt] = { role: "assistant", content };
+        if (replyAt < copy.length) {
+          copy[replyAt] = { role: "assistant", content };
+          if (thought) copy[replyAt].thinking = thought;
+          if (gotStats) copy[replyAt].stats = gotStats;
+        }
         return copy;
       });
 
@@ -2439,19 +2479,67 @@ export default function FloatingHead({
       let pendingNav = null;
       let muteVoice = false;
       let firstText = false;
+      /* the envelope: "maybe" while the opening could still be [[think]],
+         "in" inside the reasoning block, "done" once the reply proper begins */
+      let thinkStage = "maybe";
       const flow = (final) => {
+        /* the stats record closes every stream: held back while it may be
+           arriving (tailHold), stripped and kept once the stream ends */
+        if (final) {
+          const t = parseStatsTail(held);
+          held = t.text;
+          if (t.stats) {
+            gotStats = t.stats;
+            setStats(t.stats);
+          }
+        }
+        const cut = final ? held.length : tailHold(held);
+        let work = held.slice(0, cut);
+        const rest = held.slice(cut);
+
+        if (thinkStage === "maybe") {
+          const probe = work.replace(/^\s+/, "");
+          const open = parseThinkOpen(probe);
+          if (open) {
+            thinkStage = "in";
+            work = probe.slice(open.length);
+          } else if (probe && (final || probe.length >= tokenCap(probe) || !couldBeToken(probe))) {
+            thinkStage = "done";
+          } else if (!probe && final) {
+            thinkStage = "done";
+          } else {
+            held = work + rest; // could still become [[think]]
+            return;
+          }
+        }
+        if (thinkStage === "in") {
+          const part = splitThink(work);
+          if (part.thought) {
+            thought += part.thought;
+            setThinking(thought);
+          }
+          if (part.closed) {
+            thinkStage = "done";
+            work = part.rest;
+          } else {
+            held = final ? "" : part.hold + rest;
+            if (final) thinkStage = "done";
+            return;
+          }
+        }
+
         if (tourMode) {
           /* a tour: nothing is shown here. The controller cuts the raw text
              into stops as it arrives and plays them at its own pace. */
-          raw += held;
-          held = "";
+          raw += work;
+          held = rest;
           tourFeed(raw, final);
           return;
         }
         if (!decided) {
           /* leading whitespace decides nothing: some models put a space or a
              newline before a token */
-          const probe = held.replace(/^\s+/, "");
+          const probe = work.replace(/^\s+/, "");
           const tourTok = parseTourToken(probe);
           if (tourTok) {
             tourMode = true;
@@ -2460,8 +2548,9 @@ export default function FloatingHead({
             clearTimeout(slowT);
             setSlowNote(false);
             tourStart(history.concat({ role: "assistant", content: "" }), replyAt, ctrl);
-            held = probe.slice(tourTok.length);
-            flow(final);
+            raw = probe.slice(tourTok.length);
+            held = rest;
+            tourFeed(raw, final);
             return;
           }
           const m = probe.match(/^\[\[(ghost|spin|fire|tint:#[0-9a-fA-F]{6}|lattice|wire|cloud)\]\]\s*/);
@@ -2469,7 +2558,7 @@ export default function FloatingHead({
           if (m) {
             if (m[1] === "fire") muteVoice = true; // the scream replaces the narration
             fireTrick(m[1]);
-            held = stripExtraTokens(probe.slice(m[0].length));
+            work = stripExtraTokens(probe.slice(m[0].length));
             decided = true;
           } else if (act) {
             /* an action token. The page opens when the chat steps aside after
@@ -2483,31 +2572,38 @@ export default function FloatingHead({
               pendingNav = to;
               acted = true;
             }
-            held = stripExtraTokens(probe.slice(act.length));
+            work = stripExtraTokens(probe.slice(act.length));
             decided = true;
           } else if (!probe) {
             if (final) decided = true; // nothing but whitespace
+            else {
+              held = work + rest;
+              return;
+            }
           } else if (final || probe.length >= tokenCap(probe) || !couldBeToken(probe)) {
-            held = probe;
+            work = probe;
             decided = true; // provably not a directive - let it all through
+          } else {
+            held = work + rest; // could still be a token: keep holding
+            return;
           }
         }
-        if (decided && held) {
+        if (decided && work) {
           if (!firstText) {
             // once real text is flowing the wait is over - retire the notice
             firstText = true;
             clearTimeout(slowT);
             setSlowNote(false);
           }
-          acc += held;
+          acc += work;
           // feed the viseme sequencer - the mouth sounds out this exact text
           // (unless a fire scream owns the voice for this reply)
           if (!muteVoice) {
-            stateRef.current.talkBuf = (stateRef.current.talkBuf || "") + held;
+            stateRef.current.talkBuf = (stateRef.current.talkBuf || "") + work;
           }
-          held = "";
           replace(acc);
         }
+        held = rest;
       };
       for (;;) {
         const { done, value } = await reader.read();
@@ -2518,6 +2614,8 @@ export default function FloatingHead({
       flow(true);
       if (tourMode) {
         // the controller owns the rest: the stops, the moves, the transcript
+      } else if (acc.trim()) {
+        replace(acc); // once more, so the reasoning and the stats ride with the message
       } else if (!acc.trim()) {
         if (trickFired || acted) {
           // token-only reply: drop the empty bubble - the trick IS the answer
@@ -2639,6 +2737,17 @@ export default function FloatingHead({
 
   if (!capable) return null;
 
+  /* what the workings drawer shows: the reply in flight, else the last
+     answered one (restored transcripts carry their stats and reasoning) */
+  const lastAnswer = [...msgs].reverse().find((m) => m.role === "assistant" && (m.stats || m.thinking));
+  const gotStatsLive = !!stats;
+  const wk =
+    busy || thinking || stats
+      ? { thinking, stats }
+      : lastAnswer
+        ? { thinking: lastAnswer.thinking || "", stats: lastAnswer.stats || null }
+        : null;
+
   const portrait = (
     <button
         type="button"
@@ -2749,21 +2858,103 @@ export default function FloatingHead({
               {tour && <div className="fh-tour-head" ref={tourHeadRef} aria-hidden="true" />}
               {/* Outside the log on purpose: inside it, it scrolled away with
                   the transcript, so collapsing a long conversation meant
-                  scrolling up to find the control that collapses it. */}
-              {msgs.length > 2 && !tour && (
-                <button
-                  type="button"
-                  className="fh-more"
-                  onClick={() => setShowAll((v) => !v)}
-                  aria-expanded={showAll}
-                >
-                  <span className={"fh-caret" + (showAll ? " open" : "")}>▸</span>
-                  {showAll
-                    ? "hide earlier"
-                    : msgs.length - 2 +
-                      " earlier message" +
-                      (msgs.length - 2 === 1 ? "" : "s")}
-                </button>
+                  scrolling up to find the control that collapses it. The
+                  workings toggle shares the row, on the right. */}
+              {!tour && (msgs.length > 2 || wk) && (
+                <div className="fh-tools">
+                  {msgs.length > 2 ? (
+                    <button
+                      type="button"
+                      className="fh-more"
+                      onClick={() => setShowAll((v) => !v)}
+                      aria-expanded={showAll}
+                    >
+                      <span className={"fh-caret" + (showAll ? " open" : "")}>▸</span>
+                      {showAll
+                        ? "hide earlier"
+                        : msgs.length - 2 +
+                          " earlier message" +
+                          (msgs.length - 2 === 1 ? "" : "s")}
+                    </button>
+                  ) : (
+                    <span />
+                  )}
+                  {wk && (
+                    <button
+                      type="button"
+                      className="fh-more fh-wk-btn"
+                      onClick={toggleWorkings}
+                      aria-expanded={workings}
+                      aria-controls="fh-workings"
+                    >
+                      {busy && thinking && !workings ? "workings · thinking…" : "workings"}
+                      <span className={"fh-caret" + (workings ? " open" : "")}>▸</span>
+                    </button>
+                  )}
+                </div>
+              )}
+              {!tour && wk && workings && (
+                <section id="fh-workings" className="fh-workings" aria-label="How the answer was made">
+                  <p className="fh-wk-line" aria-live="polite">
+                    {wk.stats
+                      ? [
+                          prettyModel(wk.stats.model) || wk.stats.provider,
+                          wk.stats.size
+                            ? "sized " + wk.stats.size.complexity + "/5, " + wk.stats.size.kind
+                            : wk.stats.provider === "anthropic"
+                              ? "unsized"
+                              : null,
+                          wk.stats.effort ? wk.stats.effort + " effort" : null,
+                          typeof wk.stats.ms === "number" ? (wk.stats.ms / 1000).toFixed(1) + " s" : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")
+                      : busy
+                        ? "sizing the question up…"
+                        : ""}
+                  </p>
+                  <p className="fh-wk-think">
+                    <span className="fh-wk-label">thinking</span>
+                    {wk.thinking
+                      ? wk.thinking
+                      : busy
+                        ? "…"
+                        : "nothing to add - the answer came straight out"}
+                    {busy && !gotStatsLive ? <span className="fh-cue fh-cue-wait fh-cue-small" aria-hidden="true" /> : null}
+                  </p>
+                  {wk.stats && (
+                    <dl className="fh-wk-stats">
+                      <dt>in</dt>
+                      <dd>{kfmt(wk.stats.in)}</dd>
+                      {typeof wk.stats.cached === "number" && (
+                        <>
+                          <dt>cached</dt>
+                          <dd>{kfmt(wk.stats.cached)}</dd>
+                        </>
+                      )}
+                      <dt>out</dt>
+                      <dd>{kfmt(wk.stats.out)}</dd>
+                      {typeof wk.stats.think === "number" && wk.stats.think > 0 && (
+                        <>
+                          <dt>reasoning</dt>
+                          <dd>{kfmt(wk.stats.think)} chars</dd>
+                        </>
+                      )}
+                      {typeof wk.stats.cached === "number" && (
+                        <>
+                          <dt>cache</dt>
+                          <dd>{wk.stats.cached > 0 ? "hit" : "miss"}</dd>
+                        </>
+                      )}
+                      {typeof wk.stats.cents === "number" && (
+                        <>
+                          <dt>cost</dt>
+                          <dd>{wk.stats.cents < 0.01 ? "<0.01" : wk.stats.cents.toFixed(2)}¢</dd>
+                        </>
+                      )}
+                    </dl>
+                  )}
+                </section>
               )}
               {msgs.length > 0 && (
                 <div className="fh-log" ref={logRef}>
@@ -2844,6 +3035,7 @@ export default function FloatingHead({
               <p className="fh-hint">
                 {tour ? "enter for the next stop · esc stops the tour" : "drag to rotate · esc to close"}
                 {model ? " · " + model : ""}
+                {!tour && wk && wk.stats && typeof wk.stats.ms === "number" ? " · " + (wk.stats.ms / 1000).toFixed(1) + " s" : ""}
               </p>
             </div>
             </ChatShield>
