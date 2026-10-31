@@ -167,10 +167,22 @@ function contextLine(context) {
     const card = /^\/projects/.test(context.path || "") ? "the project card for " : "the card for ";
     line += " They are looking at " + card + context.hovered + ".";
   }
+  /* the look, named so a request for the look already on can be answered as
+     "already so" rather than as a change; the default is said too, so "show
+     me the normal one" on a normal head is not described as a return */
   if (context.look) {
+    const words = context.look
+      .split("+")
+      .map((k) => (k === "lattice" ? "lattice (the halftone)" : k === "wire" ? "wire (the wireframe)" : k))
+      .join(" and ");
     line +=
-      " The head is currently in its " + context.look.replace("+", " and ") +
-      " look, which this visitor asked for earlier; it stays until they ask for the default (cloud) back.";
+      " The head is currently in its " + words +
+      " look, which this visitor asked for earlier; it stays until they ask for the default (cloud) back." +
+      " If they ask for that same look again it is already so: say so, and do not describe a change.";
+  } else {
+    line +=
+      " The head is in its default look, the plain point cloud; no look is on, nothing to undo." +
+      " If they ask for the plain, normal or default head it is already so: say so, and do not describe a change.";
   }
   if (context.last) {
     const who = /haiku/.test(context.last.model) ? "Haiku" : /sonnet/.test(context.last.model) ? "Sonnet" : context.last.model ? "a backup model" : "";

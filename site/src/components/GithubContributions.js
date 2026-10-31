@@ -28,9 +28,26 @@ function useContribData(username) {
   return { data, error };
 }
 
+/* The API's levels are GitHub's own: four even steps up to the busiest day,
+   so one 400-commit day leaves the rest of the year at the first step. The
+   grid uses its own, logarithmic, spread instead, anchored at the 95th
+   percentile of the working days rather than the busiest one, so the year
+   reads as a texture: a 3-commit day, a 10-commit day and a 30-commit day are
+   each a step apart. */
+function logLevels(all) {
+  const busy = all.map((c) => c.count).filter((n) => n > 0).sort((a, b) => a - b);
+  if (!busy.length) return all;
+  const ref = busy[Math.floor(0.95 * (busy.length - 1))];
+  const denom = Math.log(1 + Math.max(2, ref));
+  return all.map((c) => ({
+    ...c,
+    level: c.count <= 0 ? 0 : Math.min(4, Math.max(1, Math.ceil((4 * Math.log(1 + c.count)) / denom))),
+  }));
+}
+
 function computeTotals(data) {
   if (!data?.contributions?.length) return { weeks: [], lastYearTotal: 0, ytdTotal: 0 };
-  const all = data.contributions;
+  const all = logLevels(data.contributions);
   const lyTotal = data.total?.lastYear ?? all.reduce((a, c) => a + c.count, 0);
   const year = new Date().getFullYear();
   const yearStart = new Date(year, 0, 1);

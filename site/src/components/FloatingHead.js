@@ -75,6 +75,10 @@ const ATTEND_TINT = [0.93, 0.95, 1.0];
 // of the button at every breakpoint.
 const CANVAS_SCALE = 3.6;
 const MINI_Z = 9.4;
+/* on a tour the canvas is this many times the disc, drawn centred over it: a
+   shaken head's chunks fly out over the card and the page instead of hitting
+   the disc's square; the shader dissolves them before the canvas edge */
+const TOUR_PAD = 2.6;
 const MINI_POINTS = 9000;
 /* the tour caption's head is smaller than the portrait: all 16k points in
    ~95px of head is several times the portrait's density and reads bright,
@@ -151,7 +155,7 @@ const SUPER = (dpr) => Math.max(2, Math.min(4, Math.round(4 / dpr)));
 /* the performed tricks: shader id and length in ms */
 const FX = { scatter: [1, 2400], melt: [2, 3200], shatter: [3, 2600], ember: [4, 3000], glitch: [5, 1300], hue: [6, 2200] };
 const LATTICE_GAIN = 2.2;
-const LATTICE_FILL = 0.85;
+const LATTICE_FILL = 0.74; // the largest dot's diameter as a share of its cell
 /* The cell tone is read from a texture that is averaged over the last few
    frames (an exponential filter with this weight on the newest frame, about
    a tenth of a second to settle). The head sways and breathes, so dots drift
@@ -172,6 +176,13 @@ const QUAD_VERT = "varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(p
    at 4x, far fewer sprites overlap per texel, nothing clamps, and the small
    head comes out brighter than its big self. The copy pass scales it back. */
 const SMALL_EXPOSURE = 1.0; // averaging no longer clamps, and dimming it read as dull
+/* the halftone prints the filled head (the shell wearing the dots' colours);
+   the numbers were chosen by eye in the lab at the lightbox size, where the
+   base cell is 8 px: 12.5 px cells, marks half a cell wide, gain 1.4 */
+const SOLID_GAIN = 1.4;
+const SOLID_CELL = 12.5 / 8; // times latticeCell(): 12.5 px at the lightbox, scaled down with small heads
+const SOLID_FILL = 0.52; // the largest mark's width as a share of its cell
+const TOUR_DIM = 0.78; // the plain cloud on a tour sits over the words, so it is turned down a little
 const COPY_FRAG =
   "uniform sampler2D tSrc; uniform float uExposure; varying vec2 vUv; void main(){ gl_FragColor = texture2D(tSrc, vUv) * uExposure; }";
 
@@ -186,16 +197,72 @@ const COPY_FRAG =
    voxel occupancy test built from the cloud, so the wire ends where the
    dots do. Spacing is chosen per head size (layout) so lines sit a few
    pixels apart at every size, and each spacing is sliced once and cached. */
-const VOX = 0.09; // cloud units; dot spacing is ~0.03, so a cell holds many
+const NEAR_R = 0.045; // cloud units; shell-to-dot gaps over the head are ~0.012 (median), 0.022 (98th pct)
+const NEAR_CELL = 0.05;
+/* a test for "the cloud has dots here": true within NEAR_R of any dot. The
+   scan's shell carries a neck base and a shoulder the cloud never had, and
+   the wire is cut where the dots stop. A hashed grid keeps each query to the
+   27 cells around it. */
 function cloudOccupancy(pos) {
-  const set = new Set();
-  const key = (x, y, z) => x * 1048576 + y * 1024 + z;
+  const grid = new Map();
+  const key = (x, y, z) => x * 4194304 + y * 2048 + z;
+  const cell = (v) => Math.floor(v / NEAR_CELL) + 1000;
   for (let i = 0; i < pos.length; i += 3) {
-    const x = Math.floor(pos[i] / VOX) + 512, y = Math.floor(pos[i + 1] / VOX) + 512, z = Math.floor(pos[i + 2] / VOX) + 512;
-    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) set.add(key(x + dx, y + dy, z + dz));
+    const k = key(cell(pos[i]), cell(pos[i + 1]), cell(pos[i + 2]));
+    let a = grid.get(k);
+    if (!a) grid.set(k, (a = []));
+    a.push(i);
   }
-  return (x, y, z) => set.has(key(Math.floor(x / VOX) + 512, Math.floor(y / VOX) + 512, Math.floor(z / VOX) + 512));
+  const r2 = NEAR_R * NEAR_R;
+  return (x, y, z) => {
+    const cx = cell(x), cy = cell(y), cz = cell(z);
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
+      const a = grid.get(key(cx + dx, cy + dy, cz + dz));
+      if (!a) continue;
+      for (const i of a) {
+        const ex = pos[i] - x, ey = pos[i + 1] - y, ez = pos[i + 2] - z;
+        if (ex * ex + ey * ey + ez * ez <= r2) return true;
+      }
+    }
+    return false;
+  };
 }
+
+/* the dots' colours as a field: the mean colour of the dots within SOLID_R
+   of a point, or the nearest dot's when none is that close. Same hashed grid
+   as the occupancy test. */
+const SOLID_R = 0.07;
+function cloudSampler(pos, col) {
+  const grid = new Map();
+  const key = (x, y, z) => x * 4194304 + y * 2048 + z;
+  const cell = (v) => Math.floor(v / SOLID_R) + 1000;
+  for (let i = 0; i < pos.length; i += 3) {
+    const k = key(cell(pos[i]), cell(pos[i + 1]), cell(pos[i + 2]));
+    let a = grid.get(k);
+    if (!a) grid.set(k, (a = []));
+    a.push(i);
+  }
+  const r2 = SOLID_R * SOLID_R;
+  return (x, y, z, out) => {
+    const cx = cell(x), cy = cell(y), cz = cell(z);
+    let r = 0, g = 0, b = 0, n = 0, best = Infinity, bi = -1;
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) {
+      const a = grid.get(key(cx + dx, cy + dy, cz + dz));
+      if (!a) continue;
+      for (const i of a) {
+        const ex = pos[i] - x, ey = pos[i + 1] - y, ez = pos[i + 2] - z;
+        const d2 = ex * ex + ey * ey + ez * ez;
+        if (d2 <= r2) { r += col[i]; g += col[i + 1]; b += col[i + 2]; n++; }
+        if (d2 < best) { best = d2; bi = i; }
+      }
+    }
+    if (n > 0) { out[0] = r / n; out[1] = g / n; out[2] = b / n; }
+    else if (bi >= 0) { out[0] = col[bi]; out[1] = col[bi + 1]; out[2] = col[bi + 2]; }
+    else { out[0] = 0; out[1] = 0; out[2] = 0; }
+    return out;
+  };
+}
+
 function sliceShell(verts, idx, d, near) {
   const tri = idx.length / 3;
   const segs = [];
@@ -260,6 +327,11 @@ function sliceShell(verts, idx, d, near) {
   g.setAttribute("aMid", new THREE.BufferAttribute(new Float32Array(mid), 3));
   return g;
 }
+/* the wire dissolves over the neck's last stretch (cloud units, rest
+   height). The scan's neck base widens into a shoulder on one side; the dots
+   there are sparse and dim, but contour lines pile up on the slope and read
+   as a piece jutting out, so the lines go before the dots do. */
+const WIRE_NECK = [-1.16, -0.98];
 const wireSpacing = (headCss) => Math.round(Math.max(0.08, Math.min(0.3, 7 / (Math.max(20, headCss) / 2.6))) * 100) / 100;
 /* ---------- the performed tricks, shared by the dots and the wire ----------
    uFx picks one, uFxT runs 0..1 through it; everything is a function of the
@@ -276,6 +348,7 @@ varying float vFxGlow;
 varying float vFxHue;
 varying float vFxW;
 varying float vGlitch;
+varying vec2 vNdc;
 
 float hash1(vec3 q) { return fract(sin(dot(q, vec3(12.9898, 78.233, 37.719)) + uFxSeed * 17.0) * 43758.5453); }
 vec3 hash3(vec3 q) { return vec3(hash1(q), hash1(q + 1.7), hash1(q + 3.1)); }
@@ -349,11 +422,16 @@ vec3 applyFx(vec3 p, vec3 rest) {
    temperature (uFxTint), the glitch's split */
 const FX_FRAG_GLSL = `
 uniform vec3 uFxTint;
+uniform float uEdgeFade;
 varying float vFxFade;
 varying float vFxGlow;
 varying float vFxHue;
 varying float vFxW;
 varying float vGlitch;
+varying vec2 vNdc;
+/* a soft round edge inside the canvas (on when the canvas is a padded tour
+   host): whatever a trick throws that far dissolves instead of being cut */
+float edgeFade() { return 1.0 - uEdgeFade * smoothstep(0.8, 0.98, length(vNdc)); }
 vec3 hueRotate(vec3 c, float ang) { const vec3 k = vec3(0.57735); float ca = cos(ang); float sa = sin(ang); return c * ca + cross(k, c) * sa + k * dot(k, c) * (1.0 - ca); }
 vec3 applyFxColor(vec3 col, float lum) {
   if (vFxW > 0.0) col = mix(col, hueRotate(vec3(1.0, 0.12, 0.12), vFxHue) * (0.5 + 0.9 * lum), vFxW);
@@ -368,18 +446,21 @@ vec3 applyFxColor(vec3 col, float lum) {
    canvas composites as premultiplied, and this pass does not blend. */
 const LATTICE_FRAG = [
   "out vec4 fragColor;",
-  "uniform sampler2D tSrc; uniform vec2 uSize; uniform float uCell; uniform float uGain; uniform float uMax; uniform float uLod;",
+  "uniform sampler2D tSrc; uniform vec2 uSize; uniform float uCell; uniform float uGain; uniform float uMax; uniform float uLod; uniform float uShape; uniform float uStagger;",
   "varying vec2 vUv;",
   "void main() {",
   "  vec2 p = vUv * uSize;",
   "  float row = floor(p.y / uCell);",
-  "  float shift = mod(row, 2.0) * 0.5 * uCell;",
+  "  float shift = uStagger * mod(row, 2.0) * 0.5 * uCell;",
   "  float colI = floor((p.x - shift) / uCell);",
   "  vec2 center = vec2((colI + 0.5) * uCell + shift, (row + 0.5) * uCell);",
   "  vec4 s = textureLod(tSrc, center / uSize, uLod);",
   "  float tone = clamp(dot(s.rgb, vec3(0.33, 0.5, 0.17)) * uGain, 0.0, 1.0);",
   "  float r = sqrt(tone) * uMax * uCell * 0.5;",
-  "  float a = (1.0 - smoothstep(r - 0.75, r + 0.25, length(p - center))) * step(0.02, tone);",
+  // the mark's shape: 0 round, 1 square, 2 diamond, 3 hexagon (r is its half-width)
+  "  vec2 q = abs(p - center);",
+  "  float d = uShape < 0.5 ? length(q) : uShape < 1.5 ? max(q.x, q.y) : uShape < 2.5 ? (q.x + q.y) * 0.7071 : max(q.x, dot(q, vec2(0.5, 0.866)));",
+  "  float a = (1.0 - smoothstep(r - 0.75, r + 0.25, d)) * step(0.02, tone);",
   "  vec3 hue = s.rgb / max(max(s.r, max(s.g, s.b)), 1e-3);",
   "  vec3 col = hue * (0.55 + 0.45 * tone);",
   "  fragColor = vec4(col * a, a);",
@@ -593,6 +674,21 @@ function HelpSheet({ onTry, onWorkings, onPick, onClose }) {
   );
 }
 const secs = (ms) => (typeof ms !== "number" || ms < 0 ? "" : ms < 50 ? "<0.1 s" : (ms / 1000).toFixed(1) + " s");
+/* hover readings for the drawer's symbols and bar segments: the figure the
+   mark stands for, in words ("1/5 (low) complexity", "46% tokens input") */
+const CX_WORDS = ["", "low", "light", "medium", "high", "very high"];
+const readCx = (c) => c + "/5 (" + (CX_WORDS[c] || "") + ") complexity";
+const readEffort = (effort, level) => effort + " effort (" + level + " of 3)";
+const readCache = (st) =>
+  !st || typeof st.cached !== "number"
+    ? ""
+    : st.cached > 0
+      ? "prompt cached: " + kfmt(st.cached) + " tokens read back"
+      : st.cacheWrite > 0
+        ? "prompt cache written: " + kfmt(st.cacheWrite) + " tokens, kept 1 h"
+        : "prompt not cached: " + kfmt(st.in) + " tokens sent in full";
+const pctOf = (part, total) => (total > 0 ? Math.round((100 * part) / total) + "%" : "0%");
+const replies = (n) => n + (n === 1 ? " reply" : " replies");
 const WORKINGS_KEY = "fh-workings"; // the drawer stays the way the visitor left it
 /* a pointer that cannot hover (a phone): tooltips and previews toggle by tap */
 const COARSE = typeof window !== "undefined" && !!window.matchMedia && window.matchMedia("(hover: none)").matches;
@@ -872,17 +968,17 @@ vec3 applyFace(vec3 p, float jaw, out float glow) {
 `;
 
 const WIRE_VERT = [
-  "attribute vec3 aNormal; attribute vec3 aColor; attribute vec3 aMid; attribute float aJaw; varying vec3 vColor; varying float vA;",
+  "attribute vec3 aNormal; attribute vec3 aColor; attribute vec3 aMid; attribute float aJaw; uniform vec2 uNeck; varying vec3 vColor; varying float vA;",
   FX_VERT_GLSL,
   FACE_GLSL,
   "void main(){ vec3 n = normalize(normalMatrix * aNormal); float facing = smoothstep(-0.2, 0.6, n.z);",
-  "  vA = 0.12 + 0.88 * facing; vColor = aColor; float glow; vec3 p = applyFace(position, aJaw, glow); p = applyFx(p, aMid);",
-  "  gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }",
+  "  vA = (0.12 + 0.88 * facing) * smoothstep(uNeck.x, uNeck.y, position.y); vColor = aColor; float glow; vec3 p = applyFace(position, aJaw, glow); p = applyFx(p, aMid);",
+  "  gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); vNdc = gl_Position.xy / max(0.001, gl_Position.w); }",
 ].join("\n");
 const WIRE_FRAG = [
   "uniform float uAlpha; varying vec3 vColor; varying float vA;",
   FX_FRAG_GLSL,
-  "void main(){ vec3 col = applyFxColor(vColor, max(max(vColor.r, vColor.g), vColor.b)); gl_FragColor = vec4(col, uAlpha * vA * vFxFade); }",
+  "void main(){ vec3 col = applyFxColor(vColor, max(max(vColor.r, vColor.g), vColor.b)); gl_FragColor = vec4(col, uAlpha * vA * vFxFade * edgeFade()); }",
 ].join("\n");
 
 const VERT = `
@@ -915,6 +1011,7 @@ void main() {
      so the moving lip reads as a continuous band instead of separate dots */
   gl_PointSize = ((uSize * uDpr) / max(0.001, -mv.z)) * (1.0 + 0.4 * vGlow);
   gl_Position = projectionMatrix * mv;
+  vNdc = gl_Position.xy / max(0.001, gl_Position.w);
 }`;
 
 const FRAG = [
@@ -945,7 +1042,7 @@ const FRAG = [
   "  col *= 1.0 + 1.35 * vGlow;",
   // the performed tricks' colour work: the sweep, the sparks' glow, the glitch's split
   "  col = applyFxColor(col, lum);",
-  "  a *= vFxFade;",
+  "  a *= vFxFade * edgeFade();",
   "  gl_FragColor = vec4(col, a);",
   "}",
 ].join("\n");
@@ -1663,6 +1760,7 @@ export default function FloatingHead({
     small: false, // the host is one of the small ones (portrait, tour head)
     rtFactor: -1, // supersampling factor for the texture path: 0 = draw direct, -1 = layout() has not decided yet
     headCss: 0, // the head's on-screen height, CSS px
+    latticeSolid: true, // the halftone prints the filled head; the bare dots serve until the shell arrives
   });
   /* a head mounted while a tour is running (the move swapped heads) opens
      straight into it */
@@ -1771,10 +1869,45 @@ export default function FloatingHead({
     document.addEventListener("click", off, true);
     return () => document.removeEventListener("click", off, true);
   }, [tipOn]);
+  /* readings: a bubble over a symbol or a bar segment with the figure it
+     stands for ("3/5 (medium) complexity", "46% tokens input"). Hover on a
+     fine pointer; on a coarse one a tap shows it and it goes by itself.
+     Placed in the chat card's own frame, so it is never clipped by the
+     drawer's scroll. */
+  const [wkRead, setWkRead] = useState(null);
+  const readTimer = useRef(0);
+  const showRead = (el, text) => {
+    const host = chatRef.current;
+    if (!host || !text) return;
+    const c = host.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    // the card scrolls: an absolute child sits in its scrolled content box
+    setWkRead({ text, x: r.left + r.width / 2 - c.left + host.scrollLeft, y: r.top - c.top + host.scrollTop });
+  };
+  const rd = (tapToo, text) => {
+    if (typeof tapToo === "string") {
+      text = tapToo;
+      tapToo = true;
+    }
+    if (!COARSE) return { onMouseEnter: (e) => showRead(e.currentTarget, text), onMouseLeave: () => setWkRead(null) };
+    if (!tapToo) return {};
+    return {
+      onClick: (e) => {
+        e.stopPropagation(); // the reading, not the row's own tap tooltip
+        showRead(e.currentTarget, text);
+        clearTimeout(readTimer.current);
+        readTimer.current = setTimeout(() => setWkRead(null), 2500);
+      },
+    };
+  };
+  useEffect(() => () => clearTimeout(readTimer.current), []);
   /* live timing while a reply is in flight: when the request went out, when
      the reasoning started, when the first word landed */
   const phaseRef = useRef({ sendAt: 0, thinkAt: 0, textAt: 0 });
   const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    setWkRead(null);
+  }, [workings, wkTab, wkList, wkFocus]);
   const toggleWorkings = () =>
     setWorkings((v) => {
       try {
@@ -1977,6 +2110,7 @@ export default function FloatingHead({
         uTintEdge: { value: 99 },
         uGhost: { value: 0 },
         uAlpha: { value: 1 },
+        uEdgeFade: { value: 0 },
         uBlink: { value: 0 },
         uMouth: { value: 0 },
         uMouthW: { value: 1 },
@@ -2191,6 +2325,47 @@ export default function FloatingHead({
       magFilter: THREE.LinearFilter,
       depthBuffer: true,
     });
+    /* the halftone samples the filled head (the shell wearing the dots'
+       colours, lightly lit) rather than the dots: smooth tone, a real print.
+       window.__fhLatticeSolid(false) falls back to the dots. */
+    const solidMat = new THREE.ShaderMaterial({
+      uniforms: { uLift: { value: 1.0 } },
+      /* aIn marks shell vertices near the cloud's dots (the scan's neck base,
+         which the cloud never had, is cut away); aSolid is the colour of the
+         dots around the vertex - the same posterised tone in the same place,
+         so the print is the cloud's own picture, filled in. A touch of a
+         lamp from the upper left keeps the surface from reading flat. */
+      vertexShader: "attribute float aIn; attribute vec3 aSolid; varying vec3 vCol; varying float vL; varying float vIn; void main(){ vCol = aSolid; vIn = aIn; vec3 n = normalize(normalMatrix * normal); vL = 0.55 + 0.2 * max(0.0, n.z) + 0.25 * max(0.0, dot(n, normalize(vec3(-0.45, 0.6, 0.65)))); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+      fragmentShader: [
+        "uniform float uLift; varying vec3 vCol; varying float vL; varying float vIn;",
+        "void main(){ if (vIn < 0.5) discard; gl_FragColor = vec4(vCol * vL * uLift, 1.0); }",
+      ].join("\n"),
+    });
+    window.__fhLatticeSolid = (on) => { stateRef.current.latticeSolid = !!on; };
+    // the lab's dials: { latticeCellPx, latticeFill, latticeGain, latticeShape, latticeStagger, latticeSolid }
+    window.__fhLattice = (o) => { Object.assign(stateRef.current, o || {}); };
+    const bakeShellIn = (geo) => {
+      const near = (worldRef.current && worldRef.current.cloudNear) || stateRef.current.pendingCloudNear;
+      const pos = geo.attributes.position.array;
+      const inArr = new Float32Array(pos.length / 3);
+      for (let i = 0; i < inArr.length; i++) inArr[i] = !near || near(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]) ? 1 : 0;
+      geo.setAttribute("aIn", new THREE.BufferAttribute(inArr, 1));
+      /* the dots' colours, gathered onto the shell: the mean of the dots
+         within SOLID_R of each vertex (a few, on a surface), or the nearest
+         dot where none is that close */
+      const dots = points.geometry.attributes.position.array;
+      const dcol = points.geometry.attributes.aColor.array;
+      const sample = cloudSampler(dots, dcol);
+      const solid = new Float32Array(pos.length);
+      const rgb = [0, 0, 0];
+      for (let i = 0; i < inArr.length; i++) {
+        sample(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2], rgb);
+        solid[i * 3] = rgb[0];
+        solid[i * 3 + 1] = rgb[1];
+        solid[i * 3 + 2] = rgb[2];
+      }
+      geo.setAttribute("aSolid", new THREE.BufferAttribute(solid, 3));
+    };
     const quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
     const copyMat = new THREE.ShaderMaterial({
       uniforms: { tSrc: { value: rt.texture }, uExposure: { value: SMALL_EXPOSURE } },
@@ -2202,6 +2377,7 @@ export default function FloatingHead({
       uniforms: {
         tSrc: { value: rt.texture }, uSize: { value: new THREE.Vector2(1, 1) },
         uCell: { value: 4 }, uGain: { value: LATTICE_GAIN }, uMax: { value: LATTICE_FILL }, uLod: { value: 2 },
+        uShape: { value: 0 }, uStagger: { value: 1 },
       },
       vertexShader: QUAD_VERT, fragmentShader: LATTICE_FRAG,
       blending: THREE.NoBlending, depthTest: false, depthWrite: false, transparent: true,
@@ -2230,12 +2406,13 @@ export default function FloatingHead({
     const quadScene = new THREE.Scene();
     const quadMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), copyMat);
     quadScene.add(quadMesh);
-    window.__fhExposure = (v) => { copyMat.uniforms.uExposure.value = v; }; // tuning hook
+    window.__fhExposure = (v) => { stateRef.current.exposure = v; }; // tuning hook
 
     /* the wire look's lines: sliced from the shell once it arrives, per spacing */
     const wireMat = new THREE.ShaderMaterial({
       uniforms: {
-        uAlpha: { value: 0.75 },
+        uAlpha: { value: 0.75 }, uEdgeFade: { value: 0 },
+        uNeck: { value: new THREE.Vector2(WIRE_NECK[0], WIRE_NECK[1]) },
         uFx: { value: 0 }, uFxT: { value: 0 }, uFxSeed: { value: 0 }, uTime: { value: 0 },
         uFxTint: { value: new THREE.Vector3(1.0, 0.55, 0.25) },
         uBlink: { value: 0 }, uMouth: { value: 0 }, uMouthW: { value: 1 }, uRegions: { value: 0 },
@@ -2269,6 +2446,7 @@ export default function FloatingHead({
     const resliceWire = () => {
       for (const g of wireCache.values()) g.dispose();
       wireCache.clear();
+      if (shellMesh) bakeShellIn(shellMesh.geometry);
       if (stateRef.current.look.wire) ensureWire(wireSpacing(stateRef.current.headCss || 100));
     };
     worldRef.current = {
@@ -2352,6 +2530,8 @@ export default function FloatingHead({
           group.remove(shellMesh);
           shellMesh.geometry.dispose();
         }
+        geo.computeVertexNormals(); // for the solid shading under the halftone
+        bakeShellIn(geo);
         shellMesh = new THREE.Mesh(geo, shellMaterial);
         group.add(shellMesh);
         if (worldRef.current) {
@@ -2575,13 +2755,16 @@ export default function FloatingHead({
         u.uFxT.value = s.fx ? (performance.now() - s.fx.t0) / s.fx.dur : 0;
         u.uFxSeed.value = s.fx ? s.fx.seed : 0;
         u.uTime.value = performance.now() / 1000;
+        u.uEdgeFade.value = s.tour ? 1 : 0;
         if (ghostly) u.uFxTint.value.set(0.55, 0.75, 1.0);
         else u.uFxTint.value.set(1.0, 0.55, 0.25);
       }
-      /* under the wire the cloud stays as a dim ground, so the mouth and the
-         blink still play through the lines */
-      s.cloudAlpha = (s.cloudAlpha ?? 1) + ((s.look.wire ? 0.28 : 1) - (s.cloudAlpha ?? 1)) * (1 - Math.exp(-5 * dt));
+      /* under the wire the dots fade right out (the lines blink and talk on
+         their own); once gone they are not drawn at all, so nothing of the
+         cloud shows through the mesh */
+      s.cloudAlpha = (s.cloudAlpha ?? 1) + ((s.look.wire ? 0 : 1) - (s.cloudAlpha ?? 1)) * (1 - Math.exp(-5 * dt));
       material.uniforms.uAlpha.value = s.cloudAlpha;
+      points.visible = s.cloudAlpha > 0.01;
 
       /* ---- blink + talk ----
          Blink: a 160ms sine pulse at random 3-7s intervals, occasionally
@@ -2695,13 +2878,29 @@ export default function FloatingHead({
         }
       }
 
-      const drawScene = () => renderer.render(scene, camera);
+      const drawScene = () => {
+        const solid = !!(s.look.lattice && s.latticeSolid && shellMesh);
+        latticeMat.uniforms.uGain.value = typeof s.latticeGain === "number" ? s.latticeGain : solid ? SOLID_GAIN : LATTICE_GAIN; // a filled surface needs less boost than scattered dots
+        const dotsShown = points.visible;
+        if (solid) {
+          shellMesh.material = solidMat;
+          points.visible = false;
+        }
+        renderer.render(scene, camera);
+        if (solid) {
+          shellMesh.material = shellMaterial;
+          points.visible = dotsShown;
+        }
+      };
       if (s.rtFactor > 0 && rt.width > 16) {
         renderer.setRenderTarget(rt);
         drawScene();
         renderer.setRenderTarget(null);
         if (s.look.lattice) {
-          const cell = latticeCell(s.headCss || 100) * dpr;
+          /* the filled shell carries more tone than scattered dots, so its
+             print takes a finer screen */
+          const solidNow = !!(s.latticeSolid && shellMesh);
+          const cell = (typeof s.latticeCellPx === "number" ? s.latticeCellPx : latticeCell(s.headCss || 100) * (solidNow ? SOLID_CELL : 1)) * dpr;
           /* pass one: this frame's cell-sized average of the cloud, blended
              into the running tone */
           const write = s.toneFlip ? toneB : toneA;
@@ -2726,10 +2925,15 @@ export default function FloatingHead({
           u.tSrc.value = write.texture;
           u.uSize.value.set(canvas.width, canvas.height);
           u.uCell.value = cell;
+          u.uMax.value = typeof s.latticeFill === "number" ? s.latticeFill : solidNow ? SOLID_FILL : LATTICE_FILL;
+          u.uShape.value = s.latticeShape || 0;
+          u.uStagger.value = s.latticeStagger === false ? 0 : 1;
           u.uLod.value = 0;
           quadMesh.material = latticeMat;
         } else {
           s.toneReset = true; // the next halftone frame starts clean
+          const plain = !s.look.ghost && !s.look.lattice && !s.look.wire;
+          copyMat.uniforms.uExposure.value = (typeof s.exposure === "number" ? s.exposure : SMALL_EXPOSURE) * (s.tour && plain ? TOUR_DIM : 1);
           quadMesh.material = copyMat;
         }
         renderer.render(quadScene, quadCam);
@@ -2886,17 +3090,19 @@ export default function FloatingHead({
     if (world.canvas.parentElement !== host) host.appendChild(world.canvas);
     const box = miniRef.current ? miniRef.current.clientWidth || 100 : 100;
     if (!open && !miniRef.current) return;
-    const w = open ? host.clientWidth || 150 : Math.round(box * CANVAS_SCALE);
-    const h = open ? host.clientHeight || 150 : Math.round(box * CANVAS_SCALE);
+    const pad = open && caption ? TOUR_PAD : 1;
+    const w = open ? Math.round((host.clientWidth || 150) * pad) : Math.round(box * CANVAS_SCALE);
+    const h = open ? Math.round((host.clientHeight || 150) * pad) : Math.round(box * CANVAS_SCALE);
     world.renderer.setSize(w, h, false);
     world.canvas.style.width = w + "px";
     world.canvas.style.height = h + "px";
     world.camera.aspect = w / h;
     const z = open ? (caption ? 4.4 : 5.6) : MINI_Z;
     world.camera.position.z = z;
+    world.camera.zoom = 1 / pad; // the padded canvas shows more of the scene; the head stays disc-sized
     world.camera.updateProjectionMatrix();
     const fov = (world.camera.fov * Math.PI) / 180;
-    const headPx = (Math.min(h, w) * 2.6) / (2 * z * Math.tan(fov / 2));
+    const headPx = (Math.min(h, w) * 2.6) / (2 * z * pad * Math.tan(fov / 2));
     const targetPx = Math.max(1.3, 0.0044 * headPx);
     world.material.uniforms.uSize.value = targetPx * z;
     /* small hosts go through the supersampled texture; the lattice look does
@@ -3484,6 +3690,7 @@ export default function FloatingHead({
   };
 
   sendRef.current = send;
+  window.__fhPerform = performTrick; // console hook: any trick or look by its token name
 
   const onStageDown = (e) => {
     const s = stateRef.current;
@@ -3849,6 +4056,11 @@ export default function FloatingHead({
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
             >
+              {wkRead && (
+                <span className="fh-read" role="tooltip" style={{ left: wkRead.x, top: wkRead.y }}>
+                  {wkRead.text}
+                </span>
+              )}
               {/* on a tour the portrait shrinks to a caption-sized host above
                   the words, so the page behind can be seen changing */}
               {caption && (
@@ -3860,7 +4072,9 @@ export default function FloatingHead({
                   onPointerMove={onStageMove}
                   onPointerUp={endDrag}
                   onPointerCancel={endDrag}
-                />
+                >
+                  <i className="fh-tour-seam" />
+                </div>
               )}
               {caption && (
                 <div className="fh-tour-ctl">
@@ -3965,17 +4179,17 @@ export default function FloatingHead({
                       )}
                       {!workings && !wkBackup && (
                         <span className="fh-wk-mini" aria-hidden="true">
-                          <span className={"fh-wk-dots" + (wkBusy && !wkSize ? " fh-wk-live" : "")}>
+                          <span className={"fh-wk-dots" + (wkBusy && !wkSize ? " fh-wk-live" : "")} {...rd(false, wkSize ? readCx(wkSize.complexity) : wkBusy ? "sizing…" : "not sized")}>
                             {[1, 2, 3, 4, 5].map((i) => (
                               <i key={i} className={wkSize && i <= wkSize.complexity ? "on" : ""} />
                             ))}
                           </span>
-                          <span className="fh-wk-steps">
+                          <span className="fh-wk-steps" {...rd(false, wkEffort ? readEffort(wkEffort, wkLevel) : "default effort")}>
                             {[1, 2, 3].map((i) => (
                               <i key={i} className={i <= wkLevel ? "on" : ""} />
                             ))}
                           </span>
-                          <i className={"fh-wk-dot" + (wkStats && wkStats.cached > 0 ? " hit" : wkStats ? " miss" : "")} />
+                          <i className={"fh-wk-dot" + (wkStats && wkStats.cached > 0 ? " hit" : wkStats ? " miss" : "")} {...rd(false, readCache(wkStats))} />
                           <span className="fh-wk-mini-t">{secs(wkSeg.total)}</span>
                           {wkStats && typeof wkStats.cents === "number" && <span className="fh-wk-mini-t">{usd(wkStats.cents)}</span>}
                         </span>
@@ -4079,9 +4293,9 @@ export default function FloatingHead({
                         <span className="fh-wk-sum-k">replies</span>
                         <span className="fh-wk-sum-v">{summary.n}</span>
                         <span className="fh-wk-sum-bar" aria-hidden="true">
-                          <i className="light" style={{ flexGrow: summary.light }} />
-                          <i className="full" style={{ flexGrow: summary.full }} />
-                          <i className="backup" style={{ flexGrow: summary.backup }} />
+                          <i className="light" style={{ flexGrow: summary.light }} {...rd(pctOf(summary.light, summary.n) + " by haiku: " + replies(summary.light))} />
+                          <i className="full" style={{ flexGrow: summary.full }} {...rd(pctOf(summary.full, summary.n) + " by sonnet: " + replies(summary.full))} />
+                          <i className="backup" style={{ flexGrow: summary.backup }} {...rd(pctOf(summary.backup, summary.n) + " by a backup model: " + replies(summary.backup))} />
                         </span>
                         <span className="fh-wk-sum-g">
                           {[summary.light ? summary.light + " haiku" : "", summary.full ? summary.full + " sonnet" : "", summary.backup ? summary.backup + " backup" : ""]
@@ -4116,7 +4330,7 @@ export default function FloatingHead({
                       <div className="fh-wk-sum-tile">
                         <span className="fh-wk-sum-k">complexity</span>
                         <span className="fh-wk-sum-v">{summary.sized ? (summary.cx / summary.sized).toFixed(1) + "/5" : "—"}</span>
-                        <span className="fh-wk-dots" aria-hidden="true">
+                        <span className="fh-wk-dots" aria-hidden="true" {...rd(summary.sized ? "average " + (summary.cx / summary.sized).toFixed(1) + "/5 complexity over " + replies(summary.sized) : "none rated")}>
                           {[1, 2, 3, 4, 5].map((i) => (
                             <i key={i} className={summary.sized && i <= Math.round(summary.cx / summary.sized) ? "on" : ""} />
                           ))}
@@ -4144,7 +4358,7 @@ export default function FloatingHead({
                         <span className="fh-wk-k">
                           complexity
                         </span>
-                        <span className={"fh-wk-dots" + (wkBusy && !wkSize ? " fh-wk-live" : "")} aria-hidden="true">
+                        <span className={"fh-wk-dots" + (wkBusy && !wkSize ? " fh-wk-live" : "")} aria-hidden="true" {...rd(wkSize ? readCx(wkSize.complexity) : wkBusy ? "sizing…" : "not sized")}>
                           {[1, 2, 3, 4, 5].map((i) => (
                             <i key={i} className={wkSize && i <= wkSize.complexity ? "on" : ""} />
                           ))}
@@ -4168,7 +4382,7 @@ export default function FloatingHead({
                         <span className="fh-wk-k">
                           effort
                         </span>
-                        <span className="fh-wk-steps" aria-hidden="true">
+                        <span className="fh-wk-steps" aria-hidden="true" {...rd(wkEffort ? readEffort(wkEffort, wkLevel) : wkBusy ? "deciding…" : "default effort")}>
                           {[1, 2, 3].map((i) => (
                             <i key={i} className={i <= wkLevel ? "on" : ""} />
                           ))}
@@ -4198,6 +4412,7 @@ export default function FloatingHead({
                             (wkStats && wkStats.cached > 0 ? " hit" : wkStats && wkStats.cacheWrite > 0 ? " wrote" : wkStats ? " miss" : "")
                           }
                           aria-hidden="true"
+                          {...rd(readCache(wkStats))}
                         />
                         <span className="fh-wk-val">
                           {wkStats && typeof wkStats.cached === "number" ? (
@@ -4225,8 +4440,16 @@ export default function FloatingHead({
                       <div className={"fh-wk-item fh-tip" + tipCls("tokens")} tabIndex={0} aria-describedby="fh-tip-tokens" onClick={tipTap("tokens")}>
                         <span className="fh-wk-k">tokens</span>
                         <span className="fh-wk-io" aria-hidden="true">
-                          <i className="in" style={{ flexGrow: Math.max(1, (wkStats && wkStats.in) || 0) }} />
-                          <i className="out" style={{ flexGrow: Math.max(1, (wkStats && wkStats.out) || 0) }} />
+                          <i
+                            className="in"
+                            style={{ flexGrow: Math.max(1, (wkStats && wkStats.in) || 0) }}
+                            {...rd(wkStats ? pctOf(wkStats.in || 0, (wkStats.in || 0) + (wkStats.out || 0)) + " tokens input: " + kfmt(wkStats.in || 0) : "")}
+                          />
+                          <i
+                            className="out"
+                            style={{ flexGrow: Math.max(1, (wkStats && wkStats.out) || 0) }}
+                            {...rd(wkStats ? pctOf(wkStats.out || 0, (wkStats.in || 0) + (wkStats.out || 0)) + " tokens output: " + kfmt(wkStats.out || 0) : "")}
+                          />
                         </span>
                         <span className="fh-wk-val">
                           {wkStats && typeof wkStats.in === "number" ? (
@@ -4267,9 +4490,9 @@ export default function FloatingHead({
                           time
                         </span>
                         <span className={"fh-wk-tbar" + (wkSeg.live ? " fh-wk-live" : "")} aria-hidden="true">
-                          <i className="s" style={{ flexGrow: Math.max(0.02, wkSeg.s) }} />
-                          <i className="k" style={{ flexGrow: Math.max(0.001, wkSeg.t) }} />
-                          <i className="w" style={{ flexGrow: Math.max(0.001, wkSeg.w) }} />
+                          <i className="s" style={{ flexGrow: Math.max(0.02, wkSeg.s) }} {...rd(pctOf(wkSeg.s, wkSeg.total) + " sizing: " + secs(wkSeg.s))} />
+                          <i className="k" style={{ flexGrow: Math.max(0.001, wkSeg.t) }} {...rd(pctOf(wkSeg.t, wkSeg.total) + " thinking: " + secs(wkSeg.t))} />
+                          <i className="w" style={{ flexGrow: Math.max(0.001, wkSeg.w) }} {...rd(pctOf(wkSeg.w, wkSeg.total) + " writing: " + secs(wkSeg.w))} />
                         </span>
                         <span className="fh-wk-val fh-wk-secs">{secs(wkSeg.total)}</span>
                         <span role="tooltip" id="fh-tip-time" className="fh-tip-text">

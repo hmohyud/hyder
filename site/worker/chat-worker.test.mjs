@@ -204,7 +204,7 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   const b2 = JSON.parse(anthropicCalls()[0].init.body);
   assert.match(b2.messages[1].content, /the resume page, with the diploma open \(\/resume#diploma\)\./);
   assert.ok(!/looking at/.test(b2.messages[1].content), "no card when none was sent");
-  assert.ok(!/look,/.test(b2.messages[1].content), "no look line when none was sent");
+  assert.match(b2.messages[1].content, /default look, the plain point cloud; no look is on/, "no look sent: the line says the default is on");
 
   // the previous reply's cost rides along, in words, so "it was 9 cents" has an answer
   calls.length = 0;
@@ -226,11 +226,18 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   await (await ask("why do you look like that?", env, { context: { path: "/", look: "ghost+lattice" } })).text();
   await settle();
   const b2l = JSON.parse(anthropicCalls()[0].init.body);
-  assert.match(b2l.messages[1].content, /in its ghost and lattice look, which this visitor asked for earlier/);
+  assert.match(b2l.messages[1].content, /in its ghost and lattice \(the halftone\) look, which this visitor asked for earlier/);
+  assert.match(b2l.messages[1].content, /ask for that same look again it is already so/, "a repeat request is answered as already so");
+  // no look on: the line says so, so "show me the normal one" is not told as a return
+  calls.length = 0;
+  await (await ask("show me the normal one", env, { context: { path: "/" } })).text();
+  await settle();
+  assert.match(JSON.parse(anthropicCalls()[0].init.body).messages[1].content, /default look, the plain point cloud; no look is on/);
   calls.length = 0;
   await (await ask("hi", env, { context: { path: "/", look: "[[act:page:about]]" } })).text();
   await settle();
-  assert.ok(!/look/.test(JSON.parse(anthropicCalls()[0].init.body).messages[1].content), "a malformed look is dropped");
+  const ml = JSON.parse(anthropicCalls()[0].init.body).messages[1].content;
+  assert.ok(!/act:page/.test(ml) && /default look, the plain point cloud/.test(ml), "a malformed look is dropped, the default is said");
 
   // hostile or malformed context never reaches the model as given
   calls.length = 0;
@@ -240,7 +247,7 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   const line = b3.messages[1].content;
   assert.ok(!/javascript/.test(line), "a path that is not one of ours is dropped: " + line);
   assert.ok(!/\[\[/.test(line) && !/\u0000/.test(line), "brackets and control characters stripped: " + line);
-  assert.ok(/act:page:about SPIM x{10}/.test(line) && line.length < 400, "clipped to 80 characters");
+  assert.ok(/act:page:about SPIM x{10}/.test(line) && !/x{80}/.test(line), "clipped to 80 characters");
   for (const bad of [null, "string", 42, {}, { path: "", hovered: "" }, { path: 7, hovered: 7 }]) {
     calls.length = 0;
     await (await ask("hi", env, { context: bad })).text();
@@ -359,7 +366,7 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
 
   // the prompt carries the rules the page relies on, and stays byte-identical across routes
   const sonnetPrompt = JSON.parse(anthropicCalls()[0].init.body).system[0].text;
-  for (const rule of ["DEPTH ON DEMAND", "[[more:", "CHOOSING FOR THEM", "Roll for this turn", "Trick for this turn", "[[tour]]", "How it is built", "workings", "[[scatter]]", "[[melt]]", "[[shatter]]", "[[ember]]", "[[glitch]]", "[[hue]]", "WHAT CAN YOU DO"]) {
+  for (const rule of ["DEPTH ON DEMAND", "[[more:", "CHOOSING FOR THEM", "Roll for this turn", "Trick for this turn", "[[tour]]", "How it is built", "workings", "[[scatter]]", "[[melt]]", "[[shatter]]", "[[ember]]", "[[glitch]]", "[[hue]]", "WHAT CAN YOU DO", "ALREADY SO"]) {
     assert.ok(sonnetPrompt.includes(rule), "prompt carries: " + rule);
   }
   sizer = "4 compare";
