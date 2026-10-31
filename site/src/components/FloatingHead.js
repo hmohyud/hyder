@@ -279,6 +279,30 @@ function prettyModel(id) {
 const kfmt = (n) => (typeof n !== "number" || !Number.isFinite(n) ? "-" : n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n));
 /* the record carries cents; the drawer says dollars */
 const usd = (cents) => (typeof cents !== "number" ? "" : cents < 0.1 ? "<$0.001" : "$" + (cents / 100).toFixed(4).replace(/0+$/, "").replace(/\.$/, ".0"));
+/* what the sizer's words mean to a visitor, and what each figure is */
+const KIND_WORDS = {
+  chat: "small talk",
+  fact: "a fact to look up",
+  explain: "an explanation",
+  compare: "a comparison",
+  tour: "a tour",
+  trick: "a trick",
+  other: "something else",
+};
+const WK_TIPS = {
+  complexity:
+    "Before answering, a small fast model (Claude Haiku) rates how much deliberation the question needs, " +
+    "1 for a greeting up to 5 for a subtle, multi-part question, and names the kind of question it is.",
+  effort:
+    "How hard the main model was asked to think before answering, set from the rating: low for 1-2, " +
+    "medium for 3, high for 4-5. More effort means more reasoning, more tokens and more time.",
+  cache:
+    "The site's knowledge prompt, about 21,000 tokens, is kept in a one-hour cache. A hit means it was read " +
+    "back at a tenth of the price instead of being sent in full.",
+  cost: "What this one reply cost in API fees, all in: the prompt read, the question, the reasoning, the answer and the sizing.",
+  time: "Where the time went: sizing is the small model's verdict, thinking is the main model's reasoning before its first word, writing is the answer itself.",
+  steps: "The three steps of the pipeline, each with the model that ran it. Open one for the detail.",
+};
 const secs = (ms) => (typeof ms !== "number" || ms < 0 ? "" : ms < 50 ? "<0.1 s" : (ms / 1000).toFixed(1) + " s");
 const WORKINGS_KEY = "fh-workings"; // the drawer stays the way the visitor left it
 
@@ -1130,6 +1154,7 @@ export default function FloatingHead({
     }
   });
   const [wkOpen, setWkOpen] = useState({}); // which pipeline steps are unfolded
+  const [wkFocus, setWkFocus] = useState(null); // a particular reply's workings, by index in msgs; null = the latest
   /* live timing while a reply is in flight: when the request went out, when
      the reasoning started, when the first word landed */
   const phaseRef = useRef({ sendAt: 0, thinkAt: 0, textAt: 0 });
@@ -2352,6 +2377,7 @@ export default function FloatingHead({
     setBusy(true);
     setThinking("");
     setStats(null);
+    setWkFocus(null);
     phaseRef.current = { sendAt: performance.now(), thinkAt: 0, textAt: 0 };
     setElapsed(0);
     stateRef.current.busy = true; // timer callbacks cannot see React state
@@ -2759,12 +2785,18 @@ export default function FloatingHead({
   /* what the workings drawer shows: the reply in flight, else the last
      answered one (restored transcripts carry their stats and reasoning) */
   const lastAnswer = [...msgs].reverse().find((m) => m.role === "assistant" && (m.stats || m.thinking));
-  const wk =
-    busy || thinking || stats
+  const focused = wkFocus != null && msgs[wkFocus] && msgs[wkFocus].role === "assistant" ? msgs[wkFocus] : null;
+  const wk = focused
+    ? { thinking: focused.thinking || "", stats: focused.stats || null }
+    : busy || thinking || stats
       ? { thinking, stats }
       : lastAnswer
         ? { thinking: lastAnswer.thinking || "", stats: lastAnswer.stats || null }
         : null;
+  /* "reply 3 of 5": which answered message the drawer is about */
+  const answered = msgs.map((m, i) => (m.role === "assistant" && m.stats ? i : -1)).filter((i) => i >= 0);
+  const wkAbout = focused ? answered.indexOf(wkFocus) + 1 : answered.length;
+  const wkIsLatest = !focused || wkFocus === answered[answered.length - 1];
   const wkStats = wk ? wk.stats : null;
   const wkBusy = busy && !wkStats;
   const wkSize = wkStats && wkStats.size ? wkStats.size : null;
@@ -2788,7 +2820,9 @@ export default function FloatingHead({
   })();
   /* the pipeline as steps, each with the model that ran it: the sizer, the
      reasoning, the writing. Every number is also said in words. */
-  const wkModel = wkStats ? prettyModel(wkStats.model) || wkStats.provider : model || "claude sonnet 5.5";
+  /* step rows name the model without the vendor: "sonnet 5.5", "haiku 5.5" */
+  const shortModel = (m) => (prettyModel(m) || "").replace(/^claude /, "");
+  const wkModel = wkStats ? shortModel(wkStats.model) || wkStats.provider : shortModel(model) || "sonnet 5.5";
   const wkSteps = (() => {
     if (!wk) return [];
     const out = [];
@@ -2798,7 +2832,7 @@ export default function FloatingHead({
       out.push({
         id: "size",
         label: "sized",
-        model: prettyModel((wkSize && wkSize.model) || "claude-haiku-5-5"),
+        model: shortModel((wkSize && wkSize.model) || "claude-haiku-5-5"),
         ms: wkSize ? wkSize.ms : wkBusy && !ph.thinkAt && !ph.textAt ? elapsed : wkStats ? 0 : null,
         live: wkBusy && !ph.thinkAt && !ph.textAt,
         status: wkSize
@@ -3019,72 +3053,131 @@ export default function FloatingHead({
                       onClick={toggleWorkings}
                       aria-expanded={workings}
                       aria-controls="fh-workings"
+                      aria-label={
+                        workings
+                          ? "hide the workings"
+                          : "show the workings: " +
+                            (wkSize ? "complexity " + wkSize.complexity + " of 5, " : "") +
+                            (wkEffort ? wkEffort + " effort, " : "") +
+                            secs(wkSeg.total) +
+                            (wkStats && typeof wkStats.cents === "number" ? ", " + usd(wkStats.cents) : "")
+                      }
                     >
-                      {busy && thinking && !workings ? "workings · thinking…" : "workings"}
+                      {!workings && (
+                        <span className="fh-wk-mini" aria-hidden="true">
+                          <span className={"fh-wk-dots" + (wkBusy && !wkSize ? " fh-wk-live" : "")}>
+                            {[1, 2, 3, 4, 5].map((i) => (
+                              <i key={i} className={wkSize && i <= wkSize.complexity ? "on" : ""} />
+                            ))}
+                          </span>
+                          <span className="fh-wk-steps">
+                            {[1, 2, 3].map((i) => (
+                              <i key={i} className={i <= wkLevel ? "on" : ""} />
+                            ))}
+                          </span>
+                          <i className={"fh-wk-dot" + (wkStats && wkStats.cached > 0 ? " hit" : wkStats ? " miss" : "")} />
+                          <span className="fh-wk-mini-t">{secs(wkSeg.total)}</span>
+                          {wkStats && typeof wkStats.cents === "number" && <span className="fh-wk-mini-t">{usd(wkStats.cents)}</span>}
+                        </span>
+                      )}
+                      workings
                       <span className={"fh-caret" + (workings ? " open" : "")}>▸</span>
                     </button>
                   )}
                 </div>
               )}
               {!tour && wk && workings && (
-                <section
-                  id="fh-workings"
-                  className="fh-workings"
-                  aria-label="How the answer was made"
-                >
-                  <div className="fh-wk-row">
-                    <span
-                      className="fh-wk-m"
-                      aria-label={
-                        wkSize ? "sized " + wkSize.complexity + " of 5, " + wkSize.kind : wkBusy ? "sizing the question" : "unsized"
-                      }
-                    >
+                <section id="fh-workings" className="fh-workings" aria-label="How the answer was made">
+                  {answered.length > 0 && (
+                    <p className="fh-wk-about">
+                      {wkBusy ? "this reply, in progress" : "reply " + wkAbout + " of " + answered.length}
+                      {!wkIsLatest && (
+                        <button type="button" className="fh-wk-latest" onClick={() => setWkFocus(null)}>
+                          latest
+                        </button>
+                      )}
+                    </p>
+                  )}
+                  <div className="fh-wk-grid">
+                    <div className="fh-wk-item fh-tip" tabIndex={0} aria-describedby="fh-tip-complexity">
+                      <span className="fh-wk-k">complexity</span>
                       <span className={"fh-wk-dots" + (wkBusy && !wkSize ? " fh-wk-live" : "")} aria-hidden="true">
                         {[1, 2, 3, 4, 5].map((i) => (
                           <i key={i} className={wkSize && i <= wkSize.complexity ? "on" : ""} />
                         ))}
                       </span>
-                      <span className="fh-wk-t">{wkSize ? wkSize.kind : wkBusy ? "sizing" : "unsized"}</span>
-                    </span>
-                    <span className="fh-wk-m" aria-label={"effort " + (wkEffort || "default")}>
+                      <span className="fh-wk-val">
+                        {wkSize
+                          ? wkSize.complexity + "/5 · " + (KIND_WORDS[wkSize.kind] || wkSize.kind)
+                          : wkBusy
+                            ? "sizing…"
+                            : "not sized"}
+                      </span>
+                      <span role="tooltip" id="fh-tip-complexity" className="fh-tip-text">
+                        {WK_TIPS.complexity}
+                      </span>
+                    </div>
+                    <div className="fh-wk-item fh-tip" tabIndex={0} aria-describedby="fh-tip-effort">
+                      <span className="fh-wk-k">effort</span>
                       <span className="fh-wk-steps" aria-hidden="true">
                         {[1, 2, 3].map((i) => (
                           <i key={i} className={i <= wkLevel ? "on" : ""} />
                         ))}
                       </span>
-                      <span className="fh-wk-t">{wkEffort || "default"}</span>
-                    </span>
-                    <span className="fh-wk-m fh-wk-cache" aria-label={wkStats && typeof wkStats.cached === "number" ? "prompt cache " + (wkStats.cached > 0 ? "hit" : "miss") : "cache unknown"}>
-                      <i className={"fh-wk-dot" + (wkStats && wkStats.cached > 0 ? " hit" : wkStats ? " miss" : "")} aria-hidden="true" />
-                      <span className="fh-wk-t">{wkStats && typeof wkStats.cached === "number" ? (wkStats.cached > 0 ? "cache hit" : "cache miss") : "cache"}</span>
-                    </span>
-                    {wkStats && typeof wkStats.cents === "number" && (
-                      <span className="fh-wk-m" aria-label={"cost " + usd(wkStats.cents)}>
-                        <span className="fh-wk-t fh-wk-cost">{usd(wkStats.cents)}</span>
+                      <span className="fh-wk-val">{wkEffort ? wkEffort + " · " + { low: "answered directly", medium: "thought it over", high: "thought hard" }[wkEffort] : wkBusy ? "deciding…" : "default"}</span>
+                      <span role="tooltip" id="fh-tip-effort" className="fh-tip-text">
+                        {WK_TIPS.effort}
                       </span>
-                    )}
+                    </div>
+                    <div className="fh-wk-item fh-tip" tabIndex={0} aria-describedby="fh-tip-cache">
+                      <span className="fh-wk-k">prompt</span>
+                      <i className={"fh-wk-dot" + (wkStats && wkStats.cached > 0 ? " hit" : wkStats ? " miss" : "")} aria-hidden="true" />
+                      <span className="fh-wk-val">
+                        {wkStats && typeof wkStats.cached === "number"
+                          ? wkStats.cached > 0
+                            ? "from cache · " + kfmt(wkStats.cached) + " tokens"
+                            : "cache miss · " + kfmt(wkStats.in) + " tokens"
+                          : "…"}
+                      </span>
+                      <span role="tooltip" id="fh-tip-cache" className="fh-tip-text">
+                        {WK_TIPS.cache}
+                      </span>
+                    </div>
+                    <div className="fh-wk-item fh-tip" tabIndex={0} aria-describedby="fh-tip-cost">
+                      <span className="fh-wk-k">cost</span>
+                      <span aria-hidden="true" />
+                      <span className="fh-wk-val fh-wk-cost">{wkStats && typeof wkStats.cents === "number" ? usd(wkStats.cents) : "…"}</span>
+                      <span role="tooltip" id="fh-tip-cost" className="fh-tip-text">
+                        {WK_TIPS.cost}
+                      </span>
+                    </div>
+                    <div
+                      className="fh-wk-item fh-wk-time fh-tip"
+                      tabIndex={0}
+                      aria-describedby="fh-tip-time"
+                      aria-label={
+                        (wkSeg.total / 1000).toFixed(1) +
+                        " seconds: sizing " + (wkSeg.s / 1000).toFixed(1) +
+                        ", thinking " + (wkSeg.t / 1000).toFixed(1) +
+                        ", writing " + (wkSeg.w / 1000).toFixed(1)
+                      }
+                    >
+                      <span className="fh-wk-k">time</span>
+                      <span className={"fh-wk-tbar" + (wkSeg.live ? " fh-wk-live" : "")} aria-hidden="true">
+                        <i className="s" style={{ flexGrow: Math.max(0.02, wkSeg.s) }} />
+                        <i className="k" style={{ flexGrow: Math.max(0.001, wkSeg.t) }} />
+                        <i className="w" style={{ flexGrow: Math.max(0.001, wkSeg.w) }} />
+                      </span>
+                      <span className="fh-wk-val fh-wk-secs">{secs(wkSeg.total)}</span>
+                      <span className="fh-wk-legend" aria-hidden="true">
+                        <i className="s" /> sizing {secs(wkSeg.s)} <i className="k" /> thinking {secs(wkSeg.t)} <i className="w" /> writing {secs(wkSeg.w)}
+                      </span>
+                      <span role="tooltip" id="fh-tip-time" className="fh-tip-text">
+                        {WK_TIPS.time}
+                      </span>
+                    </div>
                   </div>
-                  <div
-                    className="fh-wk-row fh-wk-phases"
-                    role="img"
-                    aria-label={
-                      (wkSeg.total / 1000).toFixed(1) +
-                      " seconds: sizing " + (wkSeg.s / 1000).toFixed(1) +
-                      ", thinking " + (wkSeg.t / 1000).toFixed(1) +
-                      ", writing " + (wkSeg.w / 1000).toFixed(1)
-                    }
-                  >
-                    <span className={"fh-wk-tbar" + (wkSeg.live ? " fh-wk-live" : "")} aria-hidden="true">
-                      <i className="s" style={{ flexGrow: Math.max(0.02, wkSeg.s) }} />
-                      <i className="k" style={{ flexGrow: Math.max(0.001, wkSeg.t) }} />
-                      <i className="w" style={{ flexGrow: Math.max(0.001, wkSeg.w) }} />
-                    </span>
-                    <span className="fh-wk-t fh-wk-secs">{(wkSeg.total / 1000).toFixed(1)} s</span>
-                    <span className="fh-wk-legend" aria-hidden="true">
-                      <i className="s" /> sizing <i className="k" /> thinking <i className="w" /> writing
-                    </span>
-                  </div>
-                  <div className="fh-wk-steps-list">
+                  <div className="fh-wk-steps-list" aria-label={WK_TIPS.steps}>
                     {wkSteps.map((st) => (
                       <button
                         key={st.id}
@@ -3098,7 +3191,6 @@ export default function FloatingHead({
                         <i className={"fh-wk-sdot " + st.id} aria-hidden="true" />
                         <span className="fh-wk-slabel">{st.label}</span>
                         <span className="fh-wk-smodel">{st.model}</span>
-                        <span className="fh-wk-sstatus">{st.status}</span>
                         <span className="fh-wk-sms">{secs(st.ms)}</span>
                         <span className={"fh-caret" + (wkOpen[st.id] ? " open" : "")} aria-hidden="true">▸</span>
                       </button>
@@ -3108,7 +3200,7 @@ export default function FloatingHead({
                     .filter((st) => wkOpen[st.id])
                     .map((st) => (
                       <div key={st.id} className={"fh-wk-step-panel " + st.id} id={"fh-wk-p-" + st.id} role="region" aria-labelledby={"fh-wk-h-" + st.id}>
-                        <span className="fh-wk-ptitle">{st.label}</span>
+                        <span className="fh-wk-ptitle">{st.label} · {st.status}</span>
                         {st.body}
                       </div>
                     ))}
@@ -3118,6 +3210,7 @@ export default function FloatingHead({
                 <div className="fh-log" ref={logRef}>
                   {(showAll ? msgs : msgs.slice(-2)).map((m, i, shown) => {
                     const last = i === shown.length - 1;
+                    const base = showAll ? 0 : Math.max(0, msgs.length - 2); // index into msgs
                     /* the reply being delivered: words fade in as they arrive
                        and a cue breathes with the mouth until it has said them */
                     const live = m.role === "assistant" && last && (busy || speaking || tour);
@@ -3135,6 +3228,19 @@ export default function FloatingHead({
                             role={m.content ? undefined : "status"}
                             aria-label={m.content ? undefined : "thinking"}
                           />
+                        ) : null}
+                        {m.role === "assistant" && m.stats && !(last && busy) ? (
+                          <button
+                            type="button"
+                            className={"fh-msg-meta" + (workings && wkFocus === base + i ? " on" : "")}
+                            onClick={() => {
+                              setWkFocus(base + i);
+                              if (!workings) toggleWorkings();
+                            }}
+                            aria-label="How this reply was made"
+                          >
+                            {[secs(m.stats.ms), usd(m.stats.cents), "workings"].filter(Boolean).join(" · ")}
+                          </button>
                         ) : null}
                       </p>
                     );
