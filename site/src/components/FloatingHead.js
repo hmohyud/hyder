@@ -154,6 +154,14 @@ const lookName = (look) =>
 const SUPER = (dpr) => Math.max(2, Math.min(4, Math.round(4 / dpr)));
 /* the performed tricks: shader id and length in ms */
 const FX = { scatter: [1, 2400], melt: [2, 3200], shatter: [3, 2600], ember: [4, 3000], glitch: [5, 1300], hue: [6, 2200] };
+/* the warps take the face apart, so while one plays the head neither blinks
+   nor talks (the words still arrive; the mouth picks up what is left after).
+   The glitch keeps talking: a stutter through the slices is in character. */
+const WARP_IDS = new Set([FX.scatter[0], FX.melt[0], FX.shatter[0], FX.ember[0]]);
+/* these move the dots, so the occlusion shell (which stays put) would hide
+   whatever drifts behind it: dots cut off at the chin as they sag, sparks
+   cut off at the brow as they rise. The shell steps aside for the duration. */
+const MOVING_IDS = new Set([FX.scatter[0], FX.melt[0], FX.shatter[0], FX.ember[0], FX.glitch[0]]);
 const LATTICE_GAIN = 2.2;
 const LATTICE_FILL = 0.74; // the largest dot's diameter as a share of its cell
 /* The cell tone is read from a texture that is averaged over the last few
@@ -2799,8 +2807,9 @@ export default function FloatingHead({
         const bp = (t - (s.blinkStart || -1e9)) / (s.blinkDur || 240);
         /* asymmetric on purpose: lids snap shut in the first third and release
            slowly over the rest - a symmetric pulse reads as a camera shutter */
+        const warping = !!(s.fx && WARP_IDS.has(s.fx.id));
         let blink = 0;
-        if (bp >= 0 && bp < 1) {
+        if (bp >= 0 && bp < 1 && !warping) {
           blink =
             bp < 0.35
               ? Math.sin((bp / 0.35) * (Math.PI / 2))
@@ -2820,7 +2829,7 @@ export default function FloatingHead({
           s.wasTalking = talking; // twice per reply, not per frame
           setSpeaking(talking);
         }
-        if (talking && t >= (s.talkNext || 0)) {
+        if (talking && !warping && t >= (s.talkNext || 0)) {
           const dw = DIGIT_WORDS[buf.charAt(s.talkPos)];
           if (dw) {
             buf = buf.slice(0, s.talkPos) + dw + buf.slice(s.talkPos + 1);
@@ -2843,10 +2852,10 @@ export default function FloatingHead({
           s.talkNext = t + v[2] * hurry * (0.85 + Math.random() * 0.3);
           if (!s.silent) speakBlip(key, s.voicePitch || 1); // a tour is read, not chirped
         }
-        let mouthTarget = talking ? s.vOpen || 0 : 0;
+        let mouthTarget = talking && !warping ? s.vOpen || 0 : 0;
         // breathing fire: the jaw drops for the burst, whatever else is said
         if (s.fireLive && t < (s.fireUntil || 0)) mouthTarget = Math.max(mouthTarget, 0.75);
-        const widthTarget = talking ? s.vWidth || 1 : 1;
+        const widthTarget = talking && !warping ? s.vWidth || 1 : 1;
         s.mouth = s.mouth || 0;
         /* gentle attack on purpose: sparse dots snapping between positions is
            what jitter looks like - they glide instead */
@@ -2879,8 +2888,11 @@ export default function FloatingHead({
       }
 
       const drawScene = () => {
-        const solid = !!(s.look.lattice && s.latticeSolid && shellMesh);
-        latticeMat.uniforms.uGain.value = typeof s.latticeGain === "number" ? s.latticeGain : solid ? SOLID_GAIN : LATTICE_GAIN; // a filled surface needs less boost than scattered dots
+        /* the filled print cannot perform (the shell stays put), so while a
+           trick plays the halftone samples the dots instead, which do */
+        const solid = !!(s.look.lattice && s.latticeSolid && shellMesh && !s.fx);
+        latticeMat.uniforms.uGain.value = typeof s.latticeGain === "number" ? s.latticeGain : solid ? SOLID_GAIN : LATTICE_GAIN;
+        if (shellMesh) shellMesh.visible = !(s.fx && MOVING_IDS.has(s.fx.id));
         const dotsShown = points.visible;
         if (solid) {
           shellMesh.material = solidMat;
@@ -2925,7 +2937,7 @@ export default function FloatingHead({
           u.tSrc.value = write.texture;
           u.uSize.value.set(canvas.width, canvas.height);
           u.uCell.value = cell;
-          u.uMax.value = typeof s.latticeFill === "number" ? s.latticeFill : solidNow ? SOLID_FILL : LATTICE_FILL;
+          u.uMax.value = typeof s.latticeFill === "number" ? s.latticeFill : solidNow && !s.fx ? SOLID_FILL : LATTICE_FILL;
           u.uShape.value = s.latticeShape || 0;
           u.uStagger.value = s.latticeStagger === false ? 0 : 1;
           u.uLod.value = 0;
