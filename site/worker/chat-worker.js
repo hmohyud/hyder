@@ -902,7 +902,7 @@ async function anthropicStream(env, messages, ctx, context) {
           think: thinking.length,
           stop: stopReason || (streamError ? "error" : "unknown"),
           effort,
-          size: size ? { complexity: size.complexity, kind: size.kind, ms: size.ms } : null,
+          size: size ? { complexity: size.complexity, kind: size.kind, ms: size.ms, model: SIZER_MODEL } : null,
           cents: Math.round(cents * 100) / 100,
         })
       );

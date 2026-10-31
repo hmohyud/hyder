@@ -277,6 +277,9 @@ function prettyModel(id) {
 
 /* the workings drawer's numbers: compact, one decimal past a thousand */
 const kfmt = (n) => (typeof n !== "number" || !Number.isFinite(n) ? "-" : n >= 1000 ? (n / 1000).toFixed(1) + "k" : String(n));
+/* the record carries cents; the drawer says dollars */
+const usd = (cents) => (typeof cents !== "number" ? "" : cents < 0.1 ? "<$0.001" : "$" + (cents / 100).toFixed(4).replace(/0+$/, "").replace(/\.$/, ".0"));
+const secs = (ms) => (typeof ms !== "number" || ms < 0 ? "" : ms < 50 ? "<0.1 s" : (ms / 1000).toFixed(1) + " s");
 const WORKINGS_KEY = "fh-workings"; // the drawer stays the way the visitor left it
 
 /* Typed into the empty input as a cycling ghost placeholder - questions the
@@ -1126,7 +1129,7 @@ export default function FloatingHead({
       return false;
     }
   });
-  const [wkMore, setWkMore] = useState(false); // the reasoning, unclamped
+  const [wkOpen, setWkOpen] = useState({}); // which pipeline steps are unfolded
   /* live timing while a reply is in flight: when the request went out, when
      the reasoning started, when the first word landed */
   const phaseRef = useRef({ sendAt: 0, thinkAt: 0, textAt: 0 });
@@ -2349,7 +2352,6 @@ export default function FloatingHead({
     setBusy(true);
     setThinking("");
     setStats(null);
-    setWkMore(false);
     phaseRef.current = { sendAt: performance.now(), thinkAt: 0, textAt: 0 };
     setElapsed(0);
     stateRef.current.busy = true; // timer callbacks cannot see React state
@@ -2784,6 +2786,100 @@ export default function FloatingHead({
     const w0 = ph.textAt ? Math.max(0, now - ph.textAt) : 0;
     return { s: s0, t: t0, w: w0, total: Math.max(0, elapsed), live: true };
   })();
+  /* the pipeline as steps, each with the model that ran it: the sizer, the
+     reasoning, the writing. Every number is also said in words. */
+  const wkModel = wkStats ? prettyModel(wkStats.model) || wkStats.provider : model || "claude sonnet 5.5";
+  const wkSteps = (() => {
+    if (!wk) return [];
+    const out = [];
+    const anth = !wkStats || wkStats.provider === "anthropic";
+    const ph = phaseRef.current;
+    if (anth) {
+      out.push({
+        id: "size",
+        label: "sized",
+        model: prettyModel((wkSize && wkSize.model) || "claude-haiku-5-5"),
+        ms: wkSize ? wkSize.ms : wkBusy && !ph.thinkAt && !ph.textAt ? elapsed : wkStats ? 0 : null,
+        live: wkBusy && !ph.thinkAt && !ph.textAt,
+        status: wkSize
+          ? wkSize.complexity + "/5 " + wkSize.kind + " → " + (wkEffort || "low") + " effort"
+          : wkBusy
+            ? "sizing…"
+            : "unsized → low effort",
+        body: (
+          <p className="fh-wk-body">
+            {wkSize
+              ? "A small model rates how much deliberation the question needs, 1 to 5, and names its kind. This one: " +
+                wkSize.complexity + " of 5, " + wkSize.kind + ", so the answer ran at " + (wkEffort || "low") + " effort."
+              : "The sizer did not answer in time, so the reply ran at low effort."}
+          </p>
+        ),
+      });
+    }
+    const thoughtMs = wkStats ? wkSeg.t : ph.thinkAt ? wkSeg.t : null;
+    if (anth || (wkStats && wkStats.think > 0)) {
+      out.push({
+        id: "think",
+        label: "thought",
+        model: wkModel,
+        ms: thoughtMs,
+        live: wkBusy && !!ph.thinkAt && !ph.textAt,
+        status: wk.thinking
+          ? kfmt(wk.thinking.length) + " chars of reasoning"
+          : wkBusy
+            ? ph.thinkAt
+              ? "thinking…"
+              : "waiting"
+            : "no deliberation needed",
+        body: (
+          <p className="fh-wk-body fh-wk-think">
+            {wk.thinking ? wk.thinking : wkBusy ? "thinking…" : "The answer came straight out; the model did not stop to reason."}
+          </p>
+        ),
+      });
+    }
+    out.push({
+      id: "write",
+      label: "wrote",
+      model: wkModel,
+      ms: wkStats ? wkSeg.w : ph.textAt ? wkSeg.w : null,
+      live: wkBusy && !!ph.textAt,
+      status: wkStats ? kfmt(wkStats.out) + " tokens out" + (wkStats.stop && wkStats.stop !== "end_turn" ? " · " + wkStats.stop : "") : wkBusy && ph.textAt ? "writing…" : "",
+      body: wkStats ? (
+        <div className="fh-wk-body">
+          <div className="fh-wk-tokens">
+            {[
+              ["in", wkStats.in, 600, "in"],
+              ["cached", wkStats.cached, 24000, "cached"],
+              ["out", wkStats.out, 900, "out"],
+            ]
+              .filter(([, v]) => typeof v === "number")
+              .map(([label, v, ref, cls]) => (
+                <span key={label} className="fh-wk-m fh-wk-tok" aria-label={label + " " + v + " tokens"}>
+                  <span className="fh-wk-t">{label}</span>
+                  <span className="fh-wk-bar" aria-hidden="true">
+                    <i className={cls} style={{ width: Math.min(100, Math.round((100 * v) / ref)) + "%" }} />
+                  </span>
+                  <span className="fh-wk-v">{kfmt(v)}</span>
+                </span>
+              ))}
+          </div>
+          <p className="fh-wk-foot">
+            {[
+              typeof wkStats.cached === "number" ? (wkStats.cached > 0 ? "prompt read from cache" : "prompt cache miss") : null,
+              typeof wkStats.cents === "number" ? usd(wkStats.cents) + " all in" : null,
+              wkStats.model,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
+        </div>
+      ) : (
+        <p className="fh-wk-body">Streaming…</p>
+      ),
+    });
+    return out;
+  })();
 
   const portrait = (
     <button
@@ -2933,7 +3029,7 @@ export default function FloatingHead({
               {!tour && wk && workings && (
                 <section
                   id="fh-workings"
-                  className={"fh-workings" + (wkMore ? " fh-wk-open" : "")}
+                  className="fh-workings"
                   aria-label="How the answer was made"
                 >
                   <div className="fh-wk-row">
@@ -2963,8 +3059,8 @@ export default function FloatingHead({
                       <span className="fh-wk-t">{wkStats && typeof wkStats.cached === "number" ? (wkStats.cached > 0 ? "cache hit" : "cache miss") : "cache"}</span>
                     </span>
                     {wkStats && typeof wkStats.cents === "number" && (
-                      <span className="fh-wk-m" aria-label={"cost " + wkStats.cents + " cents"}>
-                        <span className="fh-wk-t fh-wk-cost">{wkStats.cents < 0.01 ? "<0.01" : wkStats.cents.toFixed(2)}¢</span>
+                      <span className="fh-wk-m" aria-label={"cost " + usd(wkStats.cents)}>
+                        <span className="fh-wk-t fh-wk-cost">{usd(wkStats.cents)}</span>
                       </span>
                     )}
                   </div>
@@ -2988,39 +3084,34 @@ export default function FloatingHead({
                       <i className="s" /> sizing <i className="k" /> thinking <i className="w" /> writing
                     </span>
                   </div>
-                  {wkStats && (
-                    <div className="fh-wk-row fh-wk-tokens">
-                      {[
-                        ["in", wkStats.in, 600, "in"],
-                        ["cached", wkStats.cached, 24000, "cached"],
-                        ["out", wkStats.out, 900, "out"],
-                      ]
-                        .filter(([, v]) => typeof v === "number")
-                        .map(([label, v, ref, cls]) => (
-                          <span key={label} className="fh-wk-m fh-wk-tok" aria-label={label + " " + v + " tokens"}>
-                            <span className="fh-wk-t">{label}</span>
-                            <span className="fh-wk-bar" aria-hidden="true">
-                              <i className={cls} style={{ width: Math.min(100, Math.round((100 * v) / ref)) + "%" }} />
-                            </span>
-                            <span className="fh-wk-v">{kfmt(v)}</span>
-                          </span>
-                        ))}
-                    </div>
-                  )}
-                  <div className="fh-wk-row fh-wk-reason">
-                    <p className="fh-wk-think">
-                      {wk.thinking
-                        ? wk.thinking
-                        : wkBusy
-                          ? "thinking…"
-                          : "no deliberation needed - the answer came straight out"}
-                    </p>
-                    {wk.thinking && wk.thinking.length > 140 && (
-                      <button type="button" className="fh-wk-more" onClick={() => setWkMore((v) => !v)} aria-expanded={wkMore}>
-                        {wkMore ? "less" : "more"}
+                  <div className="fh-wk-steps-list">
+                    {wkSteps.map((st) => (
+                      <button
+                        key={st.id}
+                        type="button"
+                        className={"fh-wk-step-btn" + (st.live ? " fh-wk-live" : "") + (wkOpen[st.id] ? " open" : "")}
+                        id={"fh-wk-h-" + st.id}
+                        aria-expanded={!!wkOpen[st.id]}
+                        aria-controls={"fh-wk-p-" + st.id}
+                        onClick={() => setWkOpen((o) => ({ ...o, [st.id]: !o[st.id] }))}
+                      >
+                        <i className={"fh-wk-sdot " + st.id} aria-hidden="true" />
+                        <span className="fh-wk-slabel">{st.label}</span>
+                        <span className="fh-wk-smodel">{st.model}</span>
+                        <span className="fh-wk-sstatus">{st.status}</span>
+                        <span className="fh-wk-sms">{secs(st.ms)}</span>
+                        <span className={"fh-caret" + (wkOpen[st.id] ? " open" : "")} aria-hidden="true">▸</span>
                       </button>
-                    )}
+                    ))}
                   </div>
+                  {wkSteps
+                    .filter((st) => wkOpen[st.id])
+                    .map((st) => (
+                      <div key={st.id} className={"fh-wk-step-panel " + st.id} id={"fh-wk-p-" + st.id} role="region" aria-labelledby={"fh-wk-h-" + st.id}>
+                        <span className="fh-wk-ptitle">{st.label}</span>
+                        {st.body}
+                      </div>
+                    ))}
                 </section>
               )}
               {msgs.length > 0 && (

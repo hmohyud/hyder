@@ -126,7 +126,7 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   assert.equal(env1.stats.stop, "end_turn");
   assert.equal(env1.stats.effort, "low");
   assert.equal(env1.stats.think, THOUGHT.length);
-  assert.deepEqual({ ...env1.stats.size, ms: 0 }, { complexity: 2, kind: "chat", ms: 0 });
+  assert.deepEqual({ ...env1.stats.size, ms: 0 }, { complexity: 2, kind: "chat", ms: 0, model: "claude-haiku-5-5" });
   assert.ok(typeof env1.stats.ms === "number" && typeof env1.stats.ttfb === "number");
   assert.equal(geminiCalls().length, 0, "gemini must not be called when Claude answers");
   assert.equal(waits.length, 0);
@@ -255,7 +255,7 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   assert.equal(body.messages[2].role, "system", "the context line stays last");
   assert.deepEqual(body.output_config, { effort: "low" });
   assert.equal(e.stats.effort, "high");
-  assert.deepEqual({ ...e.stats.size, ms: 0 }, { complexity: 4, kind: "compare", ms: 0 });
+  assert.deepEqual({ ...e.stats.size, ms: 0 }, { complexity: 4, kind: "compare", ms: 0, model: "claude-haiku-5-5" });
 
   sizer = "3";
   calls.length = 0;
