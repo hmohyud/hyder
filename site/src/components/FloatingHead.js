@@ -82,6 +82,22 @@ const SHELL_URL = process.env.PUBLIC_URL + "/head-shell.bin";
    Cloudflare. */
 const CHAT_LOG_KEY = "fh-chat-log";
 
+/* The model id the worker reports, made readable for the hint line - family,
+   tier, version and at most one qualifier: "claude-sonnet-5-5" -> "claude sonnet 5.5",
+   "gemini-3.5-flash-lite" -> "gemini 3.5 flash lite",
+   "@cf/meta/llama-3.3-70b-instruct-fp8-fast" -> "llama 3.3 70b instruct". */
+function prettyModel(id) {
+  const parts = String(id || "").replace(/^@cf[/][^/]+[/]/, "").toLowerCase().split("-");
+  const out = [];
+  for (const p of parts) {
+    if (!p || /^[0-9]{6,}$/.test(p)) continue; // empty, or a date stamp
+    const prev = out[out.length - 1];
+    if (/^[0-9]{1,2}$/.test(p) && prev && /^[0-9]+$/.test(prev)) out[out.length - 1] = prev + "." + p;
+    else out.push(p);
+  }
+  return out.slice(0, 4).join(" ");
+}
+
 /* Typed into the empty input as a cycling ghost placeholder - questions the
    bot genuinely answers well, so the suggestion is also a promise kept. */
 /* said when the visitor hand-spins the head hard enough - no dot-tracking
@@ -705,6 +721,8 @@ export default function FloatingHead({
   /* the free model behind the chat has slow days; past ~9 seconds the wait
      reads as a broken site unless the page owns the delay in words */
   const [slowNote, setSlowNote] = useState(false);
+  // which model answered last, for the hint line under the input
+  const [model, setModel] = useState("");
   /* bumped to remount the ChatShield after a crash reset */
   const [chatEpoch, setChatEpoch] = useState(0);
   const logRef = useRef(null);
@@ -1740,6 +1758,8 @@ export default function FloatingHead({
         throw new Error(res.status < 500 && said.trim() ? "said:" + said.trim() : String(res.status));
       }
       if (!res.body) throw new Error("no body");
+      const served = res.headers.get("x-chat-model");
+      if (served) setModel(prettyModel(served));
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       /* A trick token can arrive SPLIT across stream chunks, so the head of
@@ -2053,7 +2073,9 @@ export default function FloatingHead({
                   Ask
                 </button>
               </form>
-              <p className="fh-hint">drag to rotate · esc to close</p>
+              <p className="fh-hint">
+                drag to rotate · esc to close{model ? " · " + model : ""}
+              </p>
             </div>
             </ChatShield>
           ) : (

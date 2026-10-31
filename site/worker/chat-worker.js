@@ -289,6 +289,8 @@ function corsHeaders(origin) {
     "access-control-allow-origin": allow,
     "access-control-allow-methods": "POST, OPTIONS",
     "access-control-allow-headers": "content-type",
+    // the page shows which model answered; without this a browser cannot read them
+    "access-control-expose-headers": "x-chat-model, x-chat-provider",
     "access-control-max-age": "86400",
   };
 }

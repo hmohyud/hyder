@@ -97,6 +97,7 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   assert.equal(res.status, 200);
   assert.equal(res.headers.get("x-chat-provider"), "anthropic");
   assert.equal(res.headers.get("x-chat-model"), "claude-sonnet-5-5");
+  assert.match(res.headers.get("access-control-expose-headers") || "", /x-chat-model/, "page can read the model header");
   assert.equal(text, ANSWER);
   assert.equal(geminiCalls().length, 0, "gemini must not be called when Claude answers");
   assert.equal(waits.length, 0);
