@@ -42,3 +42,11 @@ ANTHROPIC_DAILY_BUDGET_CENTS = "500"
 [[kv_namespaces]]
 binding = "CHAT_KV"
 id = "3a8af71cc2b44b25b3621eb8b2e8ce26"
+
+# Keep Claude's prompt cache warm. The 1-hour cache entry restarts its timer on
+# every read, so a tiny max_tokens:0 request twice an hour (about a third of a
+# cent each, counted in the daily meter) means no visitor pays the 6-cent cold
+# write or waits for it. The worker skips the ping once the site has had no
+# Claude conversation for six hours, so quiet nights cost nothing.
+[triggers]
+crons = ["*/30 * * * *"]

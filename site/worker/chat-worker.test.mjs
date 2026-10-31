@@ -47,6 +47,12 @@ let mode = "ok";
 globalThis.fetch = async (url, init) => {
   calls.push({ url: String(url), init });
   if (String(url).startsWith("https://api.anthropic.com/")) {
+    const reqBody = init && init.body ? JSON.parse(init.body) : {};
+    if (reqBody.max_tokens === 0) {
+      // a keep-alive: no generation, one cache read, plain JSON back
+      return new Response(JSON.stringify({ id: "msg_w", type: "message", role: "assistant", model: "claude-sonnet-5-5", content: [], stop_reason: "max_tokens",
+        usage: { input_tokens: 5, cache_creation_input_tokens: 0, cache_read_input_tokens: 15810, output_tokens: 0 } }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     const err = (status, type, headers) => new Response(JSON.stringify({ type: "error", error: { type, message: type } }), { status, headers });
     if (mode === "400") return err(400, "invalid_request_error: fallbacks: unknown parameter");
     if (mode === "spendlimit") return err(400, "You have reached your specified API usage limits; access resumes on the 1st");
@@ -142,6 +148,75 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   assert.equal(h.anthropic.meter, undefined);
   assert.match(h.budget.boundedBy, /Claude: 500 cents/);
   ok("/health shows model, count, cents, budget, cache read");
+}
+
+// 2b. cache stats: the first question was a hit in this fake (cacheRead 11000)
+{
+  const h = await health();
+  assert.equal(h.anthropic.cache.hits, 1);
+  assert.equal(h.anthropic.cache.misses, 0);
+  assert.equal(h.anthropic.cache.hitRate, "100%");
+  assert.equal(h.anthropic.cache.warmPingsToday, 0);
+  ok("/health shows cache hits, misses and hit rate");
+}
+
+// 2c. keep-alive: recent conversation -> one max_tokens:0 ping that matches the cached prefix
+{
+  calls.length = 0;
+  await worker.scheduled({ cron: "*/30 * * * *" }, env, ctx);
+  await settle();
+  const pings = anthropicCalls();
+  assert.equal(pings.length, 1, "exactly one ping");
+  const body = JSON.parse(pings[0].init.body);
+  assert.equal(body.max_tokens, 0);
+  assert.equal(body.stream, undefined, "a pre-warm must not stream");
+  assert.equal(body.fallbacks, undefined, "no fallback routing on a pre-warm");
+  assert.equal(pings[0].init.headers["anthropic-beta"], undefined);
+  assert.equal(body.model, "claude-sonnet-5-5");
+  assert.deepEqual(body.output_config, { effort: "low" });
+  assert.deepEqual(body.system[0].cache_control, { type: "ephemeral", ttl: "1h" });
+  assert.ok(body.system[0].text.startsWith("You are Hyder Mohyuddin"));
+  const rec = spend();
+  assert.equal(rec.warm, 1);
+  assert.equal(rec.n, 1, "a ping is not a visitor");
+  assert.equal(rec.hits, 1, "a ping does not count in the hit rate");
+  assert.ok(Math.abs(rec.cents - (0.484 + 0.3172)) < 1e-9, "ping priced: " + rec.cents); // 15810*0.2 + 5*2 over 1e4
+  assert.equal(rec.last.stop, "end_turn", "last real conversation untouched");
+  const h = await health();
+  assert.equal(h.anthropic.cache.warmPingsToday, 1);
+  assert.equal(h.anthropic.usedToday, 1);
+  ok("keep-alive ping matches the cached prefix, priced, not counted as a visitor");
+}
+
+// 2d. keep-alive stays quiet when the site has been idle, or the budget is spent, or the key is missing
+{
+  const rec = spend();
+  const saved = JSON.stringify(rec);
+  rec.last.at = new Date(Date.now() - 7 * 3600 * 1000).toISOString();
+  kv.set(SPEND, JSON.stringify(rec));
+  calls.length = 0;
+  await worker.scheduled({ cron: "*/30 * * * *" }, env, ctx);
+  await settle();
+  assert.equal(anthropicCalls().length, 0, "idle 7h -> no ping");
+  kv.set(SPEND, JSON.stringify({ ...JSON.parse(saved), cents: 500 }));
+  calls.length = 0;
+  await worker.scheduled({ cron: "*/30 * * * *" }, env, ctx);
+  await settle();
+  assert.equal(anthropicCalls().length, 0, "budget spent -> no ping");
+  kv.set(SPEND, saved);
+  calls.length = 0;
+  await worker.scheduled({ cron: "*/30 * * * *" }, { ...env, ANTHROPIC_KEY: undefined }, ctx);
+  await settle();
+  assert.equal(anthropicCalls().length, 0, "no key -> no ping");
+  // just after midnight UTC today's record is empty: yesterday's last conversation still arms the ping
+  kv.set("spend:anthropic:" + new Date(Date.now() - 86400000).toISOString().slice(0, 10), saved);
+  kv.delete(SPEND);
+  calls.length = 0;
+  await worker.scheduled({ cron: "*/30 * * * *" }, env, ctx);
+  await settle();
+  assert.equal(anthropicCalls().length, 1, "yesterday's conversation still arms the ping");
+  kv.set(SPEND, saved);
+  ok("keep-alive gated by idleness, budget, key; survives the day rollover");
 }
 
 // 3. budget spent -> Claude skipped, Gemini tried

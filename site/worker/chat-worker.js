@@ -299,6 +299,11 @@ function textStream() {
 }
 
 export default {
+  /* Cron (wrangler.toml [triggers]): keep Claude's prompt cache warm while the
+     site is in use, so no visitor pays the cold prompt write or waits for it. */
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(keepWarm(env));
+  },
   async fetch(request, env, ctx) {
     const origin = request.headers.get("origin") || "";
     const cors = corsHeaders(origin);
@@ -343,6 +348,15 @@ export default {
         out.anthropic.budgetCents = anthropicBudgetCents(env);
         // the last request's token split: cacheRead > 0 proves the prompt cache is working
         out.anthropic.lastRequest = rec.last || null;
+        out.anthropic.cache = {
+          hits: rec.hits || 0,
+          misses: rec.misses || 0,
+          hitRate:
+            (rec.hits || 0) + (rec.misses || 0) > 0
+              ? Math.round((100 * (rec.hits || 0)) / ((rec.hits || 0) + (rec.misses || 0))) + "%"
+              : null,
+          warmPingsToday: rec.warm || 0,
+        };
         out.anthropic.lastError = env.CHAT_KV ? await readJsonKey(env, "err:anthropic") : null;
       }
       out.budget = {
@@ -738,7 +752,8 @@ async function noteAnthropicError(env, status, body) {
    to each other, so the figure is a close estimate; the hard stop is the monthly
    spend limit set in the Anthropic Console. The meter fails closed: a record
    that cannot be read, parsed or written keeps Claude out of the chain. */
-const spendKey = () => "spend:anthropic:" + today();
+const spendKeyFor = (day) => "spend:anthropic:" + day;
+const spendKey = () => spendKeyFor(today());
 let meterDownUntil = 0; // isolate-local: a failed spend write closes the gate for 5 minutes
 
 async function readJsonKey(env, key) {
@@ -750,18 +765,28 @@ async function readJsonKey(env, key) {
   }
 }
 
-/* null = could not read or parse (callers fail closed); a missing key is a zero record */
-async function readSpend(env) {
+/* null = could not read or parse (callers fail closed); a missing key is a zero record.
+   n counts visitor requests, hits/misses whether their prompt came from cache,
+   warm the keep-alive pings, cents everything. */
+async function readSpendKey(env, key) {
   try {
-    const raw = await env.CHAT_KV.get(spendKey());
-    if (!raw) return { n: 0, cents: 0 };
+    const raw = await env.CHAT_KV.get(key);
+    if (!raw) return { n: 0, cents: 0, hits: 0, misses: 0, warm: 0 };
     const rec = JSON.parse(raw);
     if (!rec || typeof rec !== "object") return null;
-    return { n: Number(rec.n) || 0, cents: Number(rec.cents) || 0, last: rec.last };
+    return {
+      n: Number(rec.n) || 0,
+      cents: Number(rec.cents) || 0,
+      hits: Number(rec.hits) || 0,
+      misses: Number(rec.misses) || 0,
+      warm: Number(rec.warm) || 0,
+      last: rec.last,
+    };
   } catch (err) {
     return null;
   }
 }
+const readSpend = (env) => readSpendKey(env, spendKey());
 
 async function anthropicRecord(env) {
   const rec = env.CHAT_KV ? await readSpend(env) : null;
@@ -775,16 +800,25 @@ const anthropicCents = (u) =>
     u.output * ANTHROPIC_PRICE.output) /
   10000; // tokens x (USD per million) -> cents
 
-async function recordAnthropicSpend(env, usage, stop) {
+async function recordAnthropicSpend(env, usage, stop, kind) {
   if (!env.CHAT_KV) return;
   try {
     const rec = await readSpend(env);
     if (!rec) throw new Error("spend record unreadable"); // never overwrite a day we cannot see
     const cents = anthropicCents(usage);
+    const warm = kind === "warm";
+    const hit = usage.cacheRead > 0;
     const next = {
-      n: rec.n + 1,
+      // a keep-alive ping spends cents but is not a visitor: it leaves n, the
+      // hit rate and `last` (the last real conversation, which gates the pings) alone
+      n: rec.n + (warm ? 0 : 1),
       cents: rec.cents + cents,
-      last: { ...usage, cents: Math.round(cents * 1000) / 1000, stop, at: new Date().toISOString() },
+      hits: rec.hits + (warm || !hit ? 0 : 1),
+      misses: rec.misses + (warm || hit ? 0 : 1),
+      warm: rec.warm + (warm ? 1 : 0),
+      last: warm
+        ? rec.last
+        : { ...usage, cents: Math.round(cents * 1000) / 1000, stop, at: new Date().toISOString() },
     };
     await env.CHAT_KV.put(spendKey(), JSON.stringify(next), { expirationTtl: 172800 });
     meterDownUntil = 0;
@@ -802,6 +836,71 @@ async function anthropicWithinBudget(env) {
   const rec = await readSpend(env);
   if (!rec) return false;
   return rec.cents < budget;
+}
+
+/* ---- cache keep-alive ----
+   The knowledge prompt lives in a 1-hour prompt cache whose timer restarts on
+   every read. Visitors to a portfolio arrive in clusters with quiet gaps, and
+   the first one after a gap longer than an hour pays the full prompt write
+   (about 6 cents) and waits for it. A max_tokens:0 request is the documented
+   way to refresh the entry: it bills one cache read (about a third of a cent,
+   counted in the meter) and no output. It runs from the cron while the site has
+   had a Claude conversation within KEEPALIVE_IDLE_MS, so an idle night costs
+   nothing and the next morning's first visitor re-arms it with one write. */
+const KEEPALIVE_IDLE_MS = 6 * 60 * 60 * 1000;
+
+async function keepWarm(env) {
+  if (!env.ANTHROPIC_KEY || !env.CHAT_KV) return;
+  if (!(await anthropicWithinBudget(env))) return;
+  // the last real conversation, today or (just after midnight UTC) yesterday
+  let rec = await readSpend(env);
+  if (!rec || !rec.last) {
+    rec = await readSpendKey(env, spendKeyFor(new Date(Date.now() - 86400000).toISOString().slice(0, 10)));
+  }
+  const lastAt = rec && rec.last && rec.last.at ? Date.parse(rec.last.at) : 0;
+  if (!lastAt || Date.now() - lastAt > KEEPALIVE_IDLE_MS) return;
+
+  const upstream = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": env.ANTHROPIC_KEY,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      // everything that is rendered into the cached prefix must match the real
+      // requests exactly: model, the system block and its marker, thinking
+      // (adaptive, omitted) and effort. max_tokens 0 means no generation at all.
+      model: ANTHROPIC_MODEL,
+      max_tokens: 0,
+      system: [{ type: "text", text: PROMPT, cache_control: { type: "ephemeral", ttl: "1h" } }],
+      messages: [{ role: "user", content: "keep the cache warm" }],
+      output_config: { effort: "low" },
+    }),
+  });
+  if (!upstream.ok) {
+    let detail = "";
+    try {
+      detail = (await upstream.text()).slice(0, 300);
+    } catch (e) {
+      // no body
+    }
+    await noteAnthropicError(env, upstream.status, "keep-alive: " + detail);
+    return;
+  }
+  let json = null;
+  try {
+    json = await upstream.json();
+  } catch (e) {
+    return;
+  }
+  const usage = { input: 0, cacheWrite: 0, cacheRead: 0, output: 0 };
+  if (json && json.usage) readUsage(usage, json.usage);
+  try {
+    await recordAnthropicSpend(env, usage, "warm", "warm");
+  } catch (bookkeeping) {
+    // the meter has already paused Claude
+  }
 }
 
 /* ---- Google AI Studio: SSE in, plain text out ---- */
