@@ -282,13 +282,14 @@ const usd = (cents) => (typeof cents !== "number" ? "" : cents < 0.1 ? "<$0.001"
 /* what the sizer's words mean to a visitor, and what each figure is */
 const KIND_WORDS = {
   chat: "small talk",
-  fact: "a fact to look up",
-  explain: "an explanation",
-  compare: "a comparison",
-  tour: "a tour",
-  trick: "a trick",
-  other: "something else",
+  fact: "fact lookup",
+  explain: "explanation",
+  compare: "comparison",
+  tour: "tour",
+  trick: "trick",
+  other: "other",
 };
+const EFFORT_WORDS = { low: "direct", medium: "weighed it", high: "thought hard", xhigh: "thought hard", max: "thought hard" };
 const WK_TIPS = {
   complexity:
     "Before answering, a small fast model (Claude Haiku) rates how much deliberation the question needs, " +
@@ -3107,11 +3108,15 @@ export default function FloatingHead({
                         ))}
                       </span>
                       <span className="fh-wk-val">
-                        {wkSize
-                          ? wkSize.complexity + "/5 · " + (KIND_WORDS[wkSize.kind] || wkSize.kind)
-                          : wkBusy
-                            ? "sizing…"
-                            : "not sized"}
+                        {wkSize ? (
+                          <>
+                            {wkSize.complexity}/5 <span className="fh-wk-gloss">· {KIND_WORDS[wkSize.kind] || wkSize.kind}</span>
+                          </>
+                        ) : wkBusy ? (
+                          "sizing…"
+                        ) : (
+                          "not sized"
+                        )}
                       </span>
                       <span role="tooltip" id="fh-tip-complexity" className="fh-tip-text">
                         {WK_TIPS.complexity}
@@ -3124,7 +3129,17 @@ export default function FloatingHead({
                           <i key={i} className={i <= wkLevel ? "on" : ""} />
                         ))}
                       </span>
-                      <span className="fh-wk-val">{wkEffort ? wkEffort + " · " + { low: "answered directly", medium: "thought it over", high: "thought hard" }[wkEffort] : wkBusy ? "deciding…" : "default"}</span>
+                      <span className="fh-wk-val">
+                        {wkEffort ? (
+                          <>
+                            {wkEffort} <span className="fh-wk-gloss">· {EFFORT_WORDS[wkEffort] || ""}</span>
+                          </>
+                        ) : wkBusy ? (
+                          "deciding…"
+                        ) : (
+                          "default"
+                        )}
+                      </span>
                       <span role="tooltip" id="fh-tip-effort" className="fh-tip-text">
                         {WK_TIPS.effort}
                       </span>
@@ -3133,11 +3148,14 @@ export default function FloatingHead({
                       <span className="fh-wk-k">prompt</span>
                       <i className={"fh-wk-dot" + (wkStats && wkStats.cached > 0 ? " hit" : wkStats ? " miss" : "")} aria-hidden="true" />
                       <span className="fh-wk-val">
-                        {wkStats && typeof wkStats.cached === "number"
-                          ? wkStats.cached > 0
-                            ? "from cache · " + kfmt(wkStats.cached) + " tokens"
-                            : "cache miss · " + kfmt(wkStats.in) + " tokens"
-                          : "…"}
+                        {wkStats && typeof wkStats.cached === "number" ? (
+                          <>
+                            {wkStats.cached > 0 ? "cached" : "not cached"}{" "}
+                            <span className="fh-wk-gloss">· {kfmt(wkStats.cached > 0 ? wkStats.cached : wkStats.in)} tok</span>
+                          </>
+                        ) : (
+                          "…"
+                        )}
                       </span>
                       <span role="tooltip" id="fh-tip-cache" className="fh-tip-text">
                         {WK_TIPS.cache}
