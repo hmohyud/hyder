@@ -58,7 +58,7 @@ globalThis.fetch = async (url, init) => {
   calls.push({ url: String(url), init });
   if (String(url).startsWith("https://api.anthropic.com/")) {
     const asked = (() => { try { return JSON.parse(init.body); } catch (e) { return {}; } })();
-    if (asked.model === "claude-haiku-5-5") {
+    if (asked.stream !== true) { // the sizer is the one call that does not stream
       if (sizer === "down") return new Response("nope", { status: 500 });
       if (sizer === "hang") return new Promise((resolve) => { init.signal.addEventListener("abort", () => resolve(new Response("", { status: 499 }))); });
       return new Response(JSON.stringify({ content: [{ type: "text", text: sizer }], usage: { input_tokens: 150, output_tokens: 4 } }), { status: 200, headers: { "content-type": "application/json" } });
@@ -105,14 +105,17 @@ const ask = (q, e = env, extra = {}) => worker.fetch(new Request("https://hyder-
 }), e, ctx);
 const health = async () => (await worker.fetch(new Request("https://hyder-chat.test/health", { headers: { origin: "https://hydermohyuddin.com" } }), env, ctx)).json();
 const settle = async () => { await Promise.allSettled(waits.splice(0)); await new Promise((r) => setTimeout(r, 20)); };
-const anthropicCalls = () => calls.filter((c) => c.url.startsWith("https://api.anthropic.com/") && !/claude-haiku-5-5/.test(c.init.body));
-const sizerCalls = () => calls.filter((c) => c.url.startsWith("https://api.anthropic.com/") && /claude-haiku-5-5/.test(c.init.body));
+const bodyOf = (c) => { try { return JSON.parse(c.init.body); } catch (e) { return {}; } };
+// the answer streams, the sizer does not - the model alone no longer tells them apart
+const anthropicCalls = () => calls.filter((c) => c.url.startsWith("https://api.anthropic.com/") && bodyOf(c).stream === true);
+const sizerCalls = () => calls.filter((c) => c.url.startsWith("https://api.anthropic.com/") && bodyOf(c).stream !== true);
 const geminiCalls = () => calls.filter((c) => /generativelanguage/.test(c.url));
 const spend = () => JSON.parse(kv.get(SPEND));
 let passed = 0;
 const ok = (name) => { passed++; console.log("  pass:", name); };
 
-// 1. happy path: Claude answers first, with the right request shape
+// 1. happy path: Claude answers first, with the right request shape. The
+//    fake sizer says "2 chat", so this is the light route: Haiku answers.
 {
   calls.length = 0;
   const res = await ask("What was hard about SPIM?");
@@ -120,20 +123,21 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   await settle();
   assert.equal(res.status, 200);
   assert.equal(res.headers.get("x-chat-provider"), "anthropic");
-  assert.equal(res.headers.get("x-chat-model"), "claude-sonnet-5-5");
+  assert.equal(res.headers.get("x-chat-model"), "claude-haiku-5-5", "rated 2: Haiku answers");
   assert.match(res.headers.get("access-control-expose-headers") || "", /x-chat-model/, "page can read the model header");
   const env1 = envelope(text);
   assert.equal(env1.think, THOUGHT, "the summarised reasoning opens the stream");
   assert.equal(env1.body, ANSWER);
   assert.equal(env1.stats.provider, "anthropic");
-  assert.equal(env1.stats.model, "claude-sonnet-5-5");
+  assert.equal(env1.stats.model, "claude-haiku-5-5");
   assert.equal(env1.stats.cached, 11000);
   assert.equal(env1.stats.out, 180);
   assert.equal(env1.stats.in, 420);
   assert.equal(env1.stats.stop, "end_turn");
   assert.equal(env1.stats.effort, "low");
   assert.equal(env1.stats.think, THOUGHT.length);
-  assert.deepEqual({ ...env1.stats.size, ms: 0 }, { complexity: 2, kind: "chat", ms: 0, model: "claude-haiku-5-5" });
+  assert.deepEqual({ ...env1.stats.size, ms: 0 }, { complexity: 2, kind: "chat", ms: 0, model: "claude-haiku-5-5", cents: 0.0017 }, "the sizer's own cost rides along");
+  assert.equal(env1.stats.cents, 0.0259, "Haiku prices: (420*0.1 + 11000*0.01 + 180*0.5)/1e4 + the sizer's 0.0017");
   assert.ok(typeof env1.stats.ms === "number" && typeof env1.stats.ttfb === "number");
   assert.equal(geminiCalls().length, 0, "gemini must not be called when Claude answers");
   assert.equal(waits.length, 0);
@@ -145,10 +149,10 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   assert.match(sz.messages[0].content, /Question: What was hard about SPIM\?$/);
   const req = anthropicCalls()[0];
   const body = JSON.parse(req.init.body);
-  assert.equal(body.model, "claude-sonnet-5-5");
+  assert.equal(body.model, "claude-haiku-5-5");
   assert.equal(body.max_tokens, 4096);
   assert.equal(body.stream, true);
-  assert.equal(body.fallbacks, "default");
+  assert.equal(body.fallbacks, undefined, "Haiku has no server-side fallback");
   assert.deepEqual(body.output_config, { effort: "low" }, "top-level effort stays pinned, so the cached prompt never splits");
   assert.deepEqual(body.thinking, { type: "adaptive", display: "summarized" });
   assert.equal(body.temperature, undefined);
@@ -159,12 +163,12 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   assert.ok(body.system[0].text.includes("No humour at all in anything sincere or heavy"), "carve-out present");
   assert.deepEqual(body.messages, [{ role: "user", content: "What was hard about SPIM?" }]);
   assert.equal(req.init.headers["anthropic-version"], "2023-06-01");
-  assert.equal(req.init.headers["anthropic-beta"], "server-side-fallback-2026-07-01,mid-conversation-output-config-2026-07-01");
+  assert.equal(req.init.headers["anthropic-beta"], undefined, "no betas needed on the light route");
   assert.equal(req.init.headers["x-api-key"], "sk-test");
   const rec = spend();
   assert.equal(rec.n, 1);
-  // (420*2 + 11000*0.2 + 180*10) / 1e4 for Sonnet, plus the sizer's (150*0.1 + 4*0.5) / 1e4
-  assert.ok(Math.abs(rec.cents - (0.484 + 0.0017)) < 1e-9, "cents " + rec.cents);
+  // (420*0.1 + 11000*0.01 + 180*0.5) / 1e4 for Haiku, plus the sizer's (150*0.1 + 4*0.5) / 1e4
+  assert.ok(Math.abs(rec.cents - (0.0242 + 0.0017)) < 1e-9, "cents " + rec.cents);
   assert.equal(rec.last.cacheRead, 11000);
   assert.equal(rec.last.output, 180);
   assert.equal(rec.last.stop, "end_turn");
@@ -261,8 +265,14 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   assert.equal(body.messages[1].role, "user");
   assert.equal(body.messages[2].role, "system", "the context line stays last");
   assert.deepEqual(body.output_config, { effort: "low" });
+  assert.equal(body.model, "claude-sonnet-5-5", "rated 4: handed to Sonnet");
+  assert.equal(body.fallbacks, "default");
+  assert.equal(anthropicCalls()[0].init.headers["anthropic-beta"], "server-side-fallback-2026-07-01,mid-conversation-output-config-2026-07-01");
+  assert.equal(res.headers.get("x-chat-model"), "claude-sonnet-5-5");
+  assert.equal(e.stats.model, "claude-sonnet-5-5");
   assert.equal(e.stats.effort, "high");
-  assert.deepEqual({ ...e.stats.size, ms: 0 }, { complexity: 4, kind: "compare", ms: 0, model: "claude-haiku-5-5" });
+  assert.deepEqual({ ...e.stats.size, ms: 0 }, { complexity: 4, kind: "compare", ms: 0, model: "claude-haiku-5-5", cents: 0.0017 });
+  assert.equal(e.stats.cents, 0.4857, "Sonnet prices: (420*2 + 11000*0.2 + 180*10)/1e4 + the sizer's 0.0017");
 
   sizer = "3";
   calls.length = 0;
@@ -270,12 +280,22 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   await settle();
   const b3 = JSON.parse(anthropicCalls()[0].init.body);
   assert.deepEqual(b3.messages[0], { role: "system", content: [], output_config: { effort: "medium" } }, "a bare digit still sizes");
+  assert.equal(b3.model, "claude-sonnet-5-5", "rated 3: Sonnet, medium");
+
+  sizer = "2 tour";
+  calls.length = 0;
+  await (await ask("give me a tour")).text();
+  await settle();
+  const bt = JSON.parse(anthropicCalls()[0].init.body);
+  assert.equal(bt.model, "claude-sonnet-5-5", "a tour always goes to Sonnet, whatever the rating");
+  assert.deepEqual(bt.messages, [{ role: "user", content: "give me a tour" }], "at low effort, no effort message");
 
   sizer = "down";
   calls.length = 0;
   const e2 = envelope(await (await ask("hello")).text());
   await settle();
   assert.deepEqual(JSON.parse(anthropicCalls()[0].init.body).messages, [{ role: "user", content: "hello" }], "sizer down: no effort message");
+  assert.equal(JSON.parse(anthropicCalls()[0].init.body).model, "claude-sonnet-5-5", "no verdict: Sonnet answers, so a dead sizer costs no quality");
   assert.equal(e2.stats.effort, "low");
   assert.equal(e2.stats.size, null);
 
@@ -291,16 +311,17 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   sizer = "2 chat";
   kv.set(SPEND, spendSnap);
   clearParked();
-  ok("sizer: per-turn effort message for hard questions, soft failure, timeout");
+  ok("sizer routes the question: Haiku keeps 1-2, Sonnet takes 3-5 with effort, tours and failures go to Sonnet");
 }
 
 // 2. /health reports the meter
 {
   const h = await health();
   assert.equal(h.anthropic.model, "claude-sonnet-5-5");
+  assert.equal(h.anthropic.light, "claude-haiku-5-5");
   assert.equal(h.anthropic.usedToday, 1);
   assert.equal(h.anthropic.budgetCents, 500);
-  assert.ok(Math.abs(h.anthropic.spentTodayCents - 0.48) < 0.011);
+  assert.ok(Math.abs(h.anthropic.spentTodayCents - 0.0259) < 0.011, "the light route's spend: " + h.anthropic.spentTodayCents);
   assert.equal(h.anthropic.lastRequest.cacheRead, 11000);
   assert.equal(h.anthropic.lastError, null);
   assert.equal(h.anthropic.meter, undefined);
@@ -442,8 +463,8 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   await res.text();
   await settle();
   const cents = spend().cents - before;
-  // (840*2 + 11000*4 + 11000*0.2 + 220*10) / 1e4 = 5.008, plus the sizer's 0.0017
-  assert.ok(Math.abs(cents - 5.0097) < 1e-6, "iterations summed: " + cents);
+  // the light route: (840*0.1 + 11000*0.2 + 11000*0.01 + 220*0.5) / 1e4 = 0.2504, plus the sizer's 0.0017
+  assert.ok(Math.abs(cents - 0.2521) < 1e-6, "iterations summed: " + cents);
   mode = "ok";
   ok("fallback iterations priced in full");
 }

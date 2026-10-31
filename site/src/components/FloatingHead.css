@@ -832,13 +832,226 @@
   flex-direction: column;
   gap: 8px;
 }
-.fh-wk-about {
+.fh-wk-head {
   margin: 0;
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 4px;
   color: #6f788f;
   letter-spacing: 0.05em;
+}
+.fh-wk-tab {
+  padding: 1px 8px 2px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: #6f788f;
+  font: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+.fh-wk-tab .fh-caret {
+  margin-left: 5px;
+}
+.fh-wk-tab:hover,
+.fh-wk-tab:focus-visible {
+  color: #c9cfdd;
+  outline: none;
+}
+.fh-wk-tab.on {
+  color: #eaf6ff;
+  border-color: rgba(120, 130, 150, 0.45);
+  background: rgba(120, 130, 150, 0.1);
+}
+.fh-wk-head .fh-wk-latest {
+  margin-left: auto;
+}
+/* the list of replies: a row per answer, the question in it muted; the
+   question and the answer in full on hover, or on the dots, inline */
+.fh-wk-replies {
+  margin: 0;
+  padding: 2px 0 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 32vh;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.fh-wk-reply {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  border-radius: 6px;
+}
+.fh-wk-reply.on {
+  background: rgba(120, 130, 150, 0.1);
+}
+.fh-wk-reply-go {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 2ch 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+  padding: 3px 4px 3px 6px;
+  border: none;
+  background: transparent;
+  color: #8b93a7;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.fh-wk-reply-go:hover,
+.fh-wk-reply-go:focus-visible {
+  color: #c9cfdd;
+  outline: none;
+}
+.fh-wk-reply-n {
+  color: #6f788f;
+  text-align: right;
+}
+.fh-wk-reply-q {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: #8b93a7;
+}
+.fh-wk-reply.on .fh-wk-reply-q {
+  color: #c9cfdd;
+}
+.fh-wk-reply-meta {
+  white-space: nowrap;
+  color: #6f788f;
+  font-size: 0.64rem;
+}
+.fh-wk-reply-peek {
+  width: 24px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #6f788f;
+  font: inherit;
+  cursor: pointer;
+}
+.fh-wk-reply-peek:hover,
+.fh-wk-reply-peek:focus-visible,
+.fh-wk-reply.fh-peek .fh-wk-reply-peek {
+  color: #c9cfdd;
+  outline: none;
+}
+.fh-wk-preview {
+  grid-column: 1 / -1;
+  display: none;
+  margin: 0 4px 4px 6px;
+  padding: 4px 8px 5px 10px;
+  border-left: 2px solid rgba(120, 130, 150, 0.35);
+  color: #6f788f;
+  font-size: 0.64rem;
+  line-height: 1.5;
+  white-space: normal;
+}
+.fh-wk-preview-q {
+  display: block;
+  color: #9ed8ff;
+  opacity: 0.75;
+}
+.fh-wk-preview-a {
+  display: block;
+  margin-top: 2px;
+}
+.fh-wk-reply.fh-peek .fh-wk-preview {
+  display: block;
+}
+/* where a pointer hovers, the words float at the top of the screen instead
+   (nothing moves under the pointer), so the inline toggle is for phones */
+@media (hover: hover) {
+  .fh-wk-reply-peek {
+    display: none;
+  }
+}
+.fh-wk-peekcard {
+  position: absolute;
+  z-index: 4;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(600px, calc(100vw - 220px));
+  max-height: 30vh;
+  overflow: hidden;
+  padding: 8px 12px 9px;
+  border: 1px solid rgba(120, 130, 150, 0.45);
+  border-radius: 10px;
+  background: rgba(10, 13, 19, 0.96);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  line-height: 1.5;
+  color: #8b93a7;
+  white-space: pre-wrap;
+  pointer-events: none;
+}
+.fh-wk-peekcard-n {
+  display: block;
+  margin-bottom: 2px;
+  color: #6f788f;
+  letter-spacing: 0.05em;
+}
+/* the summary tab: tiles, one figure each, the rest in a muted line */
+.fh-wk-sum {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.fh-wk-sum-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 9px 7px;
+  border: 1px solid rgba(70, 78, 96, 0.4);
+  border-radius: 8px;
+  background: rgba(14, 18, 26, 0.6);
+  min-width: 0;
+}
+.fh-wk-sum-k {
+  color: #6f788f;
+  letter-spacing: 0.05em;
+}
+.fh-wk-sum-v {
+  color: #eaf6ff;
+  font-size: 0.86rem;
+  font-weight: 560;
+  line-height: 1.3;
+}
+.fh-wk-sum-g {
+  color: #6f788f;
+  font-size: 0.62rem;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fh-wk-sum-bar {
+  display: flex;
+  height: 4px;
+  margin: 3px 0 2px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: rgba(120, 130, 150, 0.2);
+}
+.fh-wk-sum-bar i {
+  display: block;
+  min-width: 0;
+}
+.fh-wk-sum-bar i.light { background: #9ed8ff; }
+.fh-wk-sum-bar i.full { background: #c3a6ff; }
+.fh-wk-sum-bar i.backup { background: #ffb86b; }
+.fh-wk-sum .fh-wk-dots {
+  margin: 3px 0 2px;
 }
 .fh-wk-latest {
   padding: 0 6px;
@@ -1025,12 +1238,25 @@
   opacity: 1;
   transform: none;
 }
-/* on its own line: a browser without :has() drops this rule, not the ones above */
-.fh-tip:has(.fh-wk-k:hover) .fh-tip-text {
-  opacity: 1;
-  transform: none;
+/* each on its own line: a browser without :has() drops that rule alone */
+@media (hover: hover) {
+  .fh-tip:has(.fh-wk-k:hover) .fh-tip-text {
+    opacity: 1;
+    transform: none;
+  }
+  .fh-tip:has(.fh-wk-slabel:hover) .fh-tip-text {
+    opacity: 1;
+    transform: none;
+  }
 }
-.fh-tip:has(.fh-wk-slabel:hover) .fh-tip-text {
+/* a phone: a tap on the label toggles the tooltip, focus alone does not */
+@media (hover: none) {
+  .fh-tip:focus-within .fh-tip-text {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+.fh-tip.fh-tip-on .fh-tip-text {
   opacity: 1;
   transform: none;
 }
@@ -1069,7 +1295,7 @@
   flex: 1 1 auto;
   min-width: 0;
   display: grid;
-  grid-template-columns: 8px 7.5ch 1fr 6ch 1em;
+  grid-template-columns: 8px 7.5ch 1fr 6ch 7.5ch 1em;
   align-items: center;
   column-gap: 8px;
   width: 100%;
@@ -1120,9 +1346,45 @@
   color: #c9cfdd;
   text-align: right;
 }
+.fh-wk-scost {
+  color: #8b93a7;
+  text-align: right;
+}
 .fh-wk-step-btn .fh-caret {
   color: #6f788f;
   text-align: center;
+}
+/* the result of the pipeline, set apart from its steps: a dashed rule,
+   the same columns as a step row, nothing to unfold */
+.fh-wk-answer {
+  position: relative;
+  display: grid;
+  grid-template-columns: 8px 7.5ch 1fr 6ch 7.5ch 1em;
+  align-items: center;
+  column-gap: 8px;
+  min-height: 20px;
+  margin-top: 2px;
+  padding: 4px 4px 0;
+  border-top: 1px dashed rgba(70, 78, 96, 0.55);
+  color: #8b93a7;
+  white-space: nowrap;
+}
+.fh-wk-answer:focus-visible {
+  outline: 1px solid rgba(158, 216, 255, 0.5);
+  outline-offset: 2px;
+}
+.fh-wk-answer .fh-wk-smodel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fh-wk-answer .fh-wk-slabel {
+  cursor: help;
+}
+@media (hover: hover) {
+  .fh-wk-answer:has(.fh-wk-slabel:hover) .fh-tip-text {
+    opacity: 1;
+    transform: none;
+  }
 }
 .fh-wk-step-panel {
   margin: 2px 0 4px 3px;
@@ -1174,30 +1436,6 @@
 .fh-msg-meta.on {
   color: #9ed8ff;
   outline: none;
-}
-/* the whole conversation, one line at the foot of the drawer */
-.fh-wk-session {
-  position: relative;
-  margin: 0;
-  padding-top: 6px;
-  border-top: 1px solid rgba(70, 78, 96, 0.35);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: #6f788f;
-  letter-spacing: 0.05em;
-}
-.fh-wk-session .fh-wk-val {
-  color: #c9cfdd;
-  letter-spacing: 0;
-  white-space: normal;
-  overflow: visible;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0 5px;
-}
-.fh-wk-session .fh-wk-val > span {
-  white-space: nowrap; /* a wrap lands between figures, never inside one */
 }
 /* a tour in the transcript: one card that reopens it, not the stops stacked */
 .fh-tour-card {
@@ -1254,9 +1492,10 @@
     row-gap: 6px;
     align-items: start;
   }
-  .fh-wk-about,
+  .fh-wk-head,
   .fh-wk-backup,
-  .fh-wk-session {
+  .fh-wk-replies,
+  .fh-wk-sum {
     grid-column: 1 / -1;
   }
   .fh-wk-grid {
@@ -1274,6 +1513,12 @@
   .fh-workings {
     display: flex;
     flex-direction: column;
+  }
+  .fh-wk-sum {
+    grid-template-columns: 1fr 1fr;
+  }
+  .fh-wk-reply-meta {
+    display: none; /* the row keeps the question; the figures are one tap away */
   }
   .fh-wk-steps-list {
     border-left: none;

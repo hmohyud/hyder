@@ -38,13 +38,24 @@ const NEWLINE = String.fromCharCode(10);
 
 const WORKERS_AI_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const ANTHROPIC_MODEL = "claude-sonnet-5-5";
-/* Before Claude answers, a Haiku call sizes the question up (1-5) and the
-   effort for the answer follows from it. The top-level effort stays pinned
-   at "low" so the cached prompt never splits by effort; a harder question
-   gets a content-less system message that raises effort for that turn
-   (beta mid-conversation-output-config), which leaves the cache intact. */
-const SIZER_MODEL = "claude-haiku-5-5";
-const SIZER_PRICE = { input: 0.1, output: 0.5 }; // USD per million tokens
+const LIGHT_MODEL = "claude-haiku-5-5";
+/* Before anyone answers, a Haiku call sizes the question up (1-5). The
+   rating decides who answers and how hard they think: Haiku keeps what it
+   rated 1-2 (small talk, a trick, one fact) and answers it itself at a
+   twentieth of the price; 3-5 are handed to Sonnet with effort rising with
+   the rating. The top-level effort stays pinned at "low" so the cached
+   prompt never splits by effort; a harder question gets a content-less
+   system message that raises effort for that turn (beta
+   mid-conversation-output-config), which leaves the cache intact. */
+const SIZER_MODEL = LIGHT_MODEL;
+// Claude API list prices in USD per million tokens: uncached input, a 1-hour
+// cache write (2x input), a cache read (0.1x), output (thinking bills as output).
+const PRICES = {
+  [ANTHROPIC_MODEL]: { input: 2, cacheWrite1h: 4, cacheRead: 0.2, output: 10 },
+  [LIGHT_MODEL]: { input: 0.1, cacheWrite1h: 0.2, cacheRead: 0.01, output: 0.5 },
+};
+const priceOf = (model) => PRICES[model] || PRICES[ANTHROPIC_MODEL];
+const SIZER_PRICE = PRICES[LIGHT_MODEL];
 const SIZER_TIMEOUT_MS = 1500;
 const SIZER_PROMPT =
   "You size up the question just asked of a portfolio-site chatbot (a 3D head answering as the site's owner). " +
@@ -53,9 +64,15 @@ const SIZER_PROMPT =
   "4 a comparison, ranking or recommendation that must weigh several things; 5 a multi-part or subtle question needing care. " +
   "The word is the kind: chat, fact, explain, compare, tour, trick, other.";
 const EFFORT_FOR = { 1: "low", 2: "low", 3: "medium", 4: "high", 5: "high" };
-// Claude API list prices in USD per million tokens: uncached input, a 1-hour
-// cache write, a cache read, output (thinking tokens bill as output).
-const ANTHROPIC_PRICE = { input: 2, cacheWrite1h: 4, cacheRead: 0.2, output: 10 };
+/* the hand-off. A tour always goes to Sonnet (the stop protocol wants the
+   stronger writer); no verdict in time means Sonnet at low effort, so a
+   dead sizer costs quality nothing. */
+function routeFor(size) {
+  if (!size) return { model: ANTHROPIC_MODEL, effort: "low" };
+  if (size.complexity <= 2 && size.kind !== "tour") return { model: LIGHT_MODEL, effort: "low" };
+  return { model: ANTHROPIC_MODEL, effort: EFFORT_FOR[size.complexity] || "low" };
+}
+const round4 = (n) => Math.round(n * 10000) / 10000;
 // Daily ceiling for Claude in US cents; 0 switches the Claude path off entirely.
 const anthropicBudgetCents = (env) => {
   const n = parseInt(env.ANTHROPIC_DAILY_BUDGET_CENTS, 10);
@@ -435,6 +452,7 @@ export default {
       if (out.anthropic) {
         const rec = await anthropicRecord(env);
         out.anthropic.model = ANTHROPIC_MODEL;
+        out.anthropic.light = LIGHT_MODEL;
         out.anthropic.usedToday = rec.n;
         out.anthropic.spentTodayCents = Math.round(rec.cents * 100) / 100;
         if (rec.unreadable) out.anthropic.meter = "unreadable - Claude is skipped until it reads again";
@@ -745,34 +763,38 @@ async function workersAiStream(env, messages, context) {
 async function anthropicStream(env, messages, ctx, context) {
   const t0 = Date.now();
   const size = await sizeUp(env, messages);
-  const effort = (size && EFFORT_FOR[size.complexity]) || "low";
+  const { model, effort } = routeFor(size);
+  const light = model === LIGHT_MODEL;
   /* the effort message sits right before the question it applies to; the
      context line, when there is one, stays last */
   const turns = messages.slice();
   if (effort !== "low") turns.splice(turns.length - 1, 0, { role: "system", content: [], output_config: { effort } });
   if (context) turns.push({ role: "system", content: contextLine(context) });
+  const headers = {
+    "content-type": "application/json",
+    "x-api-key": env.ANTHROPIC_KEY,
+    "anthropic-version": "2023-06-01",
+  };
+  /* Sonnet: a safety-classifier decline is re-run server-side on the model
+     Anthropic recommends for that category, instead of coming back as a
+     blank reply; the second beta is the per-turn effort message. Haiku has
+     no server-side fallback and never gets an effort message. */
+  if (!light) headers["anthropic-beta"] = "server-side-fallback-2026-07-01,mid-conversation-output-config-2026-07-01";
   const upstream = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": env.ANTHROPIC_KEY,
-      "anthropic-version": "2023-06-01",
-      // a safety-classifier decline is re-run server-side on the model Anthropic
-      // recommends for that category, instead of coming back as a blank reply;
-      // the second beta is the per-turn effort message
-      "anthropic-beta": "server-side-fallback-2026-07-01,mid-conversation-output-config-2026-07-01",
-    },
+    headers,
     body: JSON.stringify({
-      model: ANTHROPIC_MODEL,
+      model,
       // thinking counts toward this even though its text is not returned; the
       // daily meter is the spend cap, so headroom here is cheap insurance
       max_tokens: 4096,
+      // each model keeps its own copy of the prompt in cache (caches are per model)
       system: [{ type: "text", text: PROMPT, cache_control: { type: "ephemeral", ttl: "1h" } }],
       messages: turns,
       // summarised reasoning comes back as thinking text, for the workings drawer
       thinking: { type: "adaptive", display: "summarized" },
       output_config: { effort: "low" },
-      fallbacks: "default",
+      ...(light ? {} : { fallbacks: "default" }),
       stream: true,
     }),
   });
@@ -888,11 +910,11 @@ async function anthropicStream(env, messages, ctx, context) {
       }
       if (thinkOpen) await raw("[[/think]]");
       await guard.end();
-      const cents = anthropicCents(usage) + ((size && size.cents) || 0);
+      const cents = anthropicCents(usage, model) + ((size && size.cents) || 0);
       await raw(
         statsToken({
           provider: "anthropic",
-          model: ANTHROPIC_MODEL,
+          model,
           ms: Date.now() - t0,
           ttfb: firstText,
           in: usage.input,
@@ -902,8 +924,8 @@ async function anthropicStream(env, messages, ctx, context) {
           think: thinking.length,
           stop: stopReason || (streamError ? "error" : "unknown"),
           effort,
-          size: size ? { complexity: size.complexity, kind: size.kind, ms: size.ms, model: SIZER_MODEL } : null,
-          cents: Math.round(cents * 100) / 100,
+          size: size ? { complexity: size.complexity, kind: size.kind, ms: size.ms, model: SIZER_MODEL, cents: round4(size.cents) } : null,
+          cents: round4(cents),
         })
       );
     } catch (gone) {
@@ -916,7 +938,7 @@ async function anthropicStream(env, messages, ctx, context) {
     }
     if (streamError) await noteAnthropicError(env, 0, JSON.stringify(streamError));
     try {
-      await recordAnthropicSpend(env, usage, stopReason || (streamError ? "error" : "unknown"), (size && size.cents) || 0);
+      await recordAnthropicSpend(env, usage, stopReason || (streamError ? "error" : "unknown"), (size && size.cents) || 0, model);
     } catch (bookkeeping) {
       // the meter has already shut the Claude gate for a few minutes
     }
@@ -924,7 +946,7 @@ async function anthropicStream(env, messages, ctx, context) {
   // the response can finish before the bookkeeping does; keep the request alive for it
   if (ctx && typeof ctx.waitUntil === "function") ctx.waitUntil(pump);
 
-  return { stream: readable, model: ANTHROPIC_MODEL };
+  return { stream: readable, model };
 }
 
 const tokens = (v) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
@@ -1015,19 +1037,17 @@ async function anthropicRecord(env) {
   return rec || { n: 0, cents: 0, unreadable: true };
 }
 
-const anthropicCents = (u) =>
-  (u.input * ANTHROPIC_PRICE.input +
-    u.cacheWrite * ANTHROPIC_PRICE.cacheWrite1h +
-    u.cacheRead * ANTHROPIC_PRICE.cacheRead +
-    u.output * ANTHROPIC_PRICE.output) /
-  10000; // tokens x (USD per million) -> cents
+const anthropicCents = (u, model) => {
+  const price = priceOf(model);
+  return (u.input * price.input + u.cacheWrite * price.cacheWrite1h + u.cacheRead * price.cacheRead + u.output * price.output) / 10000; // tokens x (USD per million) -> cents
+};
 
-async function recordAnthropicSpend(env, usage, stop, extraCents = 0) {
+async function recordAnthropicSpend(env, usage, stop, extraCents = 0, model = ANTHROPIC_MODEL) {
   if (!env.CHAT_KV) return;
   try {
     const rec = await readSpend(env);
     if (!rec) throw new Error("spend record unreadable"); // never overwrite a day we cannot see
-    const cents = anthropicCents(usage) + extraCents; // the sizer's Haiku call rides on the same meter
+    const cents = anthropicCents(usage, model) + extraCents; // the sizer's Haiku call rides on the same meter
     const hit = usage.cacheRead > 0;
     const next = {
       n: rec.n + 1,
