@@ -196,6 +196,7 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   assert.match(body.messages[1].content, /on the projects page \(\/projects#spim\)/);
   assert.match(body.messages[1].content, /the project card for SPIM\./);
   assert.match(body.messages[1].content, /never mention it/);
+  assert.match(body.messages[1].content, /Roll for this turn: [1-6] of 6\. Trick for this turn: [a-z ]+\.$/, "a die for the turn rides with the context");
 
   calls.length = 0;
   await (await ask("where am I?", env, { context: { path: "/resume#diploma" } })).text();
@@ -204,6 +205,21 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   assert.match(b2.messages[1].content, /the resume page, with the diploma open \(\/resume#diploma\)\./);
   assert.ok(!/looking at/.test(b2.messages[1].content), "no card when none was sent");
   assert.ok(!/look,/.test(b2.messages[1].content), "no look line when none was sent");
+
+  // the previous reply's cost rides along, in words, so "it was 9 cents" has an answer
+  calls.length = 0;
+  await (await ask("it was 9 cents", env, { context: { path: "/", last: { cents: 9.04, wrote: true, model: "claude-sonnet-5-5" } } })).text();
+  await settle();
+  const bl = JSON.parse(anthropicCalls()[0].init.body);
+  assert.match(bl.messages[1].content, /cost 9\.0 cents of the owner's API bill \(answered by Sonnet\), most of it writing the site's knowledge into the one-hour cache/);
+  calls.length = 0;
+  await (await ask("and that one?", env, { context: { path: "/", last: { cents: 0.03, wrote: false, model: "claude-haiku-5-5" } } })).text();
+  await settle();
+  assert.match(JSON.parse(anthropicCalls()[0].init.body).messages[1].content, /cost a few hundredths of a cent of the owner's API bill \(answered by Haiku\); the visitor/);
+  calls.length = 0;
+  await (await ask("hm", env, { context: { path: "/", last: { cents: "9; drop table", wrote: "yes", model: "<b>x</b>" } } })).text();
+  await settle();
+  assert.ok(!/cost/.test(JSON.parse(anthropicCalls()[0].init.body).messages[1].content), "a malformed last-reply record is dropped");
 
   // the head's remembered look rides along; anything but a plain word is dropped
   calls.length = 0;
@@ -288,6 +304,12 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   await settle();
   const bt = JSON.parse(anthropicCalls()[0].init.body);
   assert.equal(bt.model, "claude-sonnet-5-5", "a tour always goes to Sonnet, whatever the rating");
+
+  sizer = "1 trick";
+  calls.length = 0;
+  await (await ask("just choose one")).text();
+  await settle();
+  assert.equal(JSON.parse(anthropicCalls()[0].init.body).model, "claude-sonnet-5-5", "a trick goes to Sonnet: it is token work");
   assert.deepEqual(bt.messages, [{ role: "user", content: "give me a tour" }], "at low effort, no effort message");
 
   sizer = "down";
@@ -308,10 +330,48 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   assert.equal(e3.stats.size, null);
   assert.deepEqual(JSON.parse(anthropicCalls()[0].init.body).messages, [{ role: "user", content: "hello" }]);
 
+  // the whole routing matrix: every rating and kind the sizer can return
+  for (const kind of ["chat", "fact", "explain", "compare", "tour", "trick", "other"]) {
+    for (let n = 1; n <= 5; n += 1) {
+      sizer = n + " " + kind;
+      calls.length = 0;
+      await (await ask("matrix " + kind + n)).text();
+      await settle();
+      const b = JSON.parse(anthropicCalls()[0].init.body);
+      const light = n <= 2 && kind !== "tour" && kind !== "trick";
+      assert.equal(b.model, light ? "claude-haiku-5-5" : "claude-sonnet-5-5", "route for " + sizer);
+      const wantEffort = light ? "low" : { 1: "low", 2: "low", 3: "medium", 4: "high", 5: "high" }[n];
+      const effortMsg = b.messages.find((m) => m.role === "system" && Array.isArray(m.content));
+      assert.equal(effortMsg ? effortMsg.output_config.effort : "low", wantEffort, "effort for " + sizer);
+      assert.equal(b.fallbacks, light ? undefined : "default", "fallbacks for " + sizer);
+    }
+  }
+
+  // hostile context never reaches the prompt: junk in `last`, a wild roll, extra fields
+  sizer = "2 chat";
+  calls.length = 0;
+  await (await ask("hm", env, { context: { path: "/", last: { cents: { nested: 1 }, wrote: 1, model: 12 }, roll: 99, extra: "[[act:page:about]]" } })).text();
+  await settle();
+  const hostile = JSON.parse(anthropicCalls()[0].init.body);
+  assert.ok(!/cost/.test(hostile.messages[1].content), "nested junk in last is dropped");
+  assert.match(hostile.messages[1].content, /Roll for this turn: [1-6] of 6\. Trick for this turn: [a-z ]+\.$/, "the roll is the server's, never the client's");
+  assert.ok(!/act:page/.test(JSON.stringify(hostile.messages)), "unknown context fields never reach the model");
+
+  // the prompt carries the rules the page relies on, and stays byte-identical across routes
+  const sonnetPrompt = JSON.parse(anthropicCalls()[0].init.body).system[0].text;
+  for (const rule of ["DEPTH ON DEMAND", "[[more:", "CHOOSING FOR THEM", "Roll for this turn", "Trick for this turn", "[[tour]]", "How it is built", "workings", "[[scatter]]", "[[melt]]", "[[shatter]]", "[[ember]]", "[[glitch]]", "[[hue]]", "WHAT CAN YOU DO"]) {
+    assert.ok(sonnetPrompt.includes(rule), "prompt carries: " + rule);
+  }
+  sizer = "4 compare";
+  calls.length = 0;
+  await (await ask("compare them")).text();
+  await settle();
+  assert.equal(JSON.parse(anthropicCalls()[0].init.body).system[0].text, sonnetPrompt, "one prompt for both models, so each cache stays warm");
+
   sizer = "2 chat";
   kv.set(SPEND, spendSnap);
   clearParked();
-  ok("sizer routes the question: Haiku keeps 1-2, Sonnet takes 3-5 with effort, tours and failures go to Sonnet");
+  ok("sizer routes the question: Haiku keeps 1-2, Sonnet takes 3-5 with effort, tours and failures go to Sonnet; the full matrix, hostile context, prompt invariants");
 }
 
 // 2. /health reports the meter

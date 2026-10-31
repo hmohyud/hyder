@@ -8,9 +8,17 @@
  * at the moment of sending. Nothing re-renders when it changes. */
 
 let attention = null; // { kind: "project", name, slug, at } | null
+const listeners = new Set(); // the head, while it is asking the visitor to pick something
 
 export function noteAttention(a) {
   attention = a && a.name ? { ...a, at: Date.now() } : null;
+  listeners.forEach((fn) => fn(attention));
+}
+
+/** Called with every change while subscribed; returns the unsubscribe. */
+export function onAttention(fn) {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
 }
 
 export function getAttention() {

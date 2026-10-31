@@ -3,11 +3,23 @@ import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
 import { projects, projectSlug, projectShortName } from "../pages/Projects";
 import {
-  parseActToken, resolveAction, couldBeToken, tokenCap, stripExtraTokens,
-  parseTourToken, splitTourSteps, tourPause, tourCommand,
-  parseThinkOpen, splitThink, tailHold, parseStatsTail,
+  parseActToken,
+  resolveAction,
+  couldBeToken,
+  tokenCap,
+  stripExtraTokens,
+  parseTourToken,
+  splitTourSteps,
+  tourPause,
+  tourCommand,
+  parseThinkOpen,
+  splitThink,
+  tailHold,
+  parseStatsTail,
+  splitMore,
+  spokenText,
 } from "../utils/chatActions";
-import { getAttention } from "../utils/chatContext";
+import { getAttention, noteAttention, onAttention } from "../utils/chatContext";
 import * as THREE from "three";
 import "./FloatingHead.css";
 /* Hand-painted point regions (eyes, mouth seam, jaw) exported from
@@ -68,8 +80,6 @@ const MINI_POINTS = 9000;
    ~95px of head is several times the portrait's density and reads bright,
    so it draws at the portrait's density instead - points per CSS pixel of
    head area, from the 9000 points a 145px portrait shows */
-const SMALL_DENSITY = 9000 / (145 * 145);
-const smallPoints = (headCss) => Math.max(3500, Math.min(9000, Math.round(SMALL_DENSITY * headCss * headCss)));
 /* the occlusion shell sits this far behind the dots (view space). Along
    grazing creases the shell at a pixel is a different, nearer patch of
    surface than the dot's, and hides it; direct rendering buries the voids
@@ -138,8 +148,23 @@ const lookName = (look) =>
    The same texture path serves the lattice look at any size: the halftone
    shader samples the rendered cloud's tone per grid cell. */
 const SUPER = (dpr) => Math.max(2, Math.min(4, Math.round(4 / dpr)));
+/* the performed tricks: shader id and length in ms */
+const FX = { scatter: [1, 2400], melt: [2, 3200], shatter: [3, 2600], ember: [4, 3000], glitch: [5, 1300], hue: [6, 2200] };
 const LATTICE_GAIN = 2.2;
 const LATTICE_FILL = 0.85;
+/* The cell tone is read from a texture that is averaged over the last few
+   frames (an exponential filter with this weight on the newest frame, about
+   a tenth of a second to settle). The head sways and breathes, so dots drift
+   across cell edges and a single frame's tone jumps cell by cell - the
+   static the lab never showed, because its head sat still. */
+const TONE_K = 0.16;
+/* the accumulation pass: the cloud's mip sample, blended with last frame's */
+const TONE_FRAG = [
+  "out vec4 fragColor;",
+  "uniform sampler2D tSrc; uniform sampler2D tPrev; uniform float uLod; uniform float uK;",
+  "varying vec2 vUv;",
+  "void main() { fragColor = mix(texture(tPrev, vUv), textureLod(tSrc, vUv, uLod), uK); }",
+].join("\n");
 const latticeCell = (headCss) => Math.max(3.5, Math.min(8, 0.02 * headCss)); // CSS px per grid cell
 const QUAD_VERT = "varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }";
 /* The direct render saturates: dozens of additive sprites per pixel clamp at
@@ -176,6 +201,7 @@ function sliceShell(verts, idx, d, near) {
   const segs = [];
   const nrm = [];
   const col = [];
+  const mid = [];
   const v = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
   let lo = Infinity;
   let hi = -Infinity;
@@ -215,6 +241,10 @@ function sliceShell(verts, idx, d, near) {
         if (near && !near((pts[0][0] + pts[1][0]) * 0.5, (pts[0][1] + pts[1][1]) * 0.5, (pts[0][2] + pts[1][2]) * 0.5)) continue;
         segs.push(pts[0][0], pts[0][1], pts[0][2], pts[1][0], pts[1][1], pts[1][2]);
         nrm.push(nx, ny, nz, nx, ny, nz);
+        /* both ends share the segment's midpoint as their anchor, so a
+           performed trick moves each line as one rigid piece */
+        const mx = (pts[0][0] + pts[1][0]) * 0.5, my = (pts[0][1] + pts[1][1]) * 0.5, mz = (pts[0][2] + pts[1][2]) * 0.5;
+        mid.push(mx, my, mz, mx, my, mz);
         for (const q of pts) {
           const band = Math.max(0, Math.min(3, Math.floor(((q[1] - lo) / span) * 4)));
           const rgb = EMBERS[band];
@@ -227,15 +257,112 @@ function sliceShell(verts, idx, d, near) {
   g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(segs), 3));
   g.setAttribute("aNormal", new THREE.BufferAttribute(new Float32Array(nrm), 3));
   g.setAttribute("aColor", new THREE.BufferAttribute(new Float32Array(col), 3));
+  g.setAttribute("aMid", new THREE.BufferAttribute(new Float32Array(mid), 3));
   return g;
 }
 const wireSpacing = (headCss) => Math.round(Math.max(0.08, Math.min(0.3, 7 / (Math.max(20, headCss) / 2.6))) * 100) / 100;
-const WIRE_VERT = [
-  "attribute vec3 aNormal; attribute vec3 aColor; varying vec3 vColor; varying float vA;",
-  "void main(){ vec3 n = normalize(normalMatrix * aNormal); float facing = smoothstep(-0.2, 0.6, n.z);",
-  "  vA = 0.12 + 0.88 * facing; vColor = aColor; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
-].join("\n");
-const WIRE_FRAG = "uniform float uAlpha; varying vec3 vColor; varying float vA; void main(){ gl_FragColor = vec4(vColor, uAlpha * vA); }";
+/* ---------- the performed tricks, shared by the dots and the wire ----------
+   uFx picks one, uFxT runs 0..1 through it; everything is a function of the
+   vertex's rest position, so each dot (or line end) keeps its own path from
+   frame to frame. applyFx() displaces; the varyings carry colour work to the
+   fragment side, where applyFxColor() finishes it. */
+const FX_VERT_GLSL = `
+uniform float uFx;
+uniform float uFxT;
+uniform float uFxSeed;
+uniform float uTime;
+varying float vFxFade;
+varying float vFxGlow;
+varying float vFxHue;
+varying float vFxW;
+varying float vGlitch;
+
+float hash1(vec3 q) { return fract(sin(dot(q, vec3(12.9898, 78.233, 37.719)) + uFxSeed * 17.0) * 43758.5453); }
+vec3 hash3(vec3 q) { return vec3(hash1(q), hash1(q + 1.7), hash1(q + 3.1)); }
+float env(float t) { return sin(3.14159 * clamp(t, 0.0, 1.0)); }
+mat3 rotAxis(vec3 a, float ang) {
+  float c = cos(ang), s = sin(ang), ic = 1.0 - c;
+  return mat3(
+    c + a.x * a.x * ic, a.x * a.y * ic - a.z * s, a.x * a.z * ic + a.y * s,
+    a.y * a.x * ic + a.z * s, c + a.y * a.y * ic, a.y * a.z * ic - a.x * s,
+    a.z * a.x * ic - a.y * s, a.z * a.y * ic + a.x * s, c + a.z * a.z * ic);
+}
+vec3 applyFx(vec3 p, vec3 rest) {
+  vFxFade = 1.0;
+  vFxGlow = 0.0;
+  vFxHue = 0.0;
+  vFxW = 0.0;
+  vGlitch = 0.0;
+  if (uFx > 0.5 && uFx < 1.5) {
+    /* scatter: every dot flies outward, hangs, and glides home */
+    vec3 h = hash3(rest);
+    vec3 dir = normalize(p - vec3(0.0, 0.1, 0.0)) + (h - 0.5) * 0.8;
+    float e = pow(env(uFxT), 0.8);
+    p += dir * e * (0.3 + 0.45 * h.x);
+  } else if (uFx > 1.5 && uFx < 2.5) {
+    /* melt: sag, drip, pool below the chin, climb back */
+    float h = hash1(rest);
+    float e = env(uFxT);
+    float drop = e * (1.6 + 0.8 * h);
+    float ny = max(p.y - drop, -1.45 - 0.05 * h);
+    float pool = 1.0 - smoothstep(-1.45, -1.1, ny);
+    p.xz *= 1.0 + 0.7 * pool * e;
+    p.y = ny;
+  } else if (uFx > 2.5 && uFx < 3.5) {
+    /* shatter: chunks of the cloud tumble outward and reassemble */
+    vec3 cid = floor((rest + 2.0) * 3.0);
+    vec3 ch = hash3(cid);
+    vec3 cc = (cid + 0.5) / 3.0 - 2.0;
+    float e = env(uFxT);
+    vec3 dir = normalize(cc - vec3(0.0, 0.1, 0.0)) + (ch - 0.5) * 0.8;
+    p = cc + rotAxis(normalize(ch - 0.5 + 0.01), (ch.x - 0.5) * 6.0 * e) * (p - cc) + dir * e * (1.2 + 0.6 * ch.y);
+  } else if (uFx > 3.5 && uFx < 4.5) {
+    /* ember rise: the dots glow and drift up like sparks, then settle */
+    float h = hash1(rest);
+    float e = env(uFxT);
+    p.y += e * (0.6 + 1.6 * h);
+    p.x += sin(uTime * 2.0 + h * 20.0) * 0.08 * e;
+    p.z += cos(uTime * 1.7 + h * 13.0) * 0.08 * e;
+    vFxGlow = e * (0.8 + h);
+    vFxFade = 1.0 - 0.75 * e * h;
+  } else if (uFx > 4.5 && uFx < 5.5) {
+    /* glitch: slices jolt sideways in bursts, with a colour split */
+    float slice = floor(p.y * 9.0 + uFxSeed);
+    float frame = floor(uTime * 18.0);
+    float gate = step(0.55, hash1(vec3(slice, frame, 1.0)));
+    float off = (hash1(vec3(slice, frame, 2.0)) - 0.5) * 0.9;
+    float e = 1.0 - smoothstep(0.75, 1.0, uFxT);
+    p.x += off * gate * e;
+    vGlitch = gate * e * (1.0 + step(0.5, hash1(vec3(slice, frame, 3.0))));
+  } else if (uFx > 5.5 && uFx < 6.5) {
+    /* hue sweep: a rainbow band crosses the head once, left to right */
+    float c = mix(-2.0, 2.0, uFxT);
+    float u = clamp((p.x - c + 0.55) / 1.1, 0.0, 1.0);
+    float w = 1.0 - smoothstep(0.0, 0.55, abs(p.x - c));
+    vFxHue = u * 6.2832;
+    vFxW = w;
+  }
+  return p;
+}
+`;
+/* the colour side: the sweep's spectrum, the sparks' glow in the look's
+   temperature (uFxTint), the glitch's split */
+const FX_FRAG_GLSL = `
+uniform vec3 uFxTint;
+varying float vFxFade;
+varying float vFxGlow;
+varying float vFxHue;
+varying float vFxW;
+varying float vGlitch;
+vec3 hueRotate(vec3 c, float ang) { const vec3 k = vec3(0.57735); float ca = cos(ang); float sa = sin(ang); return c * ca + cross(k, c) * sa + k * dot(k, c) * (1.0 - ca); }
+vec3 applyFxColor(vec3 col, float lum) {
+  if (vFxW > 0.0) col = mix(col, hueRotate(vec3(1.0, 0.12, 0.12), vFxHue) * (0.5 + 0.9 * lum), vFxW);
+  col = mix(col, col * uFxTint * 1.3 + uFxTint * 0.25, clamp(vFxGlow, 0.0, 1.0));
+  if (vGlitch > 0.0) col = mix(col, (vGlitch > 1.5 ? vec3(1.0, 0.2, 0.8) : vec3(0.2, 1.0, 1.0)) * max(lum, 0.7), 0.85);
+  return col;
+}
+`;
+
 /* GLSL3 for textureLod: the cell's tone is the average over its own area,
    read from the mip level that matches the cell. Premultiplied output: the
    canvas composites as premultiplied, and this pass does not blend. */
@@ -300,12 +427,12 @@ const EFFORT_WORDS = { low: "direct", medium: "weighed it", high: "thought hard"
 const WK_TIPS = {
   complexity: "A small, fast model (Claude Haiku) rates the question 1 to 5. It answers 1 and 2 itself; 3 to 5 are handed to Claude Sonnet.",
   effort: "How hard the answering model was told to think: low for 1-2, medium for 3, high for 4-5.",
-  cache: "The 21k-token site prompt is cached for an hour; a hit costs a tenth of a fresh read.",
-  cost: "API fees for this reply, all in: prompt, question, reasoning, answer and sizing.",
+  cache: "The 21k-token site prompt is cached for an hour; a hit costs a tenth of a fresh read. After an idle hour the next question writes it again, at twice the fresh price.",
+  cost: "API fees for this reply, all in: prompt, question, reasoning, answer and sizing. A reply that wrote the cache carries that too, about 8 cents on Sonnet.",
   time: "Grey is sizing, purple thinking, green writing; the steps beside carry the same colours and seconds.",
   steps: "Who did what: each call, its model, its time and its cost. Open one for the detail.",
   size: "Haiku rates the question 1 to 5 and names its kind, then hands it on: to itself for 1-2, to Sonnet for 3-5 with effort set by the rating.",
-  think: "Sonnet reasons before it writes (extended thinking at the effort set above): it weighs the facts, settles an order, checks the rules. This is its own summary of that, as it streamed. Haiku's small answers skip it.",
+  think: "Sonnet reasons before it writes (extended thinking at the effort set above): it weighs the facts, settles an order, checks the rules. This is its own summary of that, as it streamed. It is part of the answer's call, so its cost sits in that line. Haiku's small answers skip it.",
   reply: "Not a step: the reply itself, below in the chat. The model that wrote it, its length, the time it took and what that call cost.",
   tokens: "In is what was read fresh (the question and page context); out is the answer written. The cached prompt is the row above.",
   backup: "Claude was unavailable or over its daily cap, so a backup model answered: no sizing, reasoning, cache or cost to show.",
@@ -319,8 +446,8 @@ const HELP = [
   { id: "rank", c: "#ffcb05", t: "rank", d: "a committed order, one reason each", q: "rank your three biggest projects" },
   { id: "go", c: "#b48bff", t: "go", d: "name a page or a project; it opens", q: "show me SPIM" },
   { id: "tour", c: "#78ffa8", t: "tour", d: "a few stops, one page at a time", q: "give me a tour" },
-  { id: "here", c: "#ffb86b", t: "here", d: "hover a project card, then ask", q: "what's this one?" },
-  { id: "work", c: "#c3a6ff", t: "workings", d: "how a reply was made, and its cost", q: null },
+  { id: "here", c: "#ffb86b", t: "pick", d: "choose a project card on the page; I tell you about it", q: null, act: "pick" },
+  { id: "work", c: "#c3a6ff", t: "workings", d: "a fast model rates each question and answers the small ones; hard ones go to a bigger model that thinks first. Every call, timed and costed.", q: null, act: "workings" },
 ];
 /* the looks, as swatches: each sends the words that ask for it */
 const LOOKS = [
@@ -331,6 +458,12 @@ const LOOKS = [
   { id: "spin", t: "spin", q: "give me a spin" },
   { id: "fire", t: "fire", q: "set yourself on fire" },
   { id: "tint", t: "colour", q: "make yourself blue" },
+  { id: "scatter", t: "scatter", q: "scatter yourself" },
+  { id: "melt", t: "melt", q: "melt" },
+  { id: "shatter", t: "shatter", q: "shatter" },
+  { id: "ember", t: "sparks", q: "turn to sparks" },
+  { id: "glitch", t: "glitch", q: "glitch out" },
+  { id: "hue", t: "rainbow", q: "run a rainbow across your face" },
 ];
 const ICON = {
   ask: <path d="M4 5h16v10h-9l-5 4v-4H4z" />,
@@ -391,6 +524,25 @@ const ICON = {
   spin: <path d="M19 12a7 7 0 1 1-2-4.9M19 4v4h-4" />,
   fire: <path d="M12 3c1 4 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3 2-4 0 2 1 3 2 3 1-2-1-5 1-9z" />,
   tint: <path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z" />,
+  scatter: (
+    <>
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="4.5" cy="5" r="1.3" />
+      <circle cx="19.5" cy="5.5" r="1.3" />
+      <circle cx="5" cy="19" r="1.3" />
+      <circle cx="19" cy="18.5" r="1.3" />
+    </>
+  ),
+  melt: <path d="M4 7c3-3 13-3 16 0v4c0 3-3 3-5 1-1 3-1 6-3 8-2-2-2-5-3-8-2 2-5 2-5-1z" />,
+  shatter: <path d="M12 3l7 5-2 9-5 4-5-4-2-9zM12 3l-1 8 5 1M11 11l-4 3M16 12l1 5" />,
+  ember: <path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l3 3M16 16l3 3M19 5l-3 3M8 16l-3 3" />,
+  glitch: <path d="M4 7h11M7 12h13M4 17h9M16 7h4M3 12h2" />,
+  hue: (
+    <>
+      <circle cx="12" cy="12" r="7.5" />
+      <path d="M12 4.5v15M6.5 7l11 10M6.5 17l11-10" />
+    </>
+  ),
 };
 const Icon = ({ id }) => (
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -399,7 +551,7 @@ const Icon = ({ id }) => (
 );
 
 /* the "?" sheet: tiles to click, swatches for the looks, the keys */
-function HelpSheet({ onTry, onWorkings, onClose }) {
+function HelpSheet({ onTry, onWorkings, onPick, onClose }) {
   return (
     <section className="fh-help" aria-label="What this can do">
       <p className="fh-help-head">
@@ -415,7 +567,7 @@ function HelpSheet({ onTry, onWorkings, onClose }) {
             type="button"
             className="fh-help-tile"
             style={chipStyle(h.c)}
-            onClick={() => (h.q ? onTry(h.q) : onWorkings())}
+            onClick={() => (h.act === "pick" ? onPick() : h.act === "workings" ? onWorkings() : onTry(h.q))}
           >
             <span className="fh-help-row">
               <span className="fh-help-ic">
@@ -424,24 +576,19 @@ function HelpSheet({ onTry, onWorkings, onClose }) {
               <span className="fh-help-t">{h.t}</span>
             </span>
             <span className="fh-help-d">{h.d}</span>
-            <span className="fh-help-try">{h.q ? "\u201c" + h.q + "\u201d" : "open the drawer \u203a"}</span>
+            <span className="fh-help-try">{h.q ? "\u201c" + h.q + "\u201d" : h.act === "pick" ? "pick a project \u203a" : "open the drawer \u203a"}</span>
           </button>
         ))}
       </div>
-      <div className="fh-help-looks" role="group" aria-label="Looks">
-        <span className="fh-help-label">looks</span>
+      <div className="fh-help-looks" role="group" aria-label="Tricks">
+        <span className="fh-help-label">tricks</span>
         {LOOKS.map((l) => (
           <button key={l.id} type="button" className="fh-help-look" onClick={() => onTry(l.q)} title={"\u201c" + l.q + "\u201d"}>
             <Icon id={l.id} />
             <span>{l.t}</span>
           </button>
         ))}
-        <span className="fh-help-note">a look stays until you ask for the cloud back</span>
       </div>
-      <p className="fh-help-keys">
-        <kbd>esc</kbd> close <kbd>enter</kbd> send <kbd>{"\u2190"}</kbd>
-        <kbd>{"\u2192"}</kbd> tour stops <span className="fh-help-drag">drag rotates</span>
-      </p>
     </section>
   );
 }
@@ -469,6 +616,27 @@ const DIZZY_LINES = [
   "Wheee. Right, that's plenty.",
 ];
 
+/* shown above the field while the transcript is empty: a fresh draw of
+   things to try each time - the tour first, then questions and tricks */
+const STARTER_ASKS = [
+  "what's the hardest thing you've built?",
+  "what did you build SPIM with?",
+  "rank your projects",
+  "what are you looking for next?",
+  "are you available for contract work?",
+  "where am I?",
+  "how does this site work?",
+  "what stack do you reach for?",
+  "why is your head made of dots?",
+  "what was it like growing up?",
+];
+const STARTER_TRICKS = [
+  "become a ghost", "halftone", "wireframe", "breathe fire", "scatter yourself", "melt", "shatter",
+  "turn to sparks", "glitch out", "go blue", "do a spin",
+];
+const STARTER_STAR = "do a cool trick"; // always there, and lit: the model picks from the whole repertoire
+const drawFrom = (pool, n) => pool.slice().sort(() => Math.random() - 0.5).slice(0, n);
+const pickStarters = () => ["give me a tour", STARTER_STAR].concat(drawFrom(STARTER_ASKS, 3), drawFrom(STARTER_TRICKS, 3));
 const GHOST_QUESTIONS = [
   "do you design websites?",
   "have you managed databases?",
@@ -489,6 +657,9 @@ const GHOST_QUESTIONS = [
   "breathe fire",
   "what is SPIM?",
   "go blue",
+  "scatter yourself",
+  "glitch out",
+  "melt",
 ];
 
 const DEFAULT_CHAT_ENDPOINT = "https://hyder-chat.hmohyud.workers.dev";
@@ -671,51 +842,69 @@ const DIGIT_WORDS = {
 const g4 = (v) => v.toFixed(4);
 const gv3 = (a) => `vec3(${g4(a[0])}, ${g4(a[1])}, ${g4(a[2])})`;
 
+/* ---------- the face, shared by the dots and the wire ----------
+   A blink lowers the lids, speech parts the lips (jaw is the per-vertex
+   weight baked around the mouth seam); uRegions gates on the real head,
+   since the procedural stand-in has no regions to deform. */
+const FACE_GLSL = `
+uniform float uBlink;
+uniform float uMouth;
+uniform float uMouthW;
+uniform float uRegions;
+float eyeW(vec3 p, vec3 c, vec3 r) {
+  return 1.0 - smoothstep(0.45, 1.0, length((p - c) / r));
+}
+vec3 applyFace(vec3 p, float jaw, out float glow) {
+  glow = 0.0;
+  if (uRegions > 0.5) {
+    p.y = mix(p.y, ${g4(EYE_L.lid)}, eyeW(p, ${gv3(EYE_L.c)}, ${gv3(EYE_L.rad)}) * uBlink);
+    p.y = mix(p.y, ${g4(EYE_R.lid)}, eyeW(p, ${gv3(EYE_R.c)}, ${gv3(EYE_R.rad)}) * uBlink);
+    p.y += uMouth * ${g4(LIP_GAP)} * jaw;
+    float wLip = smoothstep(0.02, 0.2, abs(jaw));
+    float uAx = clamp((2.0 * p.x - (${g4(MOUTH_X0)}) - (${g4(MOUTH_X1)})) / ${g4(MOUTH_X1 - MOUTH_X0)}, -1.0, 1.0);
+    float cornerW = smoothstep(0.1, 0.85, abs(uAx));
+    p.x += (p.x - (${g4(MOUTH_CX)})) * (uMouthW - 1.0) * 0.6 * wLip * cornerW;
+    p.z += (1.0 - uMouthW) * 0.1 * wLip;
+    glow = uMouth * (1.0 - smoothstep(0.35, 1.0, length((p - ${gv3(MOUTH_GLOW.c)}) / ${gv3(MOUTH_GLOW.r)})));
+  }
+  return p;
+}
+`;
+
+const WIRE_VERT = [
+  "attribute vec3 aNormal; attribute vec3 aColor; attribute vec3 aMid; attribute float aJaw; varying vec3 vColor; varying float vA;",
+  FX_VERT_GLSL,
+  FACE_GLSL,
+  "void main(){ vec3 n = normalize(normalMatrix * aNormal); float facing = smoothstep(-0.2, 0.6, n.z);",
+  "  vA = 0.12 + 0.88 * facing; vColor = aColor; float glow; vec3 p = applyFace(position, aJaw, glow); p = applyFx(p, aMid);",
+  "  gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }",
+].join("\n");
+const WIRE_FRAG = [
+  "uniform float uAlpha; varying vec3 vColor; varying float vA;",
+  FX_FRAG_GLSL,
+  "void main(){ vec3 col = applyFxColor(vColor, max(max(vColor.r, vColor.g), vColor.b)); gl_FragColor = vec4(col, uAlpha * vA * vFxFade); }",
+].join("\n");
+
 const VERT = `
 attribute vec3 aColor;
 attribute float aJaw;
 uniform float uSize;
 uniform float uDpr;
-uniform float uBlink;
-uniform float uMouth;
-uniform float uMouthW;
-uniform float uRegions;
 varying vec3 vColor;
 varying float vFacing;
 varying float vGlow;
 varying float vKey;
-
-float eyeW(vec3 p, vec3 c, vec3 r) {
-  return 1.0 - smoothstep(0.45, 1.0, length((p - c) / r));
-}
+${FX_VERT_GLSL}
+${FACE_GLSL}
 
 void main() {
   vColor = aColor;
   vGlow = 0.0;
   vec3 p = position;
-  /* uRegions gates on the real head: the procedural stand-in shares this
-     shader, and without the gate a blink would dent a random patch of it. */
-  if (uRegions > 0.5) {
-    p.y = mix(p.y, ${g4(EYE_L.lid)}, eyeW(p, ${gv3(EYE_L.c)}, ${gv3(EYE_L.rad)}) * uBlink);
-    p.y = mix(p.y, ${g4(EYE_R.lid)}, eyeW(p, ${gv3(EYE_R.c)}, ${gv3(EYE_R.rad)}) * uBlink);
-    /* talk: the lips part locally. aJaw is a signed weight baked around the
-       painted mouth seam - negative just below it (lower lip, drops), a
-       smaller positive just above (upper lip, lifts) - fading out at the
-       corners and within a short distance of the seam. The opening lives at
-       the mouth and nowhere else; the jaw and chin do not move at all. */
-    p.y += uMouth * ${g4(LIP_GAP)} * aJaw;
-    /* width channel, corner-weighted: real lips round and spread from the
-       CORNERS - the centre barely travels, so a uniform horizontal scale
-       reads as the mouth shrink-wrapping. Rounding also puckers the lips
-       forward (+z) and spreading flattens them back; that depth cue is most
-       of what makes an "oo" look like an "oo". */
-    float wLip = smoothstep(0.02, 0.2, abs(aJaw));
-    float uAx = clamp((2.0 * p.x - (${g4(MOUTH_X0)}) - (${g4(MOUTH_X1)})) / ${g4(MOUTH_X1 - MOUTH_X0)}, -1.0, 1.0);
-    float cornerW = smoothstep(0.1, 0.85, abs(uAx));
-    p.x += (p.x - (${g4(MOUTH_CX)})) * (uMouthW - 1.0) * 0.6 * wLip * cornerW;
-    p.z += (1.0 - uMouthW) * 0.1 * wLip;
-    vGlow = uMouth * (1.0 - smoothstep(0.35, 1.0, length((p - ${gv3(MOUTH_GLOW.c)}) / ${gv3(MOUTH_GLOW.r)})));
-  }
+  float glow;
+  p = applyFace(p, aJaw, glow);
+  vGlow = glow;
+  p = applyFx(p, position);
   /* distance from the crown: the colour trick's wash sweeps this field,
      so the tint pours down over the head instead of switching on */
   vKey = length(p - vec3(0.0, 1.35, 0.0));
@@ -739,6 +928,7 @@ const FRAG = [
   "varying float vFacing;",
   "varying float vGlow;",
   "varying float vKey;",
+  FX_FRAG_GLSL,
   "void main() {",
   "  vec4 t = texture2D(uMap, gl_PointCoord);",
   // the back-face floor RISES while ghosted: the trick is showing the far
@@ -753,6 +943,9 @@ const FRAG = [
   "  float wave = 1.0 - smoothstep(uTintEdge - 0.35, uTintEdge + 0.05, vKey);",
   "  vec3 col = mix(vColor, uTint * lum, uTintMix * wave);",
   "  col *= 1.0 + 1.35 * vGlow;",
+  // the performed tricks' colour work: the sweep, the sparks' glow, the glitch's split
+  "  col = applyFxColor(col, lum);",
+  "  a *= vFxFade;",
   "  gl_FragColor = vec4(col, a);",
   "}",
 ].join("\n");
@@ -951,6 +1144,26 @@ function emailifyText(text) {
    which is what lets renderReply keep character offsets while it wraps
    words. Same matching as before: longest name first, word-bounded, accent-
    blind; a skills-map link carries the skills the reply names. */
+/* the words that do something when asked: in a reply each is a chip that
+   asks for it; in the visitor's own line each is marked, so the word that
+   set the head off is visible */
+const TRICK_REFS = [
+  { word: "ghost", q: "become a ghost" },
+  { word: "halftone", q: "show me the halftone version" },
+  { word: "wireframe", q: "show me the wireframe" },
+  { word: "spin", q: "do a spin" },
+  { word: "fire", q: "breathe fire" },
+  { word: "tour", q: "give me a tour" },
+  { word: "scatter", q: "scatter yourself" },
+  { word: "melt", q: "melt" },
+  { word: "shatter", q: "shatter" },
+  { word: "sparks", q: "turn to sparks" },
+  { word: "glitch", q: "glitch out" },
+  { word: "rainbow", q: "run a rainbow across your face" },
+];
+const TRICK_RX = new RegExp("\\b(" + TRICK_REFS.map((t) => t.word).join("|") + ")\\b", "i");
+const trickFor = (word) => TRICK_REFS.find((t) => t.word === String(word).toLowerCase());
+
 function linkParts(text) {
   const parts = String(text).split(REF_RX);
   const out = [];
@@ -970,11 +1183,33 @@ function linkParts(text) {
     const sub = part.split(EMAIL_RX);
     for (let j = 0; j < sub.length; j++) {
       if (!sub[j]) continue;
-      if (j % 2 === 1) out.push({ text: sub[j], mailto: sub[j] });
-      else out.push({ text: sub[j] });
+      if (j % 2 === 1) {
+        out.push({ text: sub[j], mailto: sub[j] });
+        continue;
+      }
+      const words = sub[j].split(TRICK_RX);
+      for (let k = 0; k < words.length; k++) {
+        if (!words[k]) continue;
+        const tr = k % 2 === 1 ? trickFor(words[k]) : null;
+        out.push(tr ? { text: words[k], trick: tr.q } : { text: words[k] });
+      }
     }
   });
   return out;
+}
+
+/* the visitor's own line: the trick words marked, e-mail addresses linked */
+function userText(text) {
+  const words = String(text || "").split(TRICK_RX);
+  return words.map((w, i) =>
+    i % 2 === 1 && trickFor(w) ? (
+      <span key={i} className="fh-trick-word">
+        {w}
+      </span>
+    ) : (
+      <React.Fragment key={i}>{emailifyText(w)}</React.Fragment>
+    )
+  );
 }
 
 /* ---------- reply typography ----------
@@ -1030,26 +1265,58 @@ function leadRanges(text, settled) {
    React owns (see EMAIL_RX). Whitespace is left as-is so pre-wrap keeps the
    paragraph breaks. Only a reply still being spoken animates: a restored
    transcript renders settled. */
-function renderReply(text, onNavigate, live) {
+/* a reply: plain runs rendered inline, folds as closed sections */
+function renderReply(text, onNavigate, live, onAsk) {
   if (!text) return null;
+  const out = [];
+  splitMore(text).forEach((seg, i) => {
+    if (seg.title != null) {
+      out.push(
+        <details key={"d" + i} className={"fh-fold" + (live ? " fh-in" : "")}>
+          <summary>{seg.title}</summary>
+          <div className="fh-fold-body">{renderInline(seg.body, onNavigate, live, onAsk, "d" + i)}</div>
+        </details>
+      );
+    } else {
+      out.push(...renderInline(seg.text, onNavigate, live, onAsk, "s" + i));
+    }
+  });
+  return out;
+}
+
+function renderInline(text, onNavigate, live, onAsk, keyBase) {
+  if (!text) return [];
   const leads = leadRanges(String(text), !live);
   const isLead = (at) => leads.some(([a, b]) => at >= a && at < b);
   const out = [];
   let pos = 0;
   let key = 0;
   const fade = live ? " fh-in" : "";
+  const k = (prefix) => keyBase + prefix + key++;
   for (const part of linkParts(text)) {
     if (part.to) {
       out.push(
-        <Link key={"l" + key++} to={part.to} className={"fh-proj-link" + fade} style={chipStyle(part.color)} onClick={onNavigate}>
+        <Link key={k("l")} to={part.to} className={"fh-proj-link" + fade} style={chipStyle(part.color)} onClick={onNavigate}>
           {part.text}
         </Link>
       );
     } else if (part.mailto) {
       out.push(
-        <a key={"m" + key++} href={"mailto:" + part.mailto} className={"fh-mail" + fade}>
+        <a key={k("m")} href={"mailto:" + part.mailto} className={"fh-mail" + fade}>
           {part.text}
         </a>
+      );
+    } else if (part.trick) {
+      out.push(
+        <button
+          key={k("t")}
+          type="button"
+          className={"fh-trick-link" + fade}
+          title={"\u201c" + part.trick + "\u201d"}
+          onClick={() => onAsk && onAsk(part.trick)}
+        >
+          {part.text}
+        </button>
       );
     } else {
       for (const piece of part.text.split(/(\s+)/)) {
@@ -1058,7 +1325,7 @@ function renderReply(text, onNavigate, live) {
           out.push(piece);
         } else {
           out.push(
-            <span key={"w" + key++} className={"fh-w" + (isLead(pos) ? " fh-lead" : "") + fade}>
+            <span key={k("w")} className={"fh-w" + (isLead(pos) ? " fh-lead" : "") + fade}>
               {piece}
             </span>
           );
@@ -1286,11 +1553,28 @@ function tourEnd(reason) {
   }
 }
 
+/* "pick": the chat shrinks to the caption on the projects page and asks the
+   visitor to click a card; the click becomes "tell me about this one".
+   Module-level like the tour, since reaching the projects page from the
+   landing page swaps which head is mounted. */
+const PICK = { running: false };
+function pickStart() {
+  PICK.running = true;
+  if (TOUR.stage && TOUR.stage.onPick) TOUR.stage.onPick(true);
+}
+function pickEnd() {
+  if (!PICK.running) return;
+  PICK.running = false;
+  if (TOUR.stage && TOUR.stage.onPick) TOUR.stage.onPick(false);
+}
+
 function tourRegister(stage) {
   TOUR.stage = stage;
   if (TOUR.running) {
     stage.onTour(true, "resume");
     tourDeliver();
+  } else if (PICK.running && stage.onPick) {
+    stage.onPick(true);
   }
 }
 function tourUnregister(stage) {
@@ -1382,8 +1666,63 @@ export default function FloatingHead({
   });
   /* a head mounted while a tour is running (the move swapped heads) opens
      straight into it */
-  const [open, setOpen] = useState(() => TOUR.running);
+  const [open, setOpen] = useState(() => TOUR.running || PICK.running);
   const [tour, setTour] = useState(() => TOUR.running);
+  const [pick, setPick] = useState(() => PICK.running);
+  const [pickHover, setPickHover] = useState(""); // the card under the pointer while picking
+  const [tourMin, setTourMin] = useState(false); // the caption folded to the head and a pill
+  /* clearing the conversation takes a hold, not a click: the pill fills
+     while the pointer (or Enter) is held, and lets go without harm before
+     it is full */
+  const HOLD_MS = 900;
+  const [holdT, setHoldT] = useState(0); // 0..1, how far through the hold
+  const holdRef = useRef({ timer: 0, start: 0, done: false });
+  const clearChat = () => {
+    if (TOUR.running) tourEnd("stop");
+    if (PICK.running) pickEnd();
+    setMsgs([]);
+    setShowAll(false);
+    setWkFocus(null);
+    setWkTab("reply");
+    setWkList(false);
+    setWkPeek(null);
+    setThinking("");
+    setStats(null);
+    try {
+      localStorage.removeItem(CHAT_LOG_KEY);
+    } catch (err) {
+      // private mode
+    }
+  };
+  const holdStart = (e) => {
+    if (e && e.repeat) return; // a held key repeats its keydown
+    if (e && e.preventDefault) e.preventDefault();
+    const h = holdRef.current;
+    if (h.timer) return;
+    h.start = performance.now();
+    h.done = false;
+    /* a timer, not requestAnimationFrame: the fill is judged by the clock,
+       so a throttled frame rate (a background tab, a busy phone) changes how
+       smoothly it draws, never how long the hold takes */
+    h.timer = setInterval(() => {
+      const t = Math.min(1, (performance.now() - h.start) / HOLD_MS);
+      setHoldT(t);
+      if (t >= 1) {
+        clearInterval(h.timer);
+        h.timer = 0;
+        h.done = true;
+        clearChat();
+        setHoldT(0);
+      }
+    }, 30);
+  };
+  const holdEnd = () => {
+    const h = holdRef.current;
+    if (h.timer) clearInterval(h.timer);
+    h.timer = 0;
+    setHoldT(0);
+  };
+  const caption = tour || pick; // the small-head, page-visible layout
   const [tourPage, setTourPage] = useState({ i: -1, n: 0, more: false, waiting: false, ended: false, text: "" });
   const [lookEpoch, setLookEpoch] = useState(0); // bumped when a look changes, so layout() re-decides the draw path
   const navigate = useNavigate(); // action tokens open pages from the chat
@@ -1408,6 +1747,7 @@ export default function FloatingHead({
   const [wkOpen, setWkOpen] = useState({}); // which pipeline steps are unfolded
   const [wkFocus, setWkFocus] = useState(null); // a particular reply's workings, by index in msgs; null = the latest
   const [help, setHelp] = useState(false); // the "what I can do" sheet
+  const [starters, setStarters] = useState(pickStarters); // re-drawn whenever the transcript empties
   const [wkTab, setWkTab] = useState("reply"); // "reply" | "summary"
   const [wkList, setWkList] = useState(false); // the list of replies under the tab
   const [wkPeek, setWkPeek] = useState(null); // a reply whose question and answer are shown in the list (phones)
@@ -1505,10 +1845,10 @@ export default function FloatingHead({
     if (!open || !CHAT_ENDPOINT) return undefined;
     const input = inputRef.current;
     if (!input) return undefined;
-    if (tour) {
+    if (caption) {
       /* set here, after the previous run's cleanup has had its say - React
          wrote the prop before that cleanup reset the attribute */
-      input.placeholder = "next · stop · or ask something";
+      input.placeholder = tour ? "next · stop · or ask something" : "or ask something";
       return undefined;
     }
     if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)
@@ -1550,18 +1890,17 @@ export default function FloatingHead({
       clearTimeout(timer);
       input.placeholder = "Ask me about my work";
     };
-  }, [open, tour]);
+  }, [open, tour, caption]);
 
   /* corner shows a subset; the lightbox shows every point */
   const applyDrawRange = useCallback(() => {
     const world = worldRef.current;
     if (!world || !world.total) return;
     const s = stateRef.current;
-    const shown = !s.open
-      ? Math.min(world.total, MINI_POINTS)
-      : s.tour
-        ? Math.min(world.total, smallPoints(s.headCss || 100))
-        : world.total;
+    /* the caption head draws the whole cloud like the lightbox: it is
+       supersampled, so the overlap averages out instead of blowing out, and
+       a thinned cloud at that size read as splotches */
+    const shown = !s.open ? Math.min(world.total, MINI_POINTS) : world.total;
     world.points.geometry.setDrawRange(0, shown);
   }, []);
   const drawRangeRef = useRef(applyDrawRange);
@@ -1642,6 +1981,11 @@ export default function FloatingHead({
         uMouth: { value: 0 },
         uMouthW: { value: 1 },
         uRegions: { value: 0 },
+        uFx: { value: 0 },
+        uFxT: { value: 0 },
+        uFxSeed: { value: 0 },
+        uTime: { value: 0 },
+        uFxTint: { value: new THREE.Vector3(1.0, 0.55, 0.25) },
       },
       vertexShader: VERT,
       fragmentShader: FRAG,
@@ -1784,26 +2128,26 @@ export default function FloatingHead({
         q0 += dq2 * xc * xc;
         q1 -= 2 * dq2 * xc;
         q2 += dq2;
-        for (let i = 0; i < n; i++) {
-          const x = data.position[i * 3];
-          const y = data.position[i * 3 + 1];
-          const z = data.position[i * 3 + 2];
+        /* the weight as a function of position: baked into the dots here,
+           and applied to the wire's line ends when the wire is sliced */
+        const jawAt = (x, y, z) => {
           const u = (2 * x - x0 - x1) / (x1 - x0);
           const arch = Math.sqrt(Math.max(0, 1 - u * u));
-          const gz = sm(0.4, 0.62, z);
-          const g = arch * gz;
-          if (g <= 0) continue;
+          const g = arch * sm(0.4, 0.62, z);
+          if (g <= 0) return 0;
           const cx = Math.min(x1, Math.max(x0, x));
           const dy = y - (q0 + q1 * cx + q2 * cx * cx);
-          jawW[i] =
-            g *
-            (dy <= 0
-              ? -(1 - sm(0.06, 0.3, -dy))
-              : 0.35 * (1 - sm(0.04, 0.16, dy)));
+          return g * (dy <= 0 ? -(1 - sm(0.06, 0.3, -dy)) : 0.35 * (1 - sm(0.04, 0.16, dy)));
+        };
+        for (let i = 0; i < n; i++) {
+          jawW[i] = jawAt(data.position[i * 3], data.position[i * 3 + 1], data.position[i * 3 + 2]);
         }
+        stateRef.current.jawAt = jawAt;
+        // a wire cut before the fit knew nothing of the mouth (the loader can run before the world exists)
+        if (worldRef.current && worldRef.current.resliceWire) worldRef.current.resliceWire();
       }
       geometry.setAttribute("aJaw", new THREE.BufferAttribute(jawW, 1));
-      material.uniforms.uRegions.value = hasRegions;
+      material.uniforms.uRegions.value = hasRegions; // the wire copies it each frame
       const colors = new Float32Array(n * 3);
       let minY = Infinity;
       let maxY = -Infinity;
@@ -1862,6 +2206,27 @@ export default function FloatingHead({
       vertexShader: QUAD_VERT, fragmentShader: LATTICE_FRAG,
       blending: THREE.NoBlending, depthTest: false, depthWrite: false, transparent: true,
     });
+    /* the tone's running average lives in a pair of targets at canvas size,
+       written and read in turn; the lattice reads the newest */
+    const toneOpts = { generateMipmaps: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false };
+    const toneA = new THREE.WebGLRenderTarget(16, 16, toneOpts);
+    const toneB = new THREE.WebGLRenderTarget(16, 16, toneOpts);
+    const toneMat = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3,
+      uniforms: { tSrc: { value: rt.texture }, tPrev: { value: toneB.texture }, uLod: { value: 2 }, uK: { value: 1 } },
+      vertexShader: QUAD_VERT, fragmentShader: TONE_FRAG,
+      blending: THREE.NoBlending, depthTest: false, depthWrite: false, transparent: true,
+    });
+    window.__fhToneK = (k) => { stateRef.current.toneK = k; }; // tuning hook: 1 = no smoothing
+    /* start a performed trick; the frame loop runs it from here */
+    stateRef.current.startFx = (kind) => {
+      const s = stateRef.current;
+      const def = FX[kind];
+      if (!def) return;
+      if (s.reduced && kind !== "hue") return; // motion the visitor asked the system to spare
+      s.fx = { id: def[0], t0: performance.now(), dur: def[1], seed: Math.random() * 100 };
+    };
+    window.__fhTrick = (kind) => stateRef.current.startFx && stateRef.current.startFx(kind); // tuning hook
     const quadScene = new THREE.Scene();
     const quadMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), copyMat);
     quadScene.add(quadMesh);
@@ -1869,7 +2234,12 @@ export default function FloatingHead({
 
     /* the wire look's lines: sliced from the shell once it arrives, per spacing */
     const wireMat = new THREE.ShaderMaterial({
-      uniforms: { uAlpha: { value: 0.75 } },
+      uniforms: {
+        uAlpha: { value: 0.75 },
+        uFx: { value: 0 }, uFxT: { value: 0 }, uFxSeed: { value: 0 }, uTime: { value: 0 },
+        uFxTint: { value: new THREE.Vector3(1.0, 0.55, 0.25) },
+        uBlink: { value: 0 }, uMouth: { value: 0 }, uMouthW: { value: 1 }, uRegions: { value: 0 },
+      },
       vertexShader: WIRE_VERT, fragmentShader: WIRE_FRAG,
       transparent: true, depthTest: true, depthWrite: false, blending: THREE.NormalBlending,
     });
@@ -1881,7 +2251,16 @@ export default function FloatingHead({
       const world = worldRef.current;
       if (!world || !world.shellVerts) return false;
       const key = d.toFixed(2);
-      if (!wireCache.has(key)) wireCache.set(key, sliceShell(world.shellVerts, world.shellIdx, d, world.cloudNear || null));
+      if (!wireCache.has(key)) {
+        const g = sliceShell(world.shellVerts, world.shellIdx, d, world.cloudNear || null);
+        /* each line end's mouth weight, so the wire talks like the dots */
+        const jawAt = stateRef.current.jawAt;
+        const pos = g.attributes.position.array;
+        const jaw = new Float32Array(pos.length / 3);
+        if (jawAt) for (let i = 0; i < jaw.length; i++) jaw[i] = jawAt(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]);
+        g.setAttribute("aJaw", new THREE.BufferAttribute(jaw, 1));
+        wireCache.set(key, g);
+      }
       const g = wireCache.get(key);
       if (wireLines.geometry !== g) wireLines.geometry = g;
       return true;
@@ -2182,6 +2561,23 @@ export default function FloatingHead({
       material.uniforms.uTintEdge.value = s.trickTint ? (s.tintWave || 0) * 3.2 : 99;
       material.uniforms.uTintMix.value = s.tintMix;
       material.uniforms.uTint.value.set(s.tint[0], s.tint[1], s.tint[2]);
+      /* the performed tricks: one at a time, timed by the clock, on the dots
+         and the wire alike; the sparks take the look's temperature - ember
+         on the cloud and the halftone, cold blue-white as a ghost */
+      if (s.fx) {
+        const prog = (performance.now() - s.fx.t0) / s.fx.dur;
+        if (prog >= 1) s.fx = null;
+      }
+      const ghostly = s.look.ghost && !s.look.wire;
+      for (const mat of [material, wireMat]) {
+        const u = mat.uniforms;
+        u.uFx.value = s.fx ? s.fx.id : 0;
+        u.uFxT.value = s.fx ? (performance.now() - s.fx.t0) / s.fx.dur : 0;
+        u.uFxSeed.value = s.fx ? s.fx.seed : 0;
+        u.uTime.value = performance.now() / 1000;
+        if (ghostly) u.uFxTint.value.set(0.55, 0.75, 1.0);
+        else u.uFxTint.value.set(1.0, 0.55, 0.25);
+      }
       /* under the wire the cloud stays as a dim ground, so the mouth and the
          blink still play through the lines */
       s.cloudAlpha = (s.cloudAlpha ?? 1) + ((s.look.wire ? 0.28 : 1) - (s.cloudAlpha ?? 1)) * (1 - Math.exp(-5 * dt));
@@ -2196,9 +2592,11 @@ export default function FloatingHead({
          shut in pauses and when the stream ends. window.__fhForce lets both
          values be pinned from the console for tuning. */
       if (s.reduced) {
-        material.uniforms.uBlink.value = 0;
-        material.uniforms.uMouth.value = 0;
-        material.uniforms.uMouthW.value = 1;
+        for (const mat of [material, wireMat]) {
+          mat.uniforms.uBlink.value = 0;
+          mat.uniforms.uMouth.value = 0;
+          mat.uniforms.uMouthW.value = 1;
+        }
       } else {
         if (!s.nextBlinkAt) s.nextBlinkAt = t + 1400 + Math.random() * 2600;
         if (t >= s.nextBlinkAt) {
@@ -2260,7 +2658,7 @@ export default function FloatingHead({
           s.vOpen = v[0];
           s.vWidth = v[1];
           s.talkNext = t + v[2] * hurry * (0.85 + Math.random() * 0.3);
-          speakBlip(key, s.voicePitch || 1);
+          if (!s.silent) speakBlip(key, s.voicePitch || 1); // a tour is read, not chirped
         }
         let mouthTarget = talking ? s.vOpen || 0 : 0;
         // breathing fire: the jaw drops for the burst, whatever else is said
@@ -2283,9 +2681,12 @@ export default function FloatingHead({
           if (force.mouth != null) mouth = force.mouth;
           if (force.mouthW != null) mouthW = force.mouthW;
         }
-        material.uniforms.uBlink.value = blink;
-        material.uniforms.uMouth.value = mouth;
-        material.uniforms.uMouthW.value = mouthW;
+        for (const mat of [material, wireMat]) {
+          mat.uniforms.uBlink.value = blink;
+          mat.uniforms.uMouth.value = mouth;
+          mat.uniforms.uMouthW.value = mouthW;
+        }
+        wireMat.uniforms.uRegions.value = material.uniforms.uRegions.value;
         /* the typing cue in the transcript breathes with the same number
            the lips use, so text and mouth read as one performance */
         if (chatRef.current && Math.abs(mouth - (s.cueMouth || 0)) > 0.02) {
@@ -2294,23 +2695,46 @@ export default function FloatingHead({
         }
       }
 
+      const drawScene = () => renderer.render(scene, camera);
       if (s.rtFactor > 0 && rt.width > 16) {
         renderer.setRenderTarget(rt);
-        renderer.render(scene, camera);
+        drawScene();
         renderer.setRenderTarget(null);
         if (s.look.lattice) {
-          const u = latticeMat.uniforms;
           const cell = latticeCell(s.headCss || 100) * dpr;
+          /* pass one: this frame's cell-sized average of the cloud, blended
+             into the running tone */
+          const write = s.toneFlip ? toneB : toneA;
+          const read = s.toneFlip ? toneA : toneB;
+          if (write.width !== canvas.width || write.height !== canvas.height) {
+            toneA.setSize(canvas.width, canvas.height);
+            toneB.setSize(canvas.width, canvas.height);
+            s.toneReset = true;
+          }
+          const t = toneMat.uniforms;
+          t.tPrev.value = read.texture;
+          t.uLod.value = Math.log2(cell * s.rtFactor) - 0.5;
+          t.uK.value = s.toneReset ? 1 : typeof s.toneK === "number" ? s.toneK : TONE_K;
+          quadMesh.material = toneMat;
+          renderer.setRenderTarget(write);
+          renderer.render(quadScene, quadCam);
+          renderer.setRenderTarget(null);
+          s.toneFlip = !s.toneFlip;
+          s.toneReset = false;
+          /* pass two: the dots, from the steadied tone */
+          const u = latticeMat.uniforms;
+          u.tSrc.value = write.texture;
           u.uSize.value.set(canvas.width, canvas.height);
           u.uCell.value = cell;
-          u.uLod.value = Math.log2(cell * s.rtFactor) - 0.5;
+          u.uLod.value = 0;
           quadMesh.material = latticeMat;
         } else {
+          s.toneReset = true; // the next halftone frame starts clean
           quadMesh.material = copyMat;
         }
         renderer.render(quadScene, quadCam);
       } else {
-        renderer.render(scene, camera);
+        drawScene();
       }
     };
     raf = requestAnimationFrame(frame);
@@ -2390,6 +2814,9 @@ export default function FloatingHead({
       rt.dispose();
       copyMat.dispose();
       latticeMat.dispose();
+      toneMat.dispose();
+      toneA.dispose();
+      toneB.dispose();
       quadMesh.geometry.dispose();
       for (const g of wireCache.values()) g.dispose();
       wireMat.dispose();
@@ -2454,7 +2881,7 @@ export default function FloatingHead({
     }
     const world = worldRef.current;
     if (!world) return;
-    const host = open ? (tour && tourHeadRef.current) || stageRef.current : miniRef.current;
+    const host = open ? (caption && tourHeadRef.current) || stageRef.current : miniRef.current;
     if (!host) return;
     if (world.canvas.parentElement !== host) host.appendChild(world.canvas);
     const box = miniRef.current ? miniRef.current.clientWidth || 100 : 100;
@@ -2465,7 +2892,7 @@ export default function FloatingHead({
     world.canvas.style.width = w + "px";
     world.canvas.style.height = h + "px";
     world.camera.aspect = w / h;
-    const z = open ? (tour ? 4.4 : 5.6) : MINI_Z;
+    const z = open ? (caption ? 4.4 : 5.6) : MINI_Z;
     world.camera.position.z = z;
     world.camera.updateProjectionMatrix();
     const fov = (world.camera.fov * Math.PI) / 180;
@@ -2476,7 +2903,7 @@ export default function FloatingHead({
        at any size. The texture is sized here, once per layout, never per
        frame; the point sprites scale with it so they keep their CSS size. */
     const s = stateRef.current;
-    s.small = !open || tour;
+    s.small = !open || caption;
     s.headCss = headPx;
     const viaRT = s.small || s.look.lattice;
     let f = 0;
@@ -2488,7 +2915,7 @@ export default function FloatingHead({
     }
     s.rtFactor = f;
     s.shellBias = f ? SHELL_BIAS_SMALL : SHELL_BIAS;
-    s.tour = tour;
+    s.tour = caption;
     world.material.uniforms.uDpr.value = world.dpr * (f || 1);
     /* the shell's slope-scaled offset is per PIXEL: at f times the
        resolution the per-pixel slope is f times smaller, so the factor
@@ -2496,10 +2923,11 @@ export default function FloatingHead({
        creases - thin, patchy gaps */
     if (world.shellMat) world.shellMat.polygonOffsetFactor = 2 * (f || 1);
     if (world.wire) {
-      world.wire.visible = !!s.look.wire && world.ensureWire(wireSpacing(headPx));
+      s.wireOn = !!s.look.wire && world.ensureWire(wireSpacing(headPx));
+      world.wire.visible = s.wireOn;
     }
     applyDrawRange();
-  }, [open, tour, applyDrawRange]);
+  }, [open, caption, applyDrawRange]);
 
   useEffect(() => {
     stateRef.current.open = open;
@@ -2526,13 +2954,14 @@ export default function FloatingHead({
        parented to a detached node - a head that silently vanishes. These deps
        are what re-runs the re-parent. */
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, ready, layout, mode, missionEl, tour, lookEpoch]);
+  }, [open, ready, layout, mode, missionEl, tour, pick, lookEpoch]);
 
   /* closing the chat by any route - Escape, the cross, a chip, the backdrop -
      also ends a running tour: a tour with no chat on screen is just a page
      changing by itself */
   const dismiss = useCallback(() => {
     if (TOUR.running) tourEnd("closed");
+    if (PICK.running) pickEnd();
     setOpen(false);
   }, []);
 
@@ -2553,15 +2982,21 @@ export default function FloatingHead({
       setMsgs: (m) => setMsgs(m),
       speak: (text) => {
         const s = stateRef.current;
-        s.talkBuf = text; // each stop is spoken from its first word
+        s.talkBuf = text; // each stop is mouthed from its first word, silently
         s.talkPos = 0;
         s.talkNext = 0;
-        if (!s.voicePitch) s.voicePitch = 0.95 + Math.random() * 0.2;
-        ensureAudio();
+        s.silent = true;
       },
       onPage: (page) => setTourPage(page),
+      onPick: (on) => {
+        setPick(on);
+        if (on) setOpen(true);
+        else setPickHover("");
+      },
       onTour: (on, reason) => {
         setTour(on);
+        setTourMin(false);
+        if (!on) stateRef.current.silent = false;
         if (on) setOpen(true);
         else if (reason !== "stop" && reason !== "question") setOpen(false);
       },
@@ -2569,6 +3004,31 @@ export default function FloatingHead({
     tourRegister(stage);
     return () => tourUnregister(stage);
   }, []);
+
+  /* while picking: the card under the pointer is named in the caption, and
+     a click on a card (a tap, on a phone) becomes the question */
+  const sendRef = useRef(null);
+  useEffect(() => {
+    if (!pick) return undefined;
+    const off = onAttention((a) => setPickHover(a && a.kind === "project" ? a.name : ""));
+    const onClick = (e) => {
+      if (!(e.target && e.target.closest)) return;
+      if (e.target.closest(".fh-chat, .fh-close")) return;
+      const el = e.target.closest("[id]");
+      const ref = el && PROJECT_REFS.find((r) => r.to === "/projects#" + el.id);
+      if (!ref) return; // not a card: the page keeps the click
+      e.preventDefault();
+      e.stopPropagation();
+      noteAttention({ kind: "project", name: ref.name, slug: el.id });
+      pickEnd();
+      if (sendRef.current) sendRef.current(null, "tell me about this one");
+    };
+    document.addEventListener("click", onClick, true);
+    return () => {
+      off();
+      document.removeEventListener("click", onClick, true);
+    };
+  }, [pick]);
 
   /* during a tour the page behind the chat is live, and a click on it is
      the visitor taking over: the tour stops and the click goes through */
@@ -2583,11 +3043,16 @@ export default function FloatingHead({
   }, [tour]);
   useEffect(() => {
     if (!open && TOUR.running) tourEnd("closed");
+    if (!open && PICK.running) pickEnd();
   }, [open]);
 
   useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [msgs, slowNote]);
+  const empty = msgs.length === 0;
+  useEffect(() => {
+    if (empty) setStarters(pickStarters());
+  }, [empty]);
 
   useEffect(() => {
     /* Not on a phone: focusing the field summons the keyboard the instant the
@@ -2619,13 +3084,87 @@ export default function FloatingHead({
       hovered = { 1: "Skills", 2: "Projects", 3: "About", 4: "Resume" }[hoveredCard] || "";
     }
     const look = lookName(stateRef.current.look);
-    return look ? { path, hovered, look } : { path, hovered };
+    const ctx = look ? { path, hovered, look } : { path, hovered };
+    /* what the previous reply cost, as the drawer shows it, so the model can
+       explain its own figure when a visitor asks about it */
+    const prev = [...msgs].reverse().find((m) => m.role === "assistant" && m.stats && typeof m.stats.cents === "number");
+    if (prev) ctx.last = { cents: prev.stats.cents, wrote: prev.stats.cacheWrite > 0, model: String(prev.stats.model || "") };
+    return ctx;
+  };
+
+  /* one trick, by its token's name: the page-controlled effect behind each
+     token the model may open a reply with (and the dev lab's buttons) */
+  const performTrick = (kind) => {
+    const s = stateRef.current;
+    if (kind.startsWith("tint:")) {
+      const hex = kind.slice(6);
+      let r = parseInt(hex.slice(0, 2), 16) / 255;
+      let g = parseInt(hex.slice(2, 4), 16) / 255;
+      let b = parseInt(hex.slice(4, 6), 16) / 255;
+      /* brightness floor: the tint multiplies each dot's own luminance,
+         so "go black" would just switch the head off - keep the hue,
+         lift the level */
+      const m = Math.max(r, g, b);
+      if (m === 0) r = g = b = 0.45;
+      else if (m < 0.45) { r *= 0.45 / m; g *= 0.45 / m; b *= 0.45 / m; }
+      s.trickTint = [Math.min(1, r), Math.min(1, g), Math.min(1, b)];
+      s.tintWave = 0;
+      clearTimeout(s.tintTimer);
+      s.tintTimer = setTimeout(() => {
+        stateRef.current.trickTint = null;
+      }, 10000);
+      return;
+    }
+    if (kind === "fire") {
+      s.fireLive = true;
+      s.fireUntil = performance.now() + 3600;
+      /* while breathing fire the head does not narrate - it yells. The
+         reply text still lands in the transcript (flow() mutes its voice),
+         and the sequencer screams vowels through the gaping jaw instead. */
+      s.talkBuf = "AAAAAAAHHHHHAAAAAAAHHHHHHAAAAAHHH";
+      s.talkPos = 0;
+      s.talkNext = 0;
+      return;
+    }
+    if (FX[kind]) {
+      if (s.startFx) s.startFx(kind);
+      return;
+    }
+    if (kind === "spin") {
+      /* ~3 turns, POURED in over 1.6s with an ease-in-out rather than
+         injected in one frame - the head visibly accelerates into the
+         spin, peaks, and the frame loop's RETURN easing unwinds it,
+         exactly like letting go after a hard drag */
+      if (!s.reduced) s.spinFeed = { total: 33, t: 0, dur: 1.8 };
+      return;
+    }
+    /* the looks: remembered until the visitor asks for the default back.
+       Changing the look re-runs layout() - the lattice needs the texture
+       path at every size, and the path is chosen there. */
+    if (kind === "cloud") {
+      s.look = { ghost: false, lattice: false, wire: false };
+      writeLook(s.look);
+      s.ghostTarget = 0;
+      setLookEpoch((n) => n + 1);
+      return;
+    }
+    if (kind === "lattice" || kind === "wire") {
+      s.look = { ...s.look, [kind]: true };
+      writeLook(s.look);
+      setLookEpoch((n) => n + 1);
+      return;
+    }
+    // ghost
+    s.look = { ...s.look, ghost: true };
+    writeLook(s.look);
+    s.ghostTarget = 1;
   };
 
   const send = async (e, asked) => {
     if (e) e.preventDefault();
     const question = (asked != null ? asked : draft).trim();
     let before = msgs; // the transcript the question follows
+    if (PICK.running) pickEnd();
     if (TOUR.running) {
       /* a word to the tour rather than a question: Enter or "next" moves
          on, "stop" ends it with the chat still open; anything else ends it
@@ -2664,6 +3203,7 @@ export default function FloatingHead({
     setThinking("");
     setStats(null);
     setWkFocus(null);
+    stateRef.current.silent = false; // a question is answered aloud
     setWkTab("reply");
     setWkList(false);
     setWkPeek(null);
@@ -2702,65 +3242,7 @@ export default function FloatingHead({
     let trickFired = false;
     const fireTrick = (kind) => {
       trickFired = true;
-      const s = stateRef.current;
-      if (kind.startsWith("tint:")) {
-        const hex = kind.slice(6);
-        let r = parseInt(hex.slice(0, 2), 16) / 255;
-        let g = parseInt(hex.slice(2, 4), 16) / 255;
-        let b = parseInt(hex.slice(4, 6), 16) / 255;
-        /* brightness floor: the tint multiplies each dot's own luminance,
-           so "go black" would just switch the head off - keep the hue,
-           lift the level */
-        const m = Math.max(r, g, b);
-        if (m === 0) r = g = b = 0.45;
-        else if (m < 0.45) { r *= 0.45 / m; g *= 0.45 / m; b *= 0.45 / m; }
-        s.trickTint = [Math.min(1, r), Math.min(1, g), Math.min(1, b)];
-        s.tintWave = 0;
-        clearTimeout(s.tintTimer);
-        s.tintTimer = setTimeout(() => {
-          stateRef.current.trickTint = null;
-        }, 10000);
-        return;
-      }
-      if (kind === "fire") {
-        s.fireLive = true;
-        s.fireUntil = performance.now() + 3600;
-        /* while breathing fire the head does not narrate - it yells. The
-           reply text still lands in the transcript (flow() mutes its voice),
-           and the sequencer screams vowels through the gaping jaw instead. */
-        s.talkBuf = "AAAAAAAHHHHHAAAAAAAHHHHHHAAAAAHHH";
-        s.talkPos = 0;
-        s.talkNext = 0;
-        return;
-      }
-      if (kind === "spin") {
-        /* ~3 turns, POURED in over 1.6s with an ease-in-out rather than
-           injected in one frame - the head visibly accelerates into the
-           spin, peaks, and the frame loop's RETURN easing unwinds it,
-           exactly like letting go after a hard drag */
-        if (!s.reduced) s.spinFeed = { total: 33, t: 0, dur: 1.8 };
-        return;
-      }
-      /* the looks: remembered until the visitor asks for the default back.
-         Changing the look re-runs layout() - the lattice needs the texture
-         path at every size, and the path is chosen there. */
-      if (kind === "cloud") {
-        s.look = { ghost: false, lattice: false, wire: false };
-        writeLook(s.look);
-        s.ghostTarget = 0;
-        setLookEpoch((n) => n + 1);
-        return;
-      }
-      if (kind === "lattice" || kind === "wire") {
-        s.look = { ...s.look, [kind]: true };
-        writeLook(s.look);
-        setLookEpoch((n) => n + 1);
-        return;
-      }
-      // ghost
-      s.look = { ...s.look, ghost: true };
-      writeLook(s.look);
-      s.ghostTarget = 1;
+      performTrick(kind);
     };
 
     /* a stalled stream (hung upstream, half-dead connection) would wedge
@@ -2886,7 +3368,7 @@ export default function FloatingHead({
             tourFeed(raw, final);
             return;
           }
-          const m = probe.match(/^\[\[(ghost|spin|fire|tint:#[0-9a-fA-F]{6}|lattice|wire|cloud)\]\]\s*/);
+          const m = probe.match(/^\[\[(ghost|spin|fire|tint:#[0-9a-fA-F]{6}|lattice|wire|cloud|scatter|melt|shatter|ember|glitch|hue)\]\]\s*/);
           const act = m ? null : parseActToken(probe);
           if (m) {
             if (m[1] === "fire") muteVoice = true; // the scream replaces the narration
@@ -2933,7 +3415,7 @@ export default function FloatingHead({
           // feed the viseme sequencer - the mouth sounds out this exact text
           // (unless a fire scream owns the voice for this reply)
           if (!muteVoice) {
-            stateRef.current.talkBuf = (stateRef.current.talkBuf || "") + work;
+            stateRef.current.talkBuf = (stateRef.current.talkBuf || "") + spokenText(work);
           }
           replace(acc);
         }
@@ -3001,6 +3483,8 @@ export default function FloatingHead({
     }
   };
 
+  sendRef.current = send;
+
   const onStageDown = (e) => {
     const s = stateRef.current;
     s.dragging = true;
@@ -3036,6 +3520,7 @@ export default function FloatingHead({
       s.shake = 0;
       s.dizzy = 0; // a shake is not a spin - do not let it double-fire
       s.shakeAt = Date.now();
+      if (s.startFx) s.startFx("shatter"); // rattled hard enough: it comes apart, then reassembles
       const line = SHAKE_LINES[Math.floor(Math.random() * SHAKE_LINES.length)];
       setMsgs((prev) => prev.concat({ role: "assistant", content: line }));
       s.talkBuf = (s.talkBuf || "") + " " + line;
@@ -3210,6 +3695,7 @@ export default function FloatingHead({
         live: wkBusy && !!ph.thinkAt && !ph.textAt,
         tip: WK_TIPS.think,
         cents: null,
+        costNote: "incl.",
         status: wk.thinking ? kfmt(wk.thinking.length) + " chars" : "thinking…",
         body: <p className="fh-wk-body fh-wk-think">{wk.thinking ? wk.thinking : "…"}</p>,
       });
@@ -3295,10 +3781,10 @@ export default function FloatingHead({
       {open &&
         createPortal(
           <div
-            className={"fh-overlay" + (tour ? " fh-tour" : "")}
+            className={"fh-overlay" + (caption ? " fh-tour" : "") + (pick ? " fh-pick" : "")}
             ref={overlayRef}
           role="dialog"
-          aria-modal={tour ? "false" : "true"}
+          aria-modal={caption ? "false" : "true"}
           aria-label="3D portrait"
           onClick={() => {
             if (stateRef.current.moved > 6) {
@@ -3316,7 +3802,7 @@ export default function FloatingHead({
           >
             ×
           </button>
-          {CHAT_ENDPOINT && !tour && (
+          {CHAT_ENDPOINT && !caption && (
             <button
               type="button"
               className={"fh-close fh-help-btn" + (help ? " on" : "")}
@@ -3358,19 +3844,57 @@ export default function FloatingHead({
               }}
             >
             <div
-              className="fh-chat"
+              className={"fh-chat" + (caption && tourMin ? " fh-tour-min" : "")}
               ref={chatRef}
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
             >
               {/* on a tour the portrait shrinks to a caption-sized host above
                   the words, so the page behind can be seen changing */}
-              {tour && <div className="fh-tour-head" ref={tourHeadRef} aria-hidden="true" />}
+              {caption && (
+                <div
+                  className="fh-tour-head"
+                  ref={tourHeadRef}
+                  aria-hidden="true"
+                  onPointerDown={onStageDown}
+                  onPointerMove={onStageMove}
+                  onPointerUp={endDrag}
+                  onPointerCancel={endDrag}
+                />
+              )}
+              {caption && (
+                <div className="fh-tour-ctl">
+                  <button
+                    type="button"
+                    className="fh-tour-ctlb"
+                    onClick={() => setTourMin((v) => !v)}
+                    aria-label={tourMin ? "Expand the tour" : "Minimise the tour"}
+                    title={tourMin ? "expand" : "minimise"}
+                  >
+                    {tourMin ? "\u25B4" : "\u2013"}
+                  </button>
+                  <button type="button" className="fh-tour-ctlb" onClick={dismiss} aria-label="Close" title="close">
+                    {"\u00D7"}
+                  </button>
+                </div>
+              )}
+              {caption && tourMin && (
+                <button type="button" className="fh-tour-pill" onClick={() => setTourMin(false)}>
+                  {tour
+                    ? tourPage.ended
+                      ? "end of the tour"
+                      : tourPage.i < 0
+                        ? "starting the tour"
+                        : "stop " + (tourPage.i + 1) + (tourPage.more ? "" : " of " + tourPage.n)
+                    : "choose a project"}
+                  <span className="fh-caret open" aria-hidden="true">{"\u25B8"}</span>
+                </button>
+              )}
               {/* Outside the log on purpose: inside it, it scrolled away with
                   the transcript, so collapsing a long conversation meant
                   scrolling up to find the control that collapses it. The
                   workings toggle shares the row, on the right. */}
-              {!tour && (msgs.length > 2 || wk) && (
+              {!caption && (msgs.length > 0 || wk) && (
                 <div className="fh-tools">
                   {msgs.length > 2 ? (
                     <button
@@ -3388,6 +3912,33 @@ export default function FloatingHead({
                     </button>
                   ) : (
                     <span />
+                  )}
+                  <div className="fh-tools-r">
+                  {msgs.length > 0 && (
+                    <button
+                      type="button"
+                      className={"fh-more fh-clear" + (holdT > 0 ? " holding" : "")}
+                      style={{ "--hold": holdT }}
+                      onPointerDown={holdStart}
+                      onPointerUp={holdEnd}
+                      onPointerLeave={holdEnd}
+                      onPointerCancel={holdEnd}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") holdStart(e);
+                      }}
+                      onKeyUp={(e) => {
+                        if (e.key === "Enter" || e.key === " ") holdEnd();
+                      }}
+                      onContextMenu={(e) => e.preventDefault()}
+                      aria-label="Hold to clear the conversation"
+                      title="hold to clear"
+                    >
+                      <span className="fh-clear-fill" aria-hidden="true" />
+                      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" />
+                      </svg>
+                      <span className="fh-clear-t">{holdT > 0 ? "hold\u2026" : "clear"}</span>
+                    </button>
                   )}
                   {wk && (
                     <button
@@ -3433,9 +3984,10 @@ export default function FloatingHead({
                       <span className={"fh-caret" + (workings ? " open" : "")}>▸</span>
                     </button>
                   )}
+                  </div>
                 </div>
               )}
-              {!tour && wk && workings && (
+              {!caption && wk && workings && (
                 <section id="fh-workings" className="fh-workings" aria-label="How the answer was made">
                   {answered.length > 0 && (
                     <div className="fh-wk-head" role="tablist" aria-label="Workings views">
@@ -3640,13 +4192,28 @@ export default function FloatingHead({
                         <span className="fh-wk-k">
                           prompt
                         </span>
-                        <i className={"fh-wk-dot" + (wkStats && wkStats.cached > 0 ? " hit" : wkStats ? " miss" : "")} aria-hidden="true" />
+                        <i
+                          className={
+                            "fh-wk-dot" +
+                            (wkStats && wkStats.cached > 0 ? " hit" : wkStats && wkStats.cacheWrite > 0 ? " wrote" : wkStats ? " miss" : "")
+                          }
+                          aria-hidden="true"
+                        />
                         <span className="fh-wk-val">
                           {wkStats && typeof wkStats.cached === "number" ? (
-                            <>
-                              {wkStats.cached > 0 ? "cached" : "not cached"}{" "}
-                              <span className="fh-wk-gloss">· {kfmt(wkStats.cached > 0 ? wkStats.cached : wkStats.in)} tok</span>
-                            </>
+                            wkStats.cached > 0 ? (
+                              <>
+                                cached <span className="fh-wk-gloss">· {kfmt(wkStats.cached)} tok</span>
+                              </>
+                            ) : wkStats.cacheWrite > 0 ? (
+                              <>
+                                cache written <span className="fh-wk-gloss">· {kfmt(wkStats.cacheWrite)} tok · 1 h</span>
+                              </>
+                            ) : (
+                              <>
+                                not cached <span className="fh-wk-gloss">· {kfmt(wkStats.in)} tok</span>
+                              </>
+                            )
                           ) : (
                             "…"
                           )}
@@ -3730,7 +4297,7 @@ export default function FloatingHead({
                             </span>
                             <span className="fh-wk-smodel">{st.model}</span>
                             <span className="fh-wk-sms">{secs(st.ms)}</span>
-                            <span className="fh-wk-scost">{typeof st.cents === "number" ? usd(st.cents) : ""}</span>
+                            <span className="fh-wk-scost">{typeof st.cents === "number" ? usd(st.cents) : st.costNote || ""}</span>
                             <span className={"fh-caret" + (wkOpen[st.id] ? " open" : "")} aria-hidden="true">▸</span>
                           </button>
                           <span role="tooltip" id={"fh-tip-step-" + st.id} className="fh-tip-text">
@@ -3765,37 +4332,56 @@ export default function FloatingHead({
                   )}
                 </section>
               )}
-              {help && !tour && (
+              {help && !caption && (
                 <HelpSheet
                   onTry={(q) => send(null, q)}
                   onWorkings={() => {
                     setHelp(false);
                     if (!workings) toggleWorkings();
                   }}
+                  onPick={() => {
+                    setHelp(false);
+                    if (window.location.pathname !== "/projects") navigate("/projects");
+                    pickStart();
+                  }}
                   onClose={() => setHelp(false)}
                 />
               )}
-              {msgs.length > 0 && !help && (
+              {(msgs.length > 0 || pick) && !help && (
                 <div className="fh-log" ref={logRef}>
+                  {pick && (
+                    <p className="fh-msg fh-assistant fh-pick-line">
+                      <span className="fh-who">hyder</span>
+                      {pickHover ? (
+                        <>
+                          <span className="fh-lead">{pickHover}</span> {COARSE ? "- tap it and I'll tell you about it." : "- click it and I'll tell you about it."}
+                        </>
+                      ) : COARSE ? (
+                        "Tap a project card and I'll tell you about it."
+                      ) : (
+                        "Point at a project card and click it; I'll tell you about it."
+                      )}
+                    </p>
+                  )}
                   {tour && (
                     <>
                       {tourAsked && (
                         <p className="fh-msg fh-user">
                           <span className="fh-who">you</span>
-                          {emailifyText(tourAsked.content)}
+                          {userText(tourAsked.content)}
                         </p>
                       )}
                       <p key={"tour-page-" + tourPage.i} className="fh-msg fh-assistant fh-live fh-tour-page">
                         <span className="fh-who">hyder</span>
                         {tourPage.text ? (
-                          renderReply(tourPage.text, dismiss, true)
+                          renderReply(tourPage.text, dismiss, true, (q) => send(null, q))
                         ) : (
                           <span className="fh-cue fh-cue-wait" role="status" aria-label="thinking" />
                         )}
                       </p>
                     </>
                   )}
-                  {!tour && (showAll ? msgs : msgs.slice(-2)).map((m, i, shown) => {
+                  {!caption && (showAll ? msgs : msgs.slice(-2)).map((m, i, shown) => {
                     const last = i === shown.length - 1;
                     const base = showAll ? 0 : Math.max(0, msgs.length - 2); // index into msgs
                     /* the reply being delivered: words fade in as they arrive
@@ -3824,9 +4410,9 @@ export default function FloatingHead({
                             <span className="fh-tour-card-go">back to the tour ›</span>
                           </button>
                         ) : m.role === "assistant" ? (
-                          renderReply(m.content, dismiss, live)
+                          renderReply(m.content, dismiss, live, (q) => send(null, q))
                         ) : (
-                          emailifyText(m.content)
+                          userText(m.content)
                         )}
                         {m.role === "assistant" && last && busy ? (
                           <span
@@ -3893,6 +4479,28 @@ export default function FloatingHead({
                   </button>
                 </div>
               )}
+              {msgs.length === 0 && !help && !caption && (
+                <div className="fh-starters" aria-label="Things to try">
+                  {starters.map((q) => (
+                    <button
+                      key={q}
+                      type="button"
+                      className={"fh-starter" + (q === STARTER_STAR ? " fh-starter-star" : "")}
+                      onClick={() => send(null, q)}
+                    >
+                      {q}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {pick && (
+                <div className="fh-tour-bar">
+                  <span className="fh-tour-pos">choose a project</span>
+                  <button type="button" className="fh-tour-btn" onClick={() => pickEnd()}>
+                    cancel
+                  </button>
+                </div>
+              )}
               <form className="fh-ask" ref={askRef} onSubmit={send}>
                 <input
                   ref={inputRef}
@@ -3912,7 +4520,7 @@ export default function FloatingHead({
                       }
                     }
                   }}
-                  placeholder={tour ? "next · stop · or ask something" : "Ask me about my work"}
+                  placeholder={tour ? "next · stop · or ask something" : pick ? "or ask something" : "Ask me about my work"}
                   aria-label="Ask a question"
                   maxLength={1500}
                   /* Deliberately not disabled while a reply streams. Disabling
@@ -3925,9 +4533,9 @@ export default function FloatingHead({
                 </button>
               </form>
               <p className="fh-hint">
-                {tour ? "← → move between stops · esc closes" : "drag to rotate · esc to close"}
+                {tour ? "← → move between stops · esc closes" : pick ? "click a project card · esc cancels" : "drag to rotate · esc to close"}
                 {model ? " · " + model : ""}
-                {!tour && wk && wk.stats && typeof wk.stats.ms === "number" ? " · " + (wk.stats.ms / 1000).toFixed(1) + " s" : ""}
+                {!caption && wk && wk.stats && typeof wk.stats.ms === "number" ? " · " + (wk.stats.ms / 1000).toFixed(1) + " s" : ""}
               </p>
             </div>
             </ChatShield>

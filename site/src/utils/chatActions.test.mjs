@@ -1,11 +1,7 @@
 // Offline checks for the chat action tokens - run by `npm run test:chat`.
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import {
-  parseActToken, couldBeToken, tokenCap, resolveAction, stripExtraTokens,
-  parseTourToken, splitTourSteps, tourPause, tourCommand, MAX_TOUR_STOPS,
-  parseThinkOpen, splitThink, tailHold, parseStatsTail,
-} from "./chatActions.js";
+import { parseActToken, couldBeToken, tokenCap, resolveAction, stripExtraTokens, parseTourToken, splitTourSteps, tourPause, tourCommand, MAX_TOUR_STOPS, parseThinkOpen, splitThink, tailHold, parseStatsTail, splitMore, spokenText } from "./chatActions.js";
 
 const data = JSON.parse(fs.readFileSync(new URL("../../public/skillsData.json", import.meta.url), "utf8"));
 const skillIds = (data.skillNodes || []).map((n) => String(n.id)); // every id, as the page passes them
@@ -181,6 +177,23 @@ const ok = (n) => { passed++; console.log("  pass:", n); };
   assert.deepEqual(parseStatsTail("x\n[[stats:{broken]]"), { text: "x", stats: null }, "unparseable json: stripped, no stats");
   assert.deepEqual(parseStatsTail(""), { text: "", stats: null });
   ok("stats record held back and stripped");
+}
+
+// folds: [[more:Title]] ... [[/more]] becomes a closed section; partial markers are held back while streaming
+{
+  assert.deepEqual(splitMore("Short answer. [[more:the numbers]]800 commits, two years.[[/more]] And on."), [
+    { text: "Short answer. " },
+    { title: "the numbers", body: "800 commits, two years." },
+    { text: " And on." },
+  ]);
+  assert.deepEqual(splitMore("Plain reply, no fold."), [{ text: "Plain reply, no fold." }]);
+  assert.deepEqual(splitMore("Open [[more:how it broke]]still streaming"), [{ text: "Open " }, { title: "how it broke", body: "still streaming" }], "an unclosed fold runs to the end");
+  assert.equal(spokenText("A. [[more:x]]B.[[/more]] C."), "A. B. C.");
+  assert.equal(tailHold("Short answer. [[mo"), 14, "a fold marker being written is held");
+  assert.equal(tailHold("Short answer. [[more:the numbers]]800"), "Short answer. [[more:the numbers]]800".length, "a complete marker is released");
+  assert.equal(tailHold("done.[[/mo"), 5);
+  assert.equal(tailHold("x".repeat(20) + "[[" + "y".repeat(95)), 20 + 2 + 95, "brackets in prose past a token's length are text");
+  ok("folds: split, spoken text, partial markers held");
 }
 
 console.log(`ALL ${passed} ACTION CHECKS PASSED`);

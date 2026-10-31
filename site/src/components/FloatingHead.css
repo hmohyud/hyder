@@ -249,40 +249,9 @@
   border-color: rgba(195, 166, 255, 0.6);
   outline: none;
 }
-.fh-help-note {
-  flex-basis: 100%;
-  margin-top: 2px;
-  color: #6f788f;
-  font-size: 0.64rem;
-}
-.fh-help-keys {
-  margin: 8px 0 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 6px;
-  color: #6f788f;
-  font-size: 0.66rem;
-  letter-spacing: 0.04em;
-}
-.fh-help-keys kbd {
-  display: inline-block;
-  min-width: 1.6em;
-  padding: 0 5px;
-  border: 1px solid rgba(120, 130, 150, 0.5);
-  border-bottom-width: 2px;
-  border-radius: 5px;
-  background: rgba(14, 18, 26, 0.9);
-  color: #c9cfdd;
-  font: inherit;
-  text-align: center;
-  line-height: 1.5;
-}
-.fh-help-keys kbd + kbd {
-  margin-left: -3px;
-}
-.fh-help-drag {
-  margin-left: auto;
+/* the pick caption: the same card as a tour stop */
+.fh-pick-line .fh-lead {
+  color: #ffb86b;
 }
 @media (max-width: 640px) {
   .fh-help-grid {
@@ -686,6 +655,126 @@
 }
 
 /* project and page names inside a reply lead to their write-up */
+/* a word that does something: a chip in the reply, a mark in the visitor's line */
+.fh-trick-link {
+  display: inline;
+  padding: 0.02em 0.46em 0.06em;
+  border: 1px dashed rgba(195, 166, 255, 0.55);
+  border-radius: 999px;
+  background: rgba(195, 166, 255, 0.08);
+  color: #c3a6ff;
+  font: inherit;
+  line-height: inherit;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.fh-trick-link:hover,
+.fh-trick-link:focus-visible {
+  border-color: rgba(195, 166, 255, 0.95);
+  background: rgba(195, 166, 255, 0.16);
+  outline: none;
+}
+.fh-trick-word {
+  color: #c3a6ff;
+  text-decoration: underline dotted rgba(195, 166, 255, 0.6);
+  text-underline-offset: 3px;
+}
+/* an empty transcript: a row of things to try */
+.fh-starters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+.fh-starter {
+  padding: 2px 10px;
+  border: 1px solid rgba(70, 78, 96, 0.55);
+  border-radius: 999px;
+  background: rgba(8, 11, 16, 0.74);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  color: #9aa3b8;
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: color 0.18s ease, border-color 0.18s ease;
+}
+.fh-starter:hover,
+.fh-starter:focus-visible {
+  color: #c3a6ff;
+  border-color: rgba(195, 166, 255, 0.6);
+  outline: none;
+}
+/* the one lit chip: a slow violet breath and a spark, so the eye lands on it */
+.fh-starter-star {
+  color: #e9e0ff;
+  border-color: rgba(195, 166, 255, 0.75);
+  background: linear-gradient(135deg, rgba(195, 166, 255, 0.22), rgba(8, 11, 16, 0.74) 60%);
+  box-shadow: 0 0 0 0 rgba(195, 166, 255, 0.35);
+  animation: fhStarBreath 2.6s ease-in-out infinite;
+}
+.fh-starter-star::before {
+  content: "º6";
+  margin-right: 6px;
+  color: #c3a6ff;
+}
+.fh-starter-star:hover,
+.fh-starter-star:focus-visible {
+  color: #fff;
+  border-color: rgba(195, 166, 255, 1);
+}
+@keyframes fhStarBreath {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(195, 166, 255, 0.35); }
+  50% { box-shadow: 0 0 14px 2px rgba(195, 166, 255, 0.45); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fh-starter-star {
+    animation: none;
+    box-shadow: 0 0 10px 1px rgba(195, 166, 255, 0.4);
+  }
+}
+/* a fold: a second level of depth the visitor opens */
+.fh-fold {
+  display: block;
+  margin: 6px 0 4px;
+  border: 1px solid rgba(70, 78, 96, 0.5);
+  border-radius: 8px;
+  background: rgba(14, 18, 26, 0.55);
+  white-space: normal;
+}
+.fh-fold > summary {
+  padding: 4px 10px;
+  color: #9ed8ff;
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  list-style: none;
+}
+.fh-fold > summary::-webkit-details-marker {
+  display: none;
+}
+.fh-fold > summary::before {
+  content: "\25B8";
+  display: inline-block;
+  margin-right: 7px;
+  color: #6f788f;
+  transition: transform 0.18s ease;
+}
+.fh-fold[open] > summary::before {
+  transform: rotate(90deg);
+}
+.fh-fold > summary:hover,
+.fh-fold > summary:focus-visible {
+  color: #eaf6ff;
+  outline: none;
+}
+.fh-fold-body {
+  padding: 0 10px 7px;
+  border-top: 1px solid rgba(70, 78, 96, 0.35);
+  padding-top: 5px;
+  color: #c9cfdd;
+  white-space: pre-wrap;
+}
 .fh-proj-link {
   display: inline;
   padding: 0.02em 0.46em 0.06em;
@@ -787,6 +876,39 @@
 }
 .fh-wk-btn .fh-caret {
   margin-left: 6px;
+}
+.fh-tools-r {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* hold to clear: the pill fills from the left while held; let go early and it empties */
+.fh-tools .fh-clear {
+  position: relative;
+  overflow: hidden;
+  gap: 5px;
+  color: #6f788f;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+.fh-tools .fh-clear:hover,
+.fh-tools .fh-clear:focus-visible,
+.fh-tools .fh-clear.holding {
+  color: #ff9bbd;
+  border-color: rgba(255, 114, 161, 0.5);
+}
+.fh-clear-fill {
+  position: absolute;
+  inset: 0;
+  width: calc(var(--hold, 0) * 100%);
+  background: rgba(255, 114, 161, 0.28);
+  pointer-events: none;
+}
+.fh-clear svg,
+.fh-clear-t {
+  position: relative;
 }
 /* the collapsed toggle: the same glyphs, one line, no words but the name */
 .fh-wk-mini {
@@ -1175,6 +1297,10 @@
   background: #78ffa8;
   box-shadow: 0 0 6px rgba(120, 255, 168, 0.5);
 }
+.fh-wk-dot.wrote {
+  background: #ffb86b;
+  box-shadow: 0 0 6px rgba(255, 184, 107, 0.5);
+}
 .fh-wk-dot.miss {
   background: #6f788f;
 }
@@ -1510,6 +1636,19 @@
   }
 }
 @media (max-width: 640px) {
+  /* the tools row on a phone: the clear pill is its icon alone, the
+     collapsed workings toggle drops the cost, and nothing wraps */
+  .fh-tools .fh-more {
+    padding: 3px 8px;
+    font-size: 0.68rem;
+    white-space: nowrap;
+  }
+  .fh-clear-t {
+    display: none;
+  }
+  .fh-wk-mini .fh-wk-mini-t + .fh-wk-mini-t {
+    display: none;
+  }
   .fh-workings {
     display: flex;
     flex-direction: column;
@@ -1570,7 +1709,7 @@
   padding: 10px 12px 8px;
   border: 1px solid rgba(120, 255, 168, 0.22);
   border-radius: 14px;
-  background: rgba(8, 11, 16, 0.94);
+  background: #080b10; /* solid, and the disc above is the same: one surface, no seam */
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
 }
 .fh-tour .fh-log {
@@ -1592,14 +1731,19 @@
   width: 124px;
   height: 124px;
   margin: -73px auto -8px;
-  pointer-events: none;
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+}
+.fh-tour-head:active {
+  cursor: grabbing;
 }
 .fh-tour-head::before {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: rgba(8, 11, 16, 0.94);
+  background: #080b10;
 }
 .fh-tour-head::after {
   content: "";
@@ -1616,6 +1760,65 @@
   transform: none;
   width: 100%;
   height: 100%;
+}
+.fh-tour-ctl {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  display: flex;
+  gap: 2px;
+}
+.fh-tour-ctlb {
+  width: 24px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #6f788f;
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.fh-tour-ctlb:hover,
+.fh-tour-ctlb:focus-visible {
+  color: #c9cfdd;
+  background: rgba(120, 130, 150, 0.12);
+  outline: none;
+}
+/* folded: the head and a pill, the page in full view */
+.fh-tour-min {
+  width: auto !important;
+  min-width: 220px;
+  padding-bottom: 10px !important;
+}
+.fh-tour-min .fh-log,
+.fh-tour-min .fh-tour-bar,
+.fh-tour-min .fh-ask,
+.fh-tour-min .fh-hint {
+  display: none;
+}
+.fh-tour-pill {
+  margin: 6px auto 0;
+  padding: 3px 12px;
+  border: 1px solid rgba(120, 130, 150, 0.4);
+  border-radius: 999px;
+  background: rgba(12, 16, 22, 0.92);
+  color: #cfd4e0;
+  font: inherit;
+  font-size: 0.74rem;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+.fh-tour-pill .fh-caret {
+  margin-left: 6px;
+}
+.fh-tour-pill:hover,
+.fh-tour-pill:focus-visible {
+  color: #78ffa8;
+  border-color: rgba(120, 255, 168, 0.55);
+  outline: none;
 }
 .fh-tour-bar {
   display: flex;

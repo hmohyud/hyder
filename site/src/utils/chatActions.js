@@ -90,9 +90,41 @@ export function tailHold(text) {
   if (lb >= 0) {
     const tail = t.slice(lb);
     if (tail.startsWith("[[stats:") || "[[stats:".startsWith(tail)) return lb;
+    /* any other token still being written - a fold's [[more:Title]] or its
+       [[/more]] - is held until it closes, so "[[mo" never shows; past a
+       sane token length it is just text with brackets in it */
+    if (!tail.includes("]]") && tail.length <= 90) return lb;
   }
   if (t.endsWith("[")) return t.length - 1;
   return t.length;
+}
+
+/* ---------- folds ----------
+   A reply may put a second level of depth inside [[more:Title]] ... [[/more]]
+   (the prompt's "depth on demand"); the page shows it as a closed fold. */
+export const MORE_TOKEN_RX = /\[\[\/?more(?::[^\]]*)?\]\]/g;
+
+/** Split a reply into plain segments and folds: [{text} | {title, body}].
+ *  An unclosed fold (still streaming) runs to the end of the text. */
+export function splitMore(text) {
+  const t = String(text || "");
+  const rx = /\[\[more:([^\]]{1,80})\]\]([\s\S]*?)(?:\[\[\/more\]\]|$)/g;
+  const out = [];
+  let last = 0;
+  let m;
+  while ((m = rx.exec(t))) {
+    if (m.index > last) out.push({ text: t.slice(last, m.index) });
+    out.push({ title: m[1].trim(), body: m[2] });
+    last = m.index + m[0].length;
+    if (m[0].length === 0) rx.lastIndex += 1;
+  }
+  if (last < t.length) out.push({ text: t.slice(last) });
+  return out;
+}
+
+/** The reply with its fold markers removed: what the mouth sounds out. */
+export function spokenText(text) {
+  return String(text || "").replace(MORE_TOKEN_RX, "");
 }
 
 /** The stats record at the end of a finished reply, stripped off. */

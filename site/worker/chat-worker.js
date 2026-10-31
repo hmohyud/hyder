@@ -64,12 +64,19 @@ const SIZER_PROMPT =
   "4 a comparison, ranking or recommendation that must weigh several things; 5 a multi-part or subtle question needing care. " +
   "The word is the kind: chat, fact, explain, compare, tour, trick, other.";
 const EFFORT_FOR = { 1: "low", 2: "low", 3: "medium", 4: "high", 5: "high" };
+/* the performable tricks, as the prompt names them; one is drawn per turn
+   for "surprise me", so the picks are a real shuffle rather than the
+   model's habit (it favours the ghost) */
+const TRICKS = ["ghost", "spin", "fire", "a colour of your choosing", "lattice", "wire", "scatter", "melt", "shatter", "ember", "glitch", "hue"];
 /* the hand-off. A tour always goes to Sonnet (the stop protocol wants the
    stronger writer); no verdict in time means Sonnet at low effort, so a
    dead sizer costs quality nothing. */
 function routeFor(size) {
   if (!size) return { model: ANTHROPIC_MODEL, effort: "low" };
-  if (size.complexity <= 2 && size.kind !== "tour") return { model: LIGHT_MODEL, effort: "low" };
+  /* tours and tricks are protocol work (the right token, in the right place)
+     and short, so Sonnet does them whatever the rating: Haiku has been seen
+     answering "just choose one" with a tour token and a description */
+  if (size.complexity <= 2 && size.kind !== "tour" && size.kind !== "trick") return { model: LIGHT_MODEL, effort: "low" };
   return { model: ANTHROPIC_MODEL, effort: EFFORT_FOR[size.complexity] || "low" };
 }
 const round4 = (n) => Math.round(n * 10000) / 10000;
@@ -129,8 +136,23 @@ function chatContext(raw) {
   /* the head's current look (ghost, lattice, ghost+lattice): a remembered
      trick, so "why do you look like that" and "go back to normal" make sense */
   const look = typeof raw.look === "string" && /^[a-z+]{1,24}$/.test(raw.look) ? raw.look : "";
-  if (!path && !hovered && !look) return null;
-  return { path, hovered, look };
+  /* what the previous reply cost, as the page shows it: numbers and a model
+     id only, so "it was 9 cents" can be answered from the facts */
+  let last = null;
+  if (raw.last && typeof raw.last === "object") {
+    const cents = Number(raw.last.cents);
+    const model = typeof raw.last.model === "string" && /^[a-z0-9.-]{1,40}$/.test(raw.last.model) ? raw.last.model : "";
+    if (Number.isFinite(cents) && cents >= 0 && cents < 1000) last = { cents, wrote: raw.last.wrote === true, model };
+  }
+  if (!path && !hovered && !look && !last) return null;
+  return { path, hovered, look, last };
+}
+
+/* "9.0 cents", "0.03 cents", "a few hundredths of a cent" */
+function centsWords(cents) {
+  if (cents >= 1) return cents.toFixed(1) + " cents";
+  if (cents >= 0.1) return cents.toFixed(2) + " cents";
+  return "a few hundredths of a cent";
 }
 
 /* One sentence of fact, then the rule for using it. The rule rides along
@@ -150,11 +172,25 @@ function contextLine(context) {
       " The head is currently in its " + context.look.replace("+", " and ") +
       " look, which this visitor asked for earlier; it stays until they ask for the default (cloud) back.";
   }
+  if (context.last) {
+    const who = /haiku/.test(context.last.model) ? "Haiku" : /sonnet/.test(context.last.model) ? "Sonnet" : context.last.model ? "a backup model" : "";
+    line +=
+      " The reply before this one cost " + centsWords(context.last.cents) + " of the owner's API bill" +
+      (who ? " (answered by " + who + ")" : "") +
+      (context.last.wrote ? ", most of it writing the site's knowledge into the one-hour cache after an idle hour" : "") +
+      "; the visitor can see this in the workings drawer.";
+  }
+  /* a die for the turn, and a trick for it: when the visitor says "you
+     choose", the model takes these instead of always reaching for the first
+     option (or the ghost) */
+  const roll = 1 + Math.floor(Math.random() * 6);
+  const trick = TRICKS[Math.floor(Math.random() * TRICKS.length)];
   return (
     "Page context, from the site itself: " +
     line +
     ' Use it silently to resolve "this", "this one", "here" and "where am I"; ' +
-    "never mention it, the page or the card unless they ask."
+    "never mention it, the page or the card unless they ask." +
+    " Roll for this turn: " + roll + " of 6. Trick for this turn: " + trick + "."
   );
 }
 
