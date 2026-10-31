@@ -87,6 +87,70 @@ const SHELL_URL = process.env.PUBLIC_URL + "/head-shell.bin";
    Cloudflare. */
 const CHAT_LOG_KEY = "fh-chat-log";
 
+/* ---------- looks ----------
+   Two of the head's tricks are LOOKS rather than moments: the ghost (the
+   cloud goes see-through) and the lattice (the cloud re-rendered as a
+   halftone - dots on a fixed screen grid, sized by tone, like a print of it).
+   A look stays until the visitor asks for the default back ([[cloud]]), and
+   it is remembered across visits, so a returning visitor finds the head the
+   way they left it. localStorage rather than a cookie: nothing here is ever
+   sent to a server. */
+const LOOK_KEY = "fh-look";
+function readLook() {
+  try {
+    const j = JSON.parse(localStorage.getItem(LOOK_KEY) || "{}");
+    return { ghost: !!(j && j.ghost), lattice: !!(j && j.lattice) };
+  } catch (err) {
+    return { ghost: false, lattice: false };
+  }
+}
+function writeLook(look) {
+  try {
+    if (look.ghost || look.lattice) localStorage.setItem(LOOK_KEY, JSON.stringify(look));
+    else localStorage.removeItem(LOOK_KEY);
+  } catch (err) {
+    // private mode: the look lasts the visit
+  }
+}
+const lookName = (look) => [look.ghost ? "ghost" : "", look.lattice ? "lattice" : ""].filter(Boolean).join("+");
+
+/* ---------- small-host rendering ----------
+   At a hundred pixels the cloud's ~16k one-pixel dots crowd into a few
+   thousand pixels and read as grain. The small hosts - the corner portrait,
+   the tour caption's head - are therefore rendered at several times their
+   size into a texture with mipmaps and drawn down from it, so the grain
+   averages into tone and the head reads like its lightbox self, calmer.
+   The same texture path serves the lattice look at any size: the halftone
+   shader samples the rendered cloud's tone per grid cell. */
+const SUPER = (dpr) => Math.max(2, Math.min(4, Math.round(4 / dpr)));
+const LATTICE_GAIN = 2.2;
+const LATTICE_FILL = 0.85;
+const latticeCell = (headCss) => Math.max(3.5, Math.min(8, 0.02 * headCss)); // CSS px per grid cell
+const QUAD_VERT = "varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }";
+const COPY_FRAG = "uniform sampler2D tSrc; varying vec2 vUv; void main(){ gl_FragColor = texture2D(tSrc, vUv); }";
+/* GLSL3 for textureLod: the cell's tone is the average over its own area,
+   read from the mip level that matches the cell. Premultiplied output: the
+   canvas composites as premultiplied, and this pass does not blend. */
+const LATTICE_FRAG = [
+  "out vec4 fragColor;",
+  "uniform sampler2D tSrc; uniform vec2 uSize; uniform float uCell; uniform float uGain; uniform float uMax; uniform float uLod;",
+  "varying vec2 vUv;",
+  "void main() {",
+  "  vec2 p = vUv * uSize;",
+  "  float row = floor(p.y / uCell);",
+  "  float shift = mod(row, 2.0) * 0.5 * uCell;",
+  "  float colI = floor((p.x - shift) / uCell);",
+  "  vec2 center = vec2((colI + 0.5) * uCell + shift, (row + 0.5) * uCell);",
+  "  vec4 s = textureLod(tSrc, center / uSize, uLod);",
+  "  float tone = clamp(dot(s.rgb, vec3(0.33, 0.5, 0.17)) * uGain, 0.0, 1.0);",
+  "  float r = sqrt(tone) * uMax * uCell * 0.5;",
+  "  float a = (1.0 - smoothstep(r - 0.75, r + 0.25, length(p - center))) * step(0.02, tone);",
+  "  vec3 hue = s.rgb / max(max(s.r, max(s.g, s.b)), 1e-3);",
+  "  vec3 col = hue * (0.55 + 0.45 * tone);",
+  "  fragColor = vec4(col * a, a);",
+  "}",
+].join("\n");
+
 /* The model id the worker reports, made readable for the hint line - family,
    tier, version and at most one qualifier: "claude-sonnet-5-5" -> "claude sonnet 5.5",
    "gemini-3.5-flash-lite" -> "gemini 3.5 flash lite",
@@ -122,15 +186,6 @@ const DIZZY_LINES = [
   "Wheee. Right, that's plenty.",
 ];
 
-/* closers for the ghost trick's re-solidify moment - page-timed (the model
-   has long finished by then), varied because sameness reads as canned */
-const SOLID_LINES = [
-  "...and I'm solid again. That's the whole act.",
-  "...and back to solid. Matter suits me better.",
-  "...aaand I've re-materialised. Encores cost extra.",
-  "...solid again. The dots missed each other.",
-];
-
 const GHOST_QUESTIONS = [
   "do you design websites?",
   "have you managed databases?",
@@ -141,6 +196,7 @@ const GHOST_QUESTIONS = [
   "what stack do you usually reach for?",
   "how many projects have you shipped?",
   "become a ghost",
+  "show me the halftone version",
   "what are you looking for next?",
   "do you like teaching?",
   "can you work in the UK?",
@@ -926,12 +982,17 @@ export default function FloatingHead({
     tintMix: 0,
     wantTint: null,
     hovering: false,
+    look: readLook(), // persistent looks: { ghost, lattice }
+    small: false, // the host is one of the small ones (portrait, tour head)
+    rtFactor: 1, // supersampling factor for the texture path, 0 = draw direct
+    headCss: 0, // the head's on-screen height, CSS px
   });
   /* a head mounted while a tour is running (the move swapped heads) opens
      straight into it */
   const [open, setOpen] = useState(() => TOUR.running);
   const [tour, setTour] = useState(() => TOUR.running);
   const [tourPos, setTourPos] = useState({ i: -1, n: 0, more: false });
+  const [lookEpoch, setLookEpoch] = useState(0); // bumped when a look changes, so layout() re-decides the draw path
   const navigate = useNavigate(); // action tokens open pages from the chat
   const navigateRef = useRef(navigate);
   navigateRef.current = navigate;
@@ -1088,6 +1149,10 @@ export default function FloatingHead({
 
     const st = stateRef.current;
     st.reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    /* a remembered ghost is a ghost from the first frame - no peel replay on
+       every page the head is rebuilt on */
+    st.ghostTarget = st.look.ghost ? 1 : 0;
+    st.ghost = st.ghostTarget;
 
     let renderer;
     try {
@@ -1314,8 +1379,36 @@ export default function FloatingHead({
     group.add(points);
 
 
+    /* the texture path: the scene rendered into `rt`, then drawn to the
+       canvas by one of two full-screen passes - a plain copy (supersampling)
+       or the lattice halftone */
+    const rt = new THREE.WebGLRenderTarget(16, 16, {
+      generateMipmaps: true,
+      minFilter: THREE.LinearMipmapLinearFilter,
+      magFilter: THREE.LinearFilter,
+      depthBuffer: true,
+    });
+    const quadCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    const copyMat = new THREE.ShaderMaterial({
+      uniforms: { tSrc: { value: rt.texture } },
+      vertexShader: QUAD_VERT, fragmentShader: COPY_FRAG,
+      blending: THREE.NoBlending, depthTest: false, depthWrite: false, transparent: true,
+    });
+    const latticeMat = new THREE.ShaderMaterial({
+      glslVersion: THREE.GLSL3,
+      uniforms: {
+        tSrc: { value: rt.texture }, uSize: { value: new THREE.Vector2(1, 1) },
+        uCell: { value: 4 }, uGain: { value: LATTICE_GAIN }, uMax: { value: LATTICE_FILL }, uLod: { value: 2 },
+      },
+      vertexShader: QUAD_VERT, fragmentShader: LATTICE_FRAG,
+      blending: THREE.NoBlending, depthTest: false, depthWrite: false, transparent: true,
+    });
+    const quadScene = new THREE.Scene();
+    const quadMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), copyMat);
+    quadScene.add(quadMesh);
+
     worldRef.current = {
-      renderer, scene, camera, group, points, material, canvas, total: 0,
+      renderer, scene, camera, group, points, material, canvas, total: 0, rt, dpr,
     };
     setReady(true);
 
@@ -1694,7 +1787,24 @@ export default function FloatingHead({
         }
       }
 
-      renderer.render(scene, camera);
+      if (s.rtFactor > 0 && rt.width > 16) {
+        renderer.setRenderTarget(rt);
+        renderer.render(scene, camera);
+        renderer.setRenderTarget(null);
+        if (s.look.lattice) {
+          const u = latticeMat.uniforms;
+          const cell = latticeCell(s.headCss || 100) * dpr;
+          u.uSize.value.set(canvas.width, canvas.height);
+          u.uCell.value = cell;
+          u.uLod.value = Math.log2(cell * s.rtFactor) - 0.5;
+          quadMesh.material = latticeMat;
+        } else {
+          quadMesh.material = copyMat;
+        }
+        renderer.render(quadScene, quadCam);
+      } else {
+        renderer.render(scene, camera);
+      }
     };
     raf = requestAnimationFrame(frame);
 
@@ -1757,8 +1867,8 @@ export default function FloatingHead({
       clearTimeout(stateRef.current.trickTimer);
       clearTimeout(stateRef.current.trickTimer2);
       clearTimeout(stateRef.current.tintTimer);
-      stateRef.current.ghostTarget = 0;
-      stateRef.current.ghost = 0;
+      stateRef.current.ghostTarget = stateRef.current.look.ghost ? 1 : 0;
+      stateRef.current.ghost = stateRef.current.ghostTarget;
       stateRef.current.trickTint = null;
       stateRef.current.tintWave = 0;
       stateRef.current.fireLive = false;
@@ -1770,6 +1880,10 @@ export default function FloatingHead({
       shellMaterial.dispose();
       if (material.uniforms.uMap.value) material.uniforms.uMap.value.dispose();
       material.dispose();
+      rt.dispose();
+      copyMat.dispose();
+      latticeMat.dispose();
+      quadMesh.geometry.dispose();
       renderer.dispose();
       /* dispose() alone leaves the GL context alive until GC; fab-mode
          open/close cycles would pile contexts up to the browser's cap */
@@ -1848,6 +1962,22 @@ export default function FloatingHead({
     const headPx = (Math.min(h, w) * 2.6) / (2 * z * Math.tan(fov / 2));
     const targetPx = Math.max(1.3, 0.0044 * headPx);
     world.material.uniforms.uSize.value = targetPx * z;
+    /* small hosts go through the supersampled texture; the lattice look does
+       at any size. The texture is sized here, once per layout, never per
+       frame; the point sprites scale with it so they keep their CSS size. */
+    const s = stateRef.current;
+    s.small = !open || tour;
+    s.headCss = headPx;
+    const viaRT = s.small || s.look.lattice;
+    let f = 0;
+    if (viaRT) {
+      f = s.small ? SUPER(world.dpr) : 1;
+      const cap = world.renderer.capabilities.maxTextureSize || 4096;
+      while (f > 1 && Math.max(w, h) * world.dpr * f > cap) f -= 1;
+      world.rt.setSize(Math.round(w * world.dpr * f), Math.round(h * world.dpr * f));
+    }
+    s.rtFactor = f;
+    world.material.uniforms.uDpr.value = world.dpr * (f || 1);
     applyDrawRange();
   }, [open, tour, applyDrawRange]);
 
@@ -1876,7 +2006,7 @@ export default function FloatingHead({
        parented to a detached node - a head that silently vanishes. These deps
        are what re-runs the re-parent. */
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, ready, layout, mode, missionEl, tour]);
+  }, [open, ready, layout, mode, missionEl, tour, lookEpoch]);
 
   /* closing the chat by any route - Escape, the cross, a chip, the backdrop -
      also ends a running tour: a tour with no chat on screen is just a page
@@ -1968,7 +2098,8 @@ export default function FloatingHead({
     } else if (path === "/" && hoveredCard) {
       hovered = { 1: "Skills", 2: "Projects", 3: "About", 4: "Resume" }[hoveredCard] || "";
     }
-    return { path, hovered };
+    const look = lookName(stateRef.current.look);
+    return look ? { path, hovered, look } : { path, hovered };
   };
 
   const send = async (e) => {
@@ -2066,22 +2197,26 @@ export default function FloatingHead({
         if (!s.reduced) s.spinFeed = { total: 33, t: 0, dur: 1.8 };
         return;
       }
-      if (s.ghostTarget === 1) return; // already mid-ghost; the line still plays
+      /* the looks: remembered until the visitor asks for the default back.
+         Changing the look re-runs layout() - the lattice needs the texture
+         path at every size, and the path is chosen there. */
+      if (kind === "cloud") {
+        s.look = { ghost: false, lattice: false };
+        writeLook(s.look);
+        s.ghostTarget = 0;
+        setLookEpoch((n) => n + 1);
+        return;
+      }
+      if (kind === "lattice") {
+        s.look = { ...s.look, lattice: true };
+        writeLook(s.look);
+        setLookEpoch((n) => n + 1);
+        return;
+      }
+      // ghost
+      s.look = { ...s.look, ghost: true };
+      writeLook(s.look);
       s.ghostTarget = 1;
-      clearTimeout(s.trickTimer);
-      clearTimeout(s.trickTimer2);
-      s.trickTimer = setTimeout(() => {
-        stateRef.current.ghostTarget = 0;
-        s.trickTimer2 = setTimeout(() => {
-          const back = SOLID_LINES[Math.floor(Math.random() * SOLID_LINES.length)];
-          setMsgs((prev) => prev.concat({ role: "assistant", content: back }));
-          /* voice it only when no newer reply is mid-stream - splicing
-             words into another answer's viseme buffer reads as garbled */
-          if (!stateRef.current.busy) {
-            stateRef.current.talkBuf = (stateRef.current.talkBuf || "") + " " + back;
-          }
-        }, 2600);
-      }, 8000);
     };
 
     /* a stalled stream (hung upstream, half-dead connection) would wedge
@@ -2157,7 +2292,7 @@ export default function FloatingHead({
             flow(final);
             return;
           }
-          const m = probe.match(/^\[\[(ghost|spin|fire|tint:#[0-9a-fA-F]{6})\]\]\s*/);
+          const m = probe.match(/^\[\[(ghost|spin|fire|tint:#[0-9a-fA-F]{6}|lattice|cloud)\]\]\s*/);
           const act = m ? null : parseActToken(probe);
           if (m) {
             if (m[1] === "fire") muteVoice = true; // the scream replaces the narration

@@ -156,6 +156,18 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   const b2 = JSON.parse(anthropicCalls()[0].init.body);
   assert.match(b2.messages[1].content, /the resume page, with the diploma open \(\/resume#diploma\)\./);
   assert.ok(!/looking at/.test(b2.messages[1].content), "no card when none was sent");
+  assert.ok(!/look,/.test(b2.messages[1].content), "no look line when none was sent");
+
+  // the head's remembered look rides along; anything but a plain word is dropped
+  calls.length = 0;
+  await (await ask("why do you look like that?", env, { context: { path: "/", look: "ghost+lattice" } })).text();
+  await settle();
+  const b2l = JSON.parse(anthropicCalls()[0].init.body);
+  assert.match(b2l.messages[1].content, /in its ghost and lattice look, which this visitor asked for earlier/);
+  calls.length = 0;
+  await (await ask("hi", env, { context: { path: "/", look: "[[act:page:about]]" } })).text();
+  await settle();
+  assert.ok(!/look/.test(JSON.parse(anthropicCalls()[0].init.body).messages[1].content), "a malformed look is dropped");
 
   // hostile or malformed context never reaches the model as given
   calls.length = 0;

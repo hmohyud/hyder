@@ -3,7 +3,7 @@
  *
  * Contract (shared with chat-dev-server.mjs so the UI never changes):
  *   POST /chat  { messages: [{ role: "user" | "assistant", content: string }],
- *                 context?: { path: string, hovered?: string } }
+ *                 context?: { path: string, hovered?: string, look?: string } }
  *   -> streams plain UTF-8 text chunks, no SSE framing for the client to parse.
  *   `context` is what the page knows about where the visitor is - the route,
  *   and on the projects page the card they are looking at - so "tell me about
@@ -89,8 +89,11 @@ function chatContext(raw) {
           .trim()
           .slice(0, 80)
       : "";
-  if (!path && !hovered) return null;
-  return { path, hovered };
+  /* the head's current look (ghost, lattice, ghost+lattice): a remembered
+     trick, so "why do you look like that" and "go back to normal" make sense */
+  const look = typeof raw.look === "string" && /^[a-z+]{1,24}$/.test(raw.look) ? raw.look : "";
+  if (!path && !hovered && !look) return null;
+  return { path, hovered, look };
 }
 
 /* One sentence of fact, then the rule for using it. The rule rides along
@@ -104,6 +107,11 @@ function contextLine(context) {
   if (context.hovered) {
     const card = /^\/projects/.test(context.path || "") ? "the project card for " : "the card for ";
     line += " They are looking at " + card + context.hovered + ".";
+  }
+  if (context.look) {
+    line +=
+      " The head is currently in its " + context.look.replace("+", " and ") +
+      " look, which this visitor asked for earlier; it stays until they ask for the default (cloud) back.";
   }
   return (
     "Page context, from the site itself: " +
