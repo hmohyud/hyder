@@ -477,7 +477,11 @@ export default function LandingFocus() {
         worst = 0;
       }
     };
-    const ringColor = getComputedStyle(grid.querySelector(".card")).borderTopColor || "rgba(255,255,255,0.1)";
+    const cardStyle = getComputedStyle(grid.querySelector(".card"));
+    const ringColor = cardStyle.borderTopColor || "rgba(255,255,255,0.1)";
+    /* the cut edge is the card's own border: its width, doubled because the
+       inner half of the stroke is clipped away */
+    const ringWidth = 2 * (parseFloat(cardStyle.borderTopWidth) || 1);
     const bgCanvas = () => document.querySelector("canvas.bg-particles");
 
     let raf = 0;
@@ -605,7 +609,7 @@ export default function LandingFocus() {
       outside.rect(0, 0, gw, gh);
       outside.addPath(blob);
       ctx.clip(outside, "evenodd");
-      ctx.lineWidth = 2;
+      ctx.lineWidth = ringWidth;
       ctx.strokeStyle = ringColor;
       ctx.globalAlpha = 1 - 0.7 * focusT;
       ctx.stroke(blob);

@@ -322,3 +322,15 @@
   outline-offset: 6px;
   border-radius: 4px;
 }
+
+/* heavier outlines: the cards' border doubled and brightened; the cloud's
+   cut edge follows it (the window reads the card's border width and colour,
+   so the two always match) */
+.landing-focus .focus-grid .card {
+  border-width: 2px;
+  border-color: rgba(255, 255, 255, 0.22);
+}
+.landing-focus .focus-front .card.card-hover-active {
+  border-width: 2px;
+  border-color: rgba(255, 255, 255, 0.34);
+}
