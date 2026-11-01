@@ -308,6 +308,7 @@ export default function LandingFocus() {
     /* the pointer, for the light that gathers on the cloud's edge as it
        comes near: in viewport px, null when it has left the page */
     let pointer = null;
+    let lastNear = 0; // the hovered twin's last reveal strength, carried into its fade
     let headRect = null, headRectAt = 0; // the head canvas's place on screen, read now and then
     const outlinePub = {
       cx: 0, cy: 0, live: null, scale: 1,
@@ -606,6 +607,7 @@ export default function LandingFocus() {
         const edge = live[ri];
         const nearLin = Math.max(0, 1 - Math.max(0, dist - edge) / LIGHT_REACH);
         const near = nearLin * nearLin; // eases in: faint far out, present close by
+        lastNear = near;
         if (near > 0.02) {
           const tr = twin.getBoundingClientRect();
           const box = new Path2D();
@@ -644,8 +646,9 @@ export default function LandingFocus() {
 
       /* a copy that is fading away (card-leaving, for the fade's length):
          the cloud and the head stay painted over its cloud part as they
-         were while it was hovered, so the cloud does not jump back to solid
-         for the fade's duration */
+         were while it was hovered - at the strength they had, and fading
+         with the copy itself. Painted at a fixed strength they lingered as
+         a lit rectangle over the head after the card beneath had gone. */
       const leaving = live ? root.querySelectorAll(".focus-front .card.card-leaving") : [];
       if (leaving.length) {
         const headCanvas = document.querySelector(".focus-head canvas");
@@ -656,13 +659,16 @@ export default function LandingFocus() {
           }
           for (const el of leaving) {
             if (el.classList.contains("card-hover-active")) continue;
+            const fade = parseFloat(getComputedStyle(el).opacity) || 0;
+            const a = REVEAL_MAX * lastNear * fade;
+            if (a < 0.01) continue;
             const tr = el.getBoundingClientRect();
             const box = new Path2D();
             box.roundRect((tr.left - left) / scale, (tr.top - top) / scale, tr.width / scale, tr.height / scale, CARD_RADIUS);
             lctx.save();
             lctx.clip(box);
             lctx.clip(blob);
-            lctx.globalAlpha = REVEAL_MAX;
+            lctx.globalAlpha = a;
             lctx.drawImage(win, 0, 0, gw, gh);
             lctx.drawImage(headCanvas, (headRect.left - left) / scale, (headRect.top - top) / scale, headRect.width / scale, headRect.height / scale);
             lctx.restore();
