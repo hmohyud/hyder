@@ -684,7 +684,7 @@ const Icon = ({ id }) => (
 );
 
 /* the "?" sheet: tiles to click, swatches for the looks, the keys */
-function HelpSheet({ onTry, onWorkings, onPick, onClose }) {
+function HelpSheet({ onTry, onTrick, onWorkings, onPick, onClose }) {
   return (
     <section className="fh-help" aria-label="What this can do">
       <p className="fh-help-head">
@@ -716,7 +716,7 @@ function HelpSheet({ onTry, onWorkings, onPick, onClose }) {
       <div className="fh-help-looks" role="group" aria-label="Tricks">
         <span className="fh-help-label">tricks</span>
         {LOOKS.map((l) => (
-          <button key={l.id} type="button" className="fh-help-look" onClick={() => onTry(l.q)} title={"\u201c" + l.q + "\u201d"}>
+          <button key={l.id} type="button" className="fh-help-look" onClick={() => onTrick(l.id === "tint" ? "tint:#4f8cff" : l.id)} title={l.t}>
             <Icon id={l.id} />
             <span>{l.t}</span>
           </button>
@@ -1305,19 +1305,22 @@ function emailifyText(text) {
 /* the words that do something when asked: in a reply each is a chip that
    asks for it; in the visitor's own line each is marked, so the word that
    set the head off is visible */
+/* kind: the token the head performs on its own when the chip is clicked -
+   no question is sent, no reply comes back, the trick just happens. The
+   tour has no kind: it is a conversation, so it is still asked for. */
 const TRICK_REFS = [
-  { word: "ghost", q: "become a ghost" },
-  { word: "halftone", q: "show me the halftone version" },
-  { word: "wireframe", q: "show me the wireframe" },
-  { word: "spin", q: "do a spin" },
-  { word: "fire", q: "breathe fire" },
+  { word: "ghost", q: "become a ghost", kind: "ghost" },
+  { word: "halftone", q: "show me the halftone version", kind: "lattice" },
+  { word: "wireframe", q: "show me the wireframe", kind: "wire" },
+  { word: "spin", q: "do a spin", kind: "spin" },
+  { word: "fire", q: "breathe fire", kind: "fire" },
   { word: "tour", q: "give me a tour" },
-  { word: "scatter", q: "scatter yourself" },
-  { word: "melt", q: "melt" },
-  { word: "shatter", q: "shatter" },
-  { word: "sparks", q: "turn to sparks" },
-  { word: "glitch", q: "glitch out" },
-  { word: "rainbow", q: "run a rainbow across your face" },
+  { word: "scatter", q: "scatter yourself", kind: "scatter" },
+  { word: "melt", q: "melt", kind: "melt" },
+  { word: "shatter", q: "shatter", kind: "shatter" },
+  { word: "sparks", q: "turn to sparks", kind: "ember" },
+  { word: "glitch", q: "glitch out", kind: "glitch" },
+  { word: "rainbow", q: "run a rainbow across your face", kind: "hue" },
 ];
 const TRICK_RX = new RegExp("\\b(" + TRICK_REFS.map((t) => t.word).join("|") + ")\\b", "i");
 const trickFor = (word) => TRICK_REFS.find((t) => t.word === String(word).toLowerCase());
@@ -1349,7 +1352,7 @@ function linkParts(text) {
       for (let k = 0; k < words.length; k++) {
         if (!words[k]) continue;
         const tr = k % 2 === 1 ? trickFor(words[k]) : null;
-        out.push(tr ? { text: words[k], trick: tr.q } : { text: words[k] });
+        out.push(tr ? { text: words[k], trick: tr.q, kind: tr.kind || null } : { text: words[k] });
       }
     }
   });
@@ -1470,8 +1473,8 @@ function renderInline(text, onNavigate, live, onAsk, keyBase) {
           key={k("t")}
           type="button"
           className={"fh-trick-link" + fade}
-          title={"\u201c" + part.trick + "\u201d"}
-          onClick={() => onAsk && onAsk(part.trick)}
+          title={part.kind ? part.text : "\u201c" + part.trick + "\u201d"}
+          onClick={() => onAsk && onAsk(part.trick, part.kind)}
         >
           {part.text}
         </button>
@@ -4924,6 +4927,10 @@ export default function FloatingHead({
               {help && !caption && (
                 <HelpSheet
                   onTry={(q) => send(null, q)}
+                  onTrick={(kind) => {
+                    setHelp(false);
+                    performTrick(kind);
+                  }}
                   onWorkings={() => {
                     setHelp(false);
                     if (!workings) toggleWorkings();
@@ -4963,7 +4970,7 @@ export default function FloatingHead({
                       <p key={"tour-page-" + tourPage.i} className="fh-msg fh-assistant fh-live fh-tour-page">
                         <span className="fh-who">hyder</span>
                         {tourPage.text ? (
-                          renderReply(tourPage.text, dismiss, true, (q) => send(null, q))
+                          renderReply(tourPage.text, dismiss, true, (q, kind) => (kind ? performTrick(kind) : send(null, q)))
                         ) : (
                           <span className="fh-cue fh-cue-wait" role="status" aria-label="thinking" />
                         )}
@@ -4999,7 +5006,7 @@ export default function FloatingHead({
                             <span className="fh-tour-card-go">back to the tour ›</span>
                           </button>
                         ) : m.role === "assistant" ? (
-                          renderReply(m.content, dismiss, live, (q) => send(null, q))
+                          renderReply(m.content, dismiss, live, (q, kind) => (kind ? performTrick(kind) : send(null, q)))
                         ) : (
                           userText(m.content)
                         )}
