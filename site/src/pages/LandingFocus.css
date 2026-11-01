@@ -21,12 +21,32 @@
 }
 
 /* at 1050px and below the portrait lives in the mission paragraph
-   (FloatingHead's tablet layout): no cloud, no hit area, no light */
+   (FloatingHead's tablet layout): no cloud, no hit area, no light. The
+   cards' 300px floor was for the cloud's sake; here they hug their title
+   and preview, and the grid sits centred in whatever height is left under
+   the hero rather than leaving a blank band inside every card. */
 @media (max-width: 1050px) {
   .focus-window,
   .focus-light,
   .focus-hit {
     display: none;
+  }
+  .landing-focus .focus-grid .card {
+    min-height: 0; /* outranks the 300px floor below, which is written later in this file */
+  }
+  .landing-focus {
+    display: flex;
+    flex-direction: column;
+  }
+  .focus-wrap {
+    flex: 1; /* the wrap fills the landing's height, so the stage can take what the hero leaves */
+    width: 100%;
+  }
+  .focus-stage {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
   }
 }
 

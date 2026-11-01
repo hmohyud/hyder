@@ -287,13 +287,35 @@ export default function LandingFocus() {
     if (!wrap) return;
     const fit = () => {
       wrap.style.transform = "none";
-      const natural = wrap.scrollHeight;
-      const s = Math.min(1, window.innerHeight / natural);
+      /* the in-flow content's extent (the hero and the stage), not
+         scrollHeight: the portrait's canvas is positioned over the stage
+         and overflows it by hundreds of pixels, and scrollHeight counted
+         that, which shrank the whole desktop page once the head was in */
+      let natural = 0;
+      for (const child of wrap.children) natural = Math.max(natural, child.offsetTop + child.offsetHeight);
+      natural += parseFloat(getComputedStyle(wrap).paddingBottom) || 0;
+      const s = natural > 0 ? Math.min(1, window.innerHeight / natural) : 1;
       wrap.style.transform = s < 1 ? `scale(${s})` : "none";
     };
     fit();
+    /* the content's height settles after the first fit: fonts land, the
+       portrait moves into the mission paragraph on tablet, the cards take
+       their final size. A fit measured before that stayed stale (too small)
+       until the window was resized, so the hero and the grid are watched
+       and the fit re-runs when they change. */
     window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
+    let ro = null;
+    if (window.ResizeObserver) {
+      ro = new ResizeObserver(fit);
+      for (const el of wrap.children) ro.observe(el);
+    }
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+    const retries = [400, 1200, 3000].map((ms) => setTimeout(fit, ms));
+    return () => {
+      window.removeEventListener("resize", fit);
+      if (ro) ro.disconnect();
+      retries.forEach(clearTimeout);
+    };
   }, []);
 
   useEffect(() => {
