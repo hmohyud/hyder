@@ -1565,6 +1565,13 @@ export default function Projects() {
           /* minor-tier thumbs stay small and sit beside the text */
           .rot-img.rot-img-sm { width: 118px; flex: 0 0 118px; height: 80px; }
         }
+        /* narrow screens centre the page: the heading, the filter pills, each
+           project's row (its images and text block) and every project title;
+           the body copy stays left-aligned inside its block, for reading */
+        @media (max-width: 880px) {
+          .proj-h1, .proj-section, .proj-title { text-align: center; }
+          .proj-pills, .proj-row { justify-content: center; }
+        }
         /* hover note on link pills (links with a note field) */
         .pill-tipwrap { position: relative; display: inline-block; }
         .pill-tip {
@@ -1594,6 +1601,7 @@ export default function Projects() {
       `}</style>
 
       <h1
+        className="proj-h1"
         style={{
           fontSize: "2rem",
           marginBottom: "1.2rem",
@@ -1606,6 +1614,7 @@ export default function Projects() {
 
       {/* Category filter pills */}
       <div
+        className="proj-pills"
         style={{
           display: "flex",
           flexWrap: "wrap",
@@ -1684,6 +1693,7 @@ export default function Projects() {
             }}
           >
           <div
+            className="proj-row"
             style={{
               display: "flex",
               flexWrap: "wrap",
@@ -1712,8 +1722,9 @@ export default function Projects() {
             />
 
             {/* Text/content */}
-            <div style={{ flex: "1 1 500px" }}>
+            <div className="proj-text" style={{ flex: "1 1 500px" }}>
               <h2
+                className="proj-title"
                 style={{
                   color: proj.color,
                   margin: "0 0 0.5rem 0",
@@ -1865,6 +1876,7 @@ export default function Projects() {
             }}
           >
             <h2
+              className="proj-section"
               style={{
                 fontSize: "1.15rem",
                 color: "#9aa3ad",
@@ -1886,6 +1898,7 @@ export default function Projects() {
                   id={projectSlug(proj.title)}
                   onMouseEnter={() => noteAttention({ kind: "project", name: projectShortName(proj.title), slug: projectSlug(proj.title) })}
                   onClickCapture={() => noteAttention({ kind: "project", name: projectShortName(proj.title), slug: projectSlug(proj.title) })}
+                  className="proj-row proj-row-sm"
                   style={{
                     scrollMarginTop: "84px",
                     display: "flex",
@@ -1913,8 +1926,9 @@ export default function Projects() {
                       });
                     }}
                   />
-                  <div style={{ flex: "1 1 150px" }}>
+                  <div className="proj-text" style={{ flex: "1 1 150px" }}>
                     <h3
+                      className="proj-title"
                       style={{
                         color: proj.color,
                         margin: "0 0 0.35rem 0",

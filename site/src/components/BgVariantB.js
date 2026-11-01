@@ -13,6 +13,72 @@ import { useEffect, useRef } from "react";
  * Props:
  *   magnetTarget — ref to the DOM element particles should magnetize toward (or null)
  */
+/* The dots drawn with WebGL: everything a frame draws goes up in one draw
+   call. Through the 2D canvas each of ~1660 dots
+   was a command for the GPU process to unpack - measured on a 240 Hz
+   display as 1.5 ms of a 4.2 ms frame, on that process's one busy thread.
+   Positions are page px; the shaders map them to clip space. Colour is
+   premultiplied on output, so the canvas composites over the page as the
+   2D one did. */
+const POINT_VS = `
+attribute vec2 aPos; attribute float aSize; attribute vec4 aColor;
+uniform vec2 uView; uniform float uDpr;
+varying vec4 vColor; varying float vPx;
+void main() {
+  gl_Position = vec4(aPos.x / uView.x * 2.0 - 1.0, 1.0 - aPos.y / uView.y * 2.0, 0.0, 1.0);
+  vPx = aSize * 2.0 * uDpr + 2.0;
+  gl_PointSize = vPx;
+  vColor = aColor;
+}`;
+const POINT_FS = `
+precision mediump float;
+varying vec4 vColor; varying float vPx;
+void main() {
+  float r = (vPx - 2.0) * 0.5;
+  float d = length((gl_PointCoord - 0.5) * vPx);
+  float cov = 1.0 - smoothstep(r - 0.7, r + 0.7, d);
+  float tiny = min(1.0, 3.1416 * r * r);
+  float a = vColor.a * cov * tiny;
+  gl_FragColor = vec4(vColor.rgb * a, a);
+}`;
+function makeGlRenderer(canvas) {
+  const gl = canvas.getContext("webgl", {
+    alpha: true, antialias: false, depth: false, stencil: false,
+    premultipliedAlpha: true,
+    /* the landing's window copies this canvas from another loop's frame,
+       so the drawing buffer must survive compositing */
+    preserveDrawingBuffer: true,
+  });
+  if (!gl || gl.isContextLost()) return null;
+  const r = { gl, lost: false, points: new Float32Array(7 * 4096), nPoints: 0 };
+  const build = () => {
+    const compile = (type, src) => {
+      const sh = gl.createShader(type);
+      gl.shaderSource(sh, src);
+      gl.compileShader(sh);
+      if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(sh) || "shader");
+      return sh;
+    };
+    const program = (vs, fs) => {
+      const p = gl.createProgram();
+      gl.attachShader(p, compile(gl.VERTEX_SHADER, vs));
+      gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs));
+      gl.linkProgram(p);
+      if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p) || "program");
+      return p;
+    };
+    const pp = program(POINT_VS, POINT_FS);
+    r.pts = { p: pp, aPos: gl.getAttribLocation(pp, "aPos"), aSize: gl.getAttribLocation(pp, "aSize"), aColor: gl.getAttribLocation(pp, "aColor"), uView: gl.getUniformLocation(pp, "uView"), uDpr: gl.getUniformLocation(pp, "uDpr") };
+    r.pointBuf = gl.createBuffer();
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  };
+  try { build(); } catch (e) { return null; }
+  canvas.addEventListener("webglcontextlost", (e) => { e.preventDefault(); r.lost = true; });
+  canvas.addEventListener("webglcontextrestored", () => { try { build(); r.lost = false; } catch (e) { /* stays lost */ } });
+  return r;
+}
+
 export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget }) {
   const canvasRef = useRef(null);
   const magnetTargetRef = useRef(null);
@@ -29,7 +95,13 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget })
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
+    /* the effect may run again on the same canvas (StrictMode, hot reload):
+       a canvas that already holds a WebGL context hands the same one back,
+       and makeGlRenderer builds on it again; a canvas that can do neither
+       draws nothing rather than throwing */
+    const glr = makeGlRenderer(canvas);
+    const ctx = glr ? null : canvas.getContext("2d");
+    if (!glr && !ctx) return undefined;
 
     let W, H, dpr;
     let mouse = { x: -9999, y: -9999 };
@@ -96,22 +168,109 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget })
         const k = easeInOut(phase * 4 - seg);
         const a = FLOAT_PATH[seg];
         const b = FLOAT_PATH[seg + 1];
-        ctx.beginPath();
-        ctx.arc(
+        stamp(
           f.fx * W + a[0] + (b[0] - a[0]) * k,
           f.fy * H + a[1] + (b[1] - a[1]) * k,
           f.size / 2,
-          0,
-          Math.PI * 2
+          WHITE_ROW,
+          f.alpha
         );
-        ctx.fillStyle = `rgba(255,255,255,${f.alpha})`;
-        ctx.fill();
       }
+      if (ctx) ctx.globalAlpha = 1;
     };
 
+    /* The dots are stamped from one sprite atlas rather than filled as
+       paths. ~1800 separately filled circles a frame was what held the
+       landing under 60 fps: measured at 1868x1235, the dots loop alone took
+       the frame from 17 ms to 26 ms while its own script time was under
+       3 ms, so the cost was the rasteriser filling path after path - and a
+       colour string parsed per dot was most of that script time. The atlas
+       is one texture: a row per colour (the floaters' white last), a column
+       per radius step, and each dot is one stamp with its alpha on
+       globalAlpha. Sized to the device pixel ratio so a stamp lands at the
+       radius the path had. */
+    const SPRITE_COLORS = COLORS
+      .filter((c, i) => COLORS.findIndex((d) => d[0] === c[0] && d[1] === c[1] && d[2] === c[2]) === i)
+      .concat([[255, 255, 255]]);
+    const WHITE_ROW = SPRITE_COLORS.length - 1;
+    const SIZE_MIN = 0.4, SIZE_STEP = 0.2, SIZE_N = 8; // radii 0.4 .. 1.8
+    let atlas = null, cell = 0, spriteScale = 1;
+    const buildAtlas = () => {
+      spriteScale = Math.ceil(dpr) * 2;
+      cell = Math.ceil((SIZE_MIN + SIZE_STEP * (SIZE_N - 1) + 1) * 2 * spriteScale);
+      atlas = document.createElement("canvas");
+      atlas.width = cell * SIZE_N;
+      atlas.height = cell * SPRITE_COLORS.length;
+      const a = atlas.getContext("2d");
+      SPRITE_COLORS.forEach((c, row) => {
+        a.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`;
+        for (let col = 0; col < SIZE_N; col++) {
+          a.beginPath();
+          a.arc(col * cell + cell / 2, row * cell + cell / 2, (SIZE_MIN + SIZE_STEP * col) * spriteScale, 0, Math.PI * 2);
+          a.fill();
+        }
+      });
+    };
+    const colorRow = (r, g, b) => {
+      for (let i = 0; i < SPRITE_COLORS.length; i++) {
+        const c = SPRITE_COLORS[i];
+        if (c[0] === r && c[1] === g && c[2] === b) return i;
+      }
+      return WHITE_ROW;
+    };
+    /* one dot on the 2D canvas: centre, radius, colour row, alpha (the
+       caller resets globalAlpha) */
+    const stamp2D = (x, y, radius, row, alpha) => {
+      if (alpha <= 0.003) return;
+      const col = Math.max(0, Math.min(SIZE_N - 1, Math.round((radius - SIZE_MIN) / SIZE_STEP)));
+      const d = cell / spriteScale;
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(atlas, col * cell, row * cell, cell, cell, x - d / 2, y - d / 2, d, d);
+    };
+    /* the same dot through WebGL: queued, drawn at the end of the frame */
+    const SPRITE_COLORS_F = SPRITE_COLORS.map((c) => [c[0] / 255, c[1] / 255, c[2] / 255]);
+    const glPoint = (x, y, radius, row, alpha) => {
+      if (alpha <= 0.003) return;
+      let a = glr.points;
+      if (glr.nPoints * 7 + 7 > a.length) { const b = new Float32Array(a.length * 2); b.set(a); glr.points = a = b; }
+      const c = SPRITE_COLORS_F[row];
+      const o = glr.nPoints * 7;
+      a[o] = x; a[o + 1] = y; a[o + 2] = radius; a[o + 3] = c[0]; a[o + 4] = c[1]; a[o + 5] = c[2]; a[o + 6] = alpha;
+      glr.nPoints++;
+    };
+    const glBegin = () => {
+      const gl = glr.gl;
+      gl.viewport(0, 0, canvas.width, canvas.height);
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      glr.nPoints = 0;
+    };
+    const glEnd = () => {
+      const gl = glr.gl;
+      if (glr.nPoints) {
+        const P = glr.pts;
+        gl.useProgram(P.p);
+        gl.bindBuffer(gl.ARRAY_BUFFER, glr.pointBuf);
+        gl.bufferData(gl.ARRAY_BUFFER, glr.points.subarray(0, glr.nPoints * 7), gl.DYNAMIC_DRAW);
+        gl.enableVertexAttribArray(P.aPos);
+        gl.vertexAttribPointer(P.aPos, 2, gl.FLOAT, false, 28, 0);
+        gl.enableVertexAttribArray(P.aSize);
+        gl.vertexAttribPointer(P.aSize, 1, gl.FLOAT, false, 28, 8);
+        gl.enableVertexAttribArray(P.aColor);
+        gl.vertexAttribPointer(P.aColor, 4, gl.FLOAT, false, 28, 12);
+        gl.uniform2f(P.uView, W, H);
+        gl.uniform1f(P.uDpr, dpr);
+        gl.drawArrays(gl.POINTS, 0, glr.nPoints);
+        gl.disableVertexAttribArray(P.aPos);
+        gl.disableVertexAttribArray(P.aSize);
+        gl.disableVertexAttribArray(P.aColor);
+      }
+    };
+    const stamp = glr ? glPoint : stamp2D;
     const initParticle = (startRandom) => {
       const c = COLORS[Math.floor(Math.random() * COLORS.length)];
       return {
+        row: colorRow(c[0], c[1], c[2]),
         x: Math.random() * (W || 1920),
         y: startRandom ? Math.random() * (H || 1080) : (H || 1080) + Math.random() * 100,
         vx: 0,
@@ -132,13 +291,14 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget })
 
     const resize = () => {
       dpr = Math.min(window.devicePixelRatio, 2);
+      if (ctx) buildAtlas();
       W = window.innerWidth;
       H = window.innerHeight;
       canvas.width = W * dpr;
       canvas.height = H * dpr;
       canvas.style.width = W + "px";
       canvas.style.height = H + "px";
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       particles = [];
       const count = Math.round(W * H * DENSITY);
       for (let i = 0; i < count; i++) {
@@ -218,7 +378,12 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget })
 
     let raf;
     const draw = () => {
-      ctx.clearRect(0, 0, W, H);
+      if (glr) {
+        if (glr.lost) { raf = requestAnimationFrame(draw); return; }
+        glBegin();
+      } else {
+        ctx.clearRect(0, 0, W, H);
+      }
 
       // Read magnet target rect
       let magnetRect = null;
@@ -285,11 +450,40 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget })
           }
         }
 
-        // Portrait orbit. Uses exactly the card magnets' force profile and
-        // falloff, so embers drift in at the same pace you already know, with
-        // a tangential component that turns the approach into an orbit and a
-        // clear radius the head always keeps to itself.
-        if (vortex) {
+        /* While the portrait is hovered, the embers ride its edge. The
+           landing publishes the cloud's live outline (window.__focusOutline:
+           centre and radius-by-angle in viewport px) while the portrait sits
+           among the cards: about half the dots that come near are caught,
+           settle just inside the outline and run along it, then slip off
+           after a while; the rest drift straight through the window. With
+           no outline (the portrait in the mission paragraph on tablet) the
+           orbit below takes over. */
+        const outline = vortex && window.__focusOutline;
+        if (outline) {
+          const vdx = drawX - outline.cx;
+          const vdy = p.y - outline.cy;
+          const vdist = Math.sqrt(vdx * vdx + vdy * vdy) || 0.001;
+          const ux = vdx / vdist, uy = vdy / vdist;
+          const R = outline.radiusAt(Math.atan2(vdy, vdx));
+          const CAPTURE = 420;
+          if (p.rail == null && vdist < CAPTURE) p.rail = Math.random() < 0.5;
+          if (p.flung > 0) {
+            p.flung--;
+            p.baseX += ux * 1.6;
+            p.y += uy * 1.6;
+          } else if (p.rail && vdist < CAPTURE) {
+            const target = R - 8; // just inside the edge
+            const gap = target - vdist;
+            const f = (1 - Math.min(1, Math.abs(gap) / CAPTURE)) * MAGNET_FORCE;
+            p.baseX += ux * Math.sign(gap) * f * 0.9;
+            p.y += uy * Math.sign(gap) * f * 0.9;
+            const onRail = 1 - Math.min(1, Math.abs(gap) / 40);
+            p.baseX += -uy * 1.3 * onRail;
+            p.y += ux * 1.3 * onRail;
+            p.ride = (p.ride || 0) + (onRail > 0.5 ? 1 : 0);
+            if (p.ride > 200) { p.ride = 0; p.flung = 70; }
+          }
+        } else if (vortex) {
           const vdx = drawX - vortex.x;
           const vdy = p.y - vortex.y;
           const vdist = Math.sqrt(vdx * vdx + vdy * vdy) || 0.001;
@@ -320,8 +514,11 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget })
             const adx = cx - drawX;
             const ady = cy - p.y;
             const adist = Math.sqrt(adx * adx + ady * ady);
-            if (adist < MAGNET_RADIUS && adist > 5) {
-              const f = (1 - adist / MAGNET_RADIUS) * MAGNET_FORCE;
+            if (adist > 5) {
+              /* every ember of the card's colour comes, wherever it is on
+                 the page: a steady pull everywhere, stronger within reach */
+              const near = Math.max(0, 1 - adist / MAGNET_RADIUS);
+              const f = (0.4 + 0.6 * near) * MAGNET_FORCE;
               p.baseX += (adx / adist) * f;
               p.y += (ady / adist) * f;
             }
@@ -350,13 +547,12 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget })
         const fadeBot = Math.min(1, (H - p.y) / 100);
         const a = p.alpha * fadeTop * fadeBot;
 
-        ctx.beginPath();
-        ctx.arc(drawX, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${p.r},${p.g},${p.b},${a})`;
-        ctx.fill();
+        stamp(drawX, p.y, p.size, p.row, a);
       }
+      if (ctx) ctx.globalAlpha = 1;
 
       drawFloaters(performance.now() / 1000);
+      if (glr) glEnd();
 
       raf = requestAnimationFrame(draw);
     };

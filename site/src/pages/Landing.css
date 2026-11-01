@@ -266,7 +266,11 @@
   background-clip: text;
   color: transparent;
   background-size: 300% 300%;
-  animation: titleShift 12s ease infinite;
+  /* background-position cannot animate on the compositor, so this drift
+     repainted the title on every frame of the display (240 a second on a
+     fast monitor); stepped, it repaints ten times a second and the eye
+     cannot tell the difference at 0.8% of the gradient per step */
+  animation: titleShift 12s steps(120) infinite;
   text-shadow: 0 0 22px rgba(160,190,255,0.12);
 }
 .subtitle{

@@ -116,6 +116,18 @@ export function ContribLabel({ username = "hmohyud", className = "" }) {
 export function ContribGrid({ username = "hmohyud", className = "" }) {
   const { data, error } = useContribData(username);
   const { weeks } = useMemo(() => computeTotals(data), [data]);
+  /* Once the cells have popped in, their animation is taken off them. A
+     finished animation that fills forwards keeps every cell on its own
+     compositor layer for good: 371 layers for one small grid, which the
+     compositor and the display then handle on every frame of the page
+     (measured as the bulk of the compositor's time at 240 Hz). Settled,
+     the grid is one layer. */
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    if (!data) return undefined;
+    const id = setTimeout(() => setSettled(true), 52 * 22 + 6 * 8 + 420 + 200);
+    return () => clearTimeout(id);
+  }, [data]);
   if (error) return null;
   return (
     <a
@@ -126,7 +138,7 @@ export function ContribGrid({ username = "hmohyud", className = "" }) {
       aria-hidden="true"
       tabIndex={-1}
     >
-      <div className={`gh-contrib-grid${data ? "" : " gh-contrib-loading"}`} role="presentation">
+      <div className={`gh-contrib-grid${data ? "" : " gh-contrib-loading"}${settled ? " gh-settled" : ""}`} role="presentation">
         {(weeks.length ? weeks : Array.from({ length: 53 }, () => [])).map((col, ci) => (
           <div className="gh-col" key={ci}>
             {Array.from({ length: 7 }).map((_, ri) => {

@@ -350,7 +350,7 @@ The tokens:
   break, smash, crack, "fall to pieces".
 - [[ember]] lifts the dots as glowing sparks that drift upward and settle back, in the site's ember
   colours. Triggers on sparks, embers, "turn to sparks", float up, catch light.
-- [[glitch]] slices the head and jolts the slices sideways for a second with a colour split. Triggers
+- [[glitch]] slices the head and jolts the slices sideways for a couple of seconds with a colour split. Triggers
   on glitch, corrupt, static, malfunction, "act broken", "blue screen".
 - [[hue]] runs a rainbow band across the head once. Triggers on rainbow, hue sweep, "all the colours",
   "cycle colours"; one named colour is [[tint]] instead.

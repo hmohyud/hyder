@@ -1,10 +1,14 @@
-import React, { useRef, useState, useCallback, useEffect } from "react";
+import React, { useRef, useState, useCallback, useEffect, useLayoutEffect } from "react";
 import { Link } from "react-router-dom";
 import BgVariantB from "../components/BgVariantB";
 import TubesCursorOverlay from "../components/TubesCursorOverlay";
 import { ContribLabel, ContribGrid } from "../components/GithubContributions";
 import FloatingHead from "../components/FloatingHead";
 import CopyEmail from "../components/CopyEmail";
+/* the write-up count in the mission stays honest by reading the same array
+   the Projects page renders - add a project, the sentence updates itself */
+import { projects } from "./Projects";
+import { useMissionDots } from "./useMissionDots";
 import "./Landing.css";
 import "./LandingFocus.css";
 
@@ -29,6 +33,32 @@ const CLOUD_PAD_PX = 8;
    every side, concavities and neck included */
 const LIVE_PAD_PX = 34;
 const RAYS = 96;
+/* the portrait sits among the cards only on desktop widths: at 1050px and
+   below FloatingHead moves itself into the mission paragraph (its own
+   "tablet" layout), so the cloud, its hit area and the boundary light have
+   nothing to frame there and stay off. The same breakpoint as the portrait's. */
+const DESKTOP_QUERY = "(min-width: 1051px)";
+function useDesktop() {
+  const [desktop, setDesktop] = useState(() => (typeof window === "undefined" ? true : window.matchMedia(DESKTOP_QUERY).matches));
+  useEffect(() => {
+    const mq = window.matchMedia(DESKTOP_QUERY);
+    const onChange = () => setDesktop(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return desktop;
+}
+
+/* the boundary light: begins this far outside the cloud, reaches this far
+   around the pointer, and peaks at this opacity on the line itself; as the
+   pointer comes near, the card's part over the cloud also thins out, up to
+   REVEAL_MAX, so the head shows through it */
+const LIGHT_REACH = 240;
+const LIGHT_RADIUS = 260;
+const LIGHT_PEAK = 0.4;
+const REVEAL_MAX = 0.7;
+/* the background's embers get this much extra weight inside the window */
+const INSIDE_LIFT = 0.6;
 const DOT_STEP = 10; // every 10th dot: ~15 px apart, well inside the padding radius
 const CARD_RADIUS = 16;
 
@@ -61,7 +91,7 @@ function cloudPoints(t, live, ox, oy) {
   return pts;
 }
 
-/* a closed Catmull-Rom curve through the points, as a Path2D */
+/* a closed Catmull-Rom curve through the points, as a Path2D (the canvas) */
 function cloudPath2D(pts) {
   const n = pts.length / 2;
   const p = new Path2D();
@@ -74,6 +104,20 @@ function cloudPath2D(pts) {
   }
   p.closePath();
   return p;
+}
+
+/* the same curve as an SVG path string (the hit area's clip-path) */
+function cloudPathStr(pts) {
+  const n = pts.length / 2;
+  const X = (i) => pts[((i + n) % n) * 2], Y = (i) => pts[((i + n) % n) * 2 + 1];
+  const f = (v) => v.toFixed(1);
+  let d = "M" + f(X(0)) + " " + f(Y(0));
+  for (let i = 0; i < n; i++) {
+    const c1x = X(i) + (X(i + 1) - X(i - 1)) / 6, c1y = Y(i) + (Y(i + 1) - Y(i - 1)) / 6;
+    const c2x = X(i + 1) - (X(i + 2) - X(i)) / 6, c2y = Y(i + 1) - (Y(i + 2) - Y(i)) / 6;
+    d += "C" + f(c1x) + " " + f(c1y) + " " + f(c2x) + " " + f(c2y) + " " + f(X(i + 1)) + " " + f(Y(i + 1));
+  }
+  return d + "Z";
 }
 
 const IconGraph = () => (
@@ -111,31 +155,42 @@ const IconDoc = () => (
 function CardPreview({ imgSrc, videoSrc, alt, isHovered, lazy }) {
   const videoRef = useRef(null);
   const [playing, setPlaying] = useState(false);
-  const [armed, setArmed] = useState(!lazy);
+  /* the source is set on the element itself, once, and never through a
+     React prop: setting a video's src attribute - even to the same value -
+     restarts its loading and aborts a play() in flight, which is what left
+     the first hover silent. A lazy preview waits for its first hover. */
+  const arm = () => {
+    const vid = videoRef.current;
+    if (vid && !vid.getAttribute("src")) {
+      vid.setAttribute("src", videoSrc);
+      vid.load();
+    }
+  };
+  useEffect(() => {
+    if (!lazy) arm();
+  }, [lazy]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid) return;
     if (isHovered) {
-      setArmed(true);
+      arm();
       vid.currentTime = 0;
       vid.play().then(() => setPlaying(true)).catch(() => {});
     } else {
       vid.pause();
       setPlaying(false);
     }
-  }, [isHovered]);
+  }, [isHovered]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="peek">
       <img src={imgSrc} alt={alt} loading="lazy" className={playing ? "peek-hidden" : ""} />
-      {/* a lazy preview (the front twins, the hidden copies) holds no video
-          until it is first hovered: four idle decoders otherwise */}
-      <video ref={videoRef} src={armed ? videoSrc : undefined} muted loop playsInline preload={lazy ? "none" : "auto"} className={`peek-video ${playing ? "peek-visible" : ""}`} />
+      <video ref={videoRef} muted loop playsInline preload={lazy ? "none" : "auto"} className={`peek-video ${playing ? "peek-visible" : ""}`} />
     </div>
   );
 }
 
 /* a card's inside: the card layer and the front layer draw the same thing */
-function CardBody({ title, copy, Icon, img, isHovered, lazy }) {
+function CardBody({ title, Icon, img, isHovered, lazy }) {
   const PU = process.env.PUBLIC_URL;
   return (
     <>
@@ -143,7 +198,6 @@ function CardBody({ title, copy, Icon, img, isHovered, lazy }) {
         <span className="icon"><Icon /></span>
         <h2>{title}</h2>
       </div>
-      <p className="card-copy">{copy}</p>
       <CardPreview imgSrc={PU + `/previews/${img}.jpg`} videoSrc={PU + `/previews/${img}.mp4`} alt={`Preview of ${title} page`} isHovered={isHovered} lazy={lazy} />
     </>
   );
@@ -161,8 +215,65 @@ export default function LandingFocus() {
   const gridRef = useRef(null);
   const winRef = useRef(null);
   const rootRef = useRef(null);
+  const hitRef = useRef(null);
+  const lightRef = useRef(null);
+  /* the head's hover is taken by a hit area shaped like the cloud (the
+     portrait's own box is a square, which caught the pointer where there
+     was no head); it hands the hover and the click to the portrait */
+  const headHover = (on) => {
+    const host = document.querySelector(".focus-head .fh-mini");
+    setVortexTarget(on ? host : null);
+    setHeadFocus(on);
+  };
+  const openHead = () => {
+    const host = document.querySelector(".focus-head .fh-mini");
+    if (host) host.click();
+  };
   const [hoveredCard, setHoveredCard] = useState(null);
   const [vortexTarget, setVortexTarget] = useState(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const desktop = useDesktop();
+  /* when a card loses the hover, the grid card beneath its twin goes dim at
+     once (card-dim-now), so the twin's fade ends on the dimmed card and not
+     a card still fading; before paint, so no frame shows otherwise */
+  const prevHoverRef = useRef(null);
+  const leaveTimers = useRef({}); // per card: the timer that clears its leaving marks
+  useLayoutEffect(() => {
+    const prev = prevHoverRef.current;
+    prevHoverRef.current = hoveredCard;
+    const twinOf = (id) => (rootRef.current ? rootRef.current.querySelector(".focus-front .card-" + id) : null);
+    /* the card now hovered sheds any leaving marks at once (a quick return
+       to it must fade in like any other hover) */
+    if (hoveredCard && cardRefs.current[hoveredCard]) {
+      clearTimeout(leaveTimers.current[hoveredCard]);
+      cardRefs.current[hoveredCard].classList.remove("card-dim-now");
+      const t = twinOf(hoveredCard);
+      if (t) t.classList.remove("card-leaving");
+    }
+    if (!prev || prev === hoveredCard) return;
+    const el = cardRefs.current[prev];
+    if (!el) return;
+    el.classList.add("card-dim-now");
+    /* and its twin is marked for the fade's length: the cloud and the head
+       stay painted over the twin's cloud part (see the light canvas), so
+       the cloud does not jump while the twin fades. The timer is per card
+       and never cancelled by a later hover - a cleanup that cancelled it
+       left cards marked for good when the pointer moved straight from one
+       card to the next, and they stopped fading. */
+    const twin = twinOf(prev);
+    if (twin) twin.classList.add("card-leaving");
+    clearTimeout(leaveTimers.current[prev]);
+    leaveTimers.current[prev] = setTimeout(() => {
+      el.classList.remove("card-dim-now");
+      if (twin) twin.classList.remove("card-leaving");
+    }, 350);
+  }, [hoveredCard]);
+  useEffect(() => {
+    const timers = leaveTimers.current;
+    return () => { Object.values(timers).forEach(clearTimeout); };
+  }, []);
+  /* the dot fill after the mission's text, as the old landing has it */
+  useMissionDots(moreOpen);
   const [headFocus, setHeadFocus] = useState(false);
   const [gridFocus, setGridFocus] = useState(false);
   const [gridEl, setGridEl] = useState(null);
@@ -189,7 +300,27 @@ export default function LandingFocus() {
     const grid = gridRef.current;
     const win = winRef.current;
     const root = rootRef.current;
-    if (!grid || !win || !root) return undefined;
+    const hit = hitRef.current;
+    const light = lightRef.current;
+    if (!grid || !win || !root || !hit || !light) return undefined;
+    const lctx = light.getContext("2d");
+    if (!lctx) return undefined;
+    /* the pointer, for the light that gathers on the cloud's edge as it
+       comes near: in viewport px, null when it has left the page */
+    let pointer = null;
+    let headRect = null, headRectAt = 0; // the head canvas's place on screen, read now and then
+    const outlinePub = {
+      cx: 0, cy: 0, live: null, scale: 1,
+      radiusAt(a) {
+        if (!this.live) return 0;
+        const i = (((Math.round((a / (Math.PI * 2)) * RAYS) % RAYS) + RAYS) % RAYS);
+        return this.live[i] * this.scale;
+      },
+    };
+    const onPm = (e) => { pointer = { x: e.clientX, y: e.clientY }; };
+    const onPl = () => { pointer = null; };
+    window.addEventListener("pointermove", onPm, { passive: true });
+    document.addEventListener("pointerleave", onPl);
     const ctx = win.getContext("2d");
     if (!ctx) return undefined;
     const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -223,6 +354,10 @@ export default function LandingFocus() {
       win.height = Math.round(gh * dpr);
       win.style.width = gw + "px";
       win.style.height = gh + "px";
+      light.width = win.width;
+      light.height = win.height;
+      light.style.width = gw + "px";
+      light.style.height = gh + "px";
       const r = win.getBoundingClientRect();
       left = r.left;
       top = r.top;
@@ -323,15 +458,82 @@ export default function LandingFocus() {
     const bgCanvas = () => document.querySelector("canvas.bg-particles");
 
     let raf = 0;
+    let focusT = 0, lastDrawT = 0; // the eased dim inside the window, and when it was last stepped
     const t0 = performance.now();
+    const deskMq = window.matchMedia(DESKTOP_QUERY);
+    let wasDesktop = true;
+    /* the hit area's clip: when it was last set, and the points it was set to */
+    let hitAt = -1e9;
+    let hitPts = null;
+    const hitMoved = (pts) => {
+      if (!hitPts || hitPts.length !== pts.length) return true;
+      for (let i = 0; i < pts.length; i++) if (Math.abs(pts[i] - hitPts[i]) > 2) return true;
+      return false;
+    };
     const draw = () => {
       noteFrame();
       const tDraw = performance.now();
+      /* below the desktop breakpoint the portrait is in the mission
+         paragraph, not among the cards: the window, the light and the hit
+         area are cleared once and left alone, and no outline is published
+         (the dots then orbit the portrait where it is) */
+      /* until the real head is in (window.__fhReal), there is no cloud to
+         draw: the stand-in's outline is not the head's. The window, the
+         light and the hit area fade in with the head once it is. */
+      if (!window.__fhReal) {
+        stats.frames++;
+        return;
+      }
+      if (!root.classList.contains("head-real")) root.classList.add("head-real");
+      if (!deskMq.matches) {
+        if (wasDesktop) {
+          wasDesktop = false;
+          ctx.setTransform(1, 0, 0, 1, 0, 0);
+          ctx.clearRect(0, 0, win.width, win.height);
+          lctx.setTransform(1, 0, 0, 1, 0, 0);
+          lctx.clearRect(0, 0, light.width, light.height);
+          hit.style.clipPath = "";
+          hitPts = null;
+          delete window.__focusOutline;
+        }
+        stats.frames++;
+        return;
+      }
+      wasDesktop = true;
       const t = still ? 0 : (performance.now() - t0) / 1000;
       const cx = gw / 2;
       const cy = gh / 2;
-      const blob = cloudPath2D(cloudPoints(t, readLive(), cx, cy));
-      const dim = root.classList.contains("card-focus");
+      const live = readLive();
+      /* the outline for the background's dots (viewport px): the embers ride it */
+      if (live) {
+        outlinePub.cx = left + cx * scale;
+        outlinePub.cy = top + cy * scale;
+        outlinePub.live = live;
+        outlinePub.scale = scale;
+        window.__focusOutline = outlinePub;
+      }
+      const pts = cloudPoints(t, live, cx, cy);
+      const blob = cloudPath2D(pts);
+      /* The hit area's clip is a style change, and a style change every
+         frame put the whole paint lifecycle (style, paint, layerize,
+         commit) on every frame - about a fifth of the main thread's time
+         at 240 Hz - plus a mask re-raster. The cloud sways slowly, so the
+         hit shape follows it at most four times a second and only once it
+         has moved: a hit edge a couple of pixels behind the drawn one is
+         not something a pointer can notice. */
+      if (tDraw - hitAt > 250 && hitMoved(pts)) {
+        hit.style.clipPath = 'path("' + cloudPathStr(pts) + '")';
+        hitAt = tDraw;
+        hitPts = pts.slice();
+      }
+      /* the dim inside the window follows the page's: any focus (a card,
+         the head, the grid) dims the background to 0.8 over 0.3 s, and the
+         window's copy eases the same way instead of switching at once */
+      const focused = root.classList.contains("card-focus") || root.classList.contains("head-focus") || root.classList.contains("gh-focus");
+      const dtF = Math.min(0.1, (tDraw - (lastDrawT || tDraw)) / 1000);
+      lastDrawT = tDraw;
+      focusT += ((focused ? 1 : 0) - focusT) * (1 - Math.exp(-dtF / 0.1));
+      const dimA = 1 - 0.2 * focusT;
       if (diag.noWindow) {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, gw, gh);
@@ -361,7 +563,11 @@ export default function LandingFocus() {
       }
       const bg = diag.noParticles ? null : bgCanvas();
       if (bg && bg.width > 0) {
-        ctx.globalAlpha = dim ? 0.35 : 1; // the background dims while a card is in front (Landing.css)
+        ctx.globalAlpha = dimA;
+        ctx.drawImage(bg, 0, 0, W, H);
+        /* a second, lighter pass: the embers are faint, and through the window
+           they sit behind the head's own dots, so they get a little lift there */
+        ctx.globalAlpha = dimA * INSIDE_LIFT;
         ctx.drawImage(bg, 0, 0, W, H);
         ctx.globalAlpha = 1;
       }
@@ -378,36 +584,139 @@ export default function LandingFocus() {
       ctx.clip(outside, "evenodd");
       ctx.lineWidth = 2;
       ctx.strokeStyle = ringColor;
-      ctx.globalAlpha = dim ? 0.3 : 1;
+      ctx.globalAlpha = 1 - 0.7 * focusT;
       ctx.stroke(blob);
       ctx.restore();
+
+
+      /* the boundary light, on its own canvas above the lifted card: while a
+         card is in front, the part of the cloud's edge that crosses that
+         card shows faintly as the pointer comes near, brighter the closer
+         it gets - the way a VR boundary fades in as you reach for it. Only
+         there, only then; nowhere else on the page. */
+      lctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      lctx.clearRect(0, 0, gw, gh);
+      const twin = pointer && live ? root.querySelector(".focus-front .card.card-hover-active") : null;
+      if (twin) {
+        const px = (pointer.x - left) / scale, py = (pointer.y - top) / scale;
+        const ddx = px - cx, ddy = py - cy;
+        const dist = Math.hypot(ddx, ddy);
+        const ang = Math.atan2(ddy, ddx);
+        const ri = (((Math.round((ang / (Math.PI * 2)) * RAYS) % RAYS) + RAYS) % RAYS);
+        const edge = live[ri];
+        const nearLin = Math.max(0, 1 - Math.max(0, dist - edge) / LIGHT_REACH);
+        const near = nearLin * nearLin; // eases in: faint far out, present close by
+        if (near > 0.02) {
+          const tr = twin.getBoundingClientRect();
+          const box = new Path2D();
+          box.roundRect((tr.left - left) / scale, (tr.top - top) / scale, tr.width / scale, tr.height / scale, CARD_RADIUS);
+          /* the card thins out over the cloud: what lies beneath (the window
+             and the head) is painted over it, stronger the nearer the pointer */
+          const headCanvas = document.querySelector(".focus-head canvas");
+          if (headCanvas) {
+            if (!headRect || performance.now() - headRectAt > 500) {
+              headRect = headCanvas.getBoundingClientRect();
+              headRectAt = performance.now();
+            }
+            lctx.save();
+            lctx.clip(box);
+            lctx.clip(blob);
+            lctx.globalAlpha = REVEAL_MAX * near;
+            lctx.drawImage(win, 0, 0, gw, gh);
+            lctx.drawImage(headCanvas, (headRect.left - left) / scale, (headRect.top - top) / scale, headRect.width / scale, headRect.height / scale);
+            lctx.restore();
+          }
+          const glow = lctx.createRadialGradient(px, py, 0, px, py, LIGHT_RADIUS);
+          glow.addColorStop(0, `rgba(190,220,255,${LIGHT_PEAK * near})`);
+          glow.addColorStop(1, "rgba(190,220,255,0)");
+          lctx.save();
+          lctx.clip(box);
+          lctx.strokeStyle = glow;
+          lctx.lineWidth = 16;
+          lctx.globalAlpha = 0.16;
+          lctx.stroke(blob);
+          lctx.lineWidth = 1.25;
+          lctx.globalAlpha = 1;
+          lctx.stroke(blob);
+          lctx.restore();
+        }
+      }
+
+      /* a copy that is fading away (card-leaving, for the fade's length):
+         the cloud and the head stay painted over its cloud part as they
+         were while it was hovered, so the cloud does not jump back to solid
+         for the fade's duration */
+      const leaving = live ? root.querySelectorAll(".focus-front .card.card-leaving") : [];
+      if (leaving.length) {
+        const headCanvas = document.querySelector(".focus-head canvas");
+        if (headCanvas) {
+          if (!headRect || performance.now() - headRectAt > 500) {
+            headRect = headCanvas.getBoundingClientRect();
+            headRectAt = performance.now();
+          }
+          for (const el of leaving) {
+            if (el.classList.contains("card-hover-active")) continue;
+            const tr = el.getBoundingClientRect();
+            const box = new Path2D();
+            box.roundRect((tr.left - left) / scale, (tr.top - top) / scale, tr.width / scale, tr.height / scale, CARD_RADIUS);
+            lctx.save();
+            lctx.clip(box);
+            lctx.clip(blob);
+            lctx.globalAlpha = REVEAL_MAX;
+            lctx.drawImage(win, 0, 0, gw, gh);
+            lctx.drawImage(headCanvas, (headRect.left - left) / scale, (headRect.top - top) / scale, headRect.width / scale, headRect.height / scale);
+            lctx.restore();
+          }
+        }
+      }
 
       stats.ms = stats.ms * 0.9 + (performance.now() - tDraw) * 0.1;
       stats.frames++;
     };
+    /* A throw inside draw must never stop the cloud: the portrait's own
+       loop would carry on without it and the head would sit on the cards
+       with no window behind it. Caught, reported once, drawn again next
+       frame; and the watchdog re-arms whatever happens. */
+    let drawErrors = 0;
+    const safeDraw = () => {
+      try {
+        draw();
+      } catch (err) {
+        if (drawErrors++ < 1) console.error("landing window:", err);
+      }
+    };
     measure();
-    draw();
+    safeDraw();
     /* the window is drawn from inside the portrait's own frame, right after
        the head has moved and rendered, so the two never disagree by a frame.
        A watchdog keeps it drawing on its own if the portrait is not there. */
     let lastHook = 0;
     window.__fhAfterFrame = () => {
       lastHook = performance.now();
-      if (!still) draw();
+      if (!still) safeDraw();
     };
     const tick = () => {
-      if (!still && performance.now() - lastHook > 150) draw();
       raf = requestAnimationFrame(tick);
+      if (still) {
+        /* reduced motion draws once, not per frame - but that once must come
+           after the real head is in, or the window never appears */
+        if (window.__fhReal && !root.classList.contains("head-real")) safeDraw();
+        return;
+      }
+      if (performance.now() - lastHook > 150) safeDraw();
     };
     raf = requestAnimationFrame(tick);
-    const ro = window.ResizeObserver ? new ResizeObserver(() => { measure(); if (still) draw(); }) : null;
+    const ro = window.ResizeObserver ? new ResizeObserver(() => { measure(); if (still) safeDraw(); }) : null;
     if (ro) ro.observe(grid);
-    const onResize = () => { measure(); if (still) draw(); };
+    const onResize = () => { measure(); if (still) safeDraw(); };
     window.addEventListener("resize", onResize);
     // the wrap's scale settles a frame after layout; measure again then
     const settle = setTimeout(measure, 300);
     return () => {
       cancelAnimationFrame(raf);
+      window.removeEventListener("pointermove", onPm);
+      document.removeEventListener("pointerleave", onPl);
+      delete window.__focusOutline;
       if (window.__fhAfterFrame) delete window.__fhAfterFrame;
       if (readout) readout.remove();
 
@@ -427,9 +736,17 @@ export default function LandingFocus() {
       <TubesCursorOverlay hoveredCard={hoveredCard} />
 
       <div className="wrap focus-wrap" ref={wrapRef}>
+        {/* the hero as the old landing had it, less the portrait, which now
+            sits among the cards */}
         <header className="hero focus-hero">
-          <h1 className="title">Hyder Mohyuddin</h1>
+          {/* the name reloads the landing: a plain link, not a router one */}
+          <h1 className="title">
+            <a className="title-link" href="/" aria-label="Hyder Mohyuddin - reload the landing page">Hyder Mohyuddin</a>
+          </h1>
           <ContribLabel username="hmohyud" />
+          {/* the grid is the trigger, deliberately not the links below it -
+              inspecting a year of commits earns the focus, brushing past an
+              email link should not make the page flinch */}
           <span
             style={{ display: "contents" }}
             onMouseEnter={(e) => {
@@ -442,17 +759,58 @@ export default function LandingFocus() {
           </span>
           <div className="hero-meta">
             <p className="subtitle">
-              <span className="subtitle-text">AI &amp; Software • Systems • Interfaces</span>
+              <span className="subtitle-text">
+                AI &amp; Software • Systems • Interfaces
+              </span>
             </p>
             <div className="hero-contact" role="group" aria-label="Contact links">
               <CopyEmail className="hero-gh-link" email="hyder.mohyuddin@gmail.com" />
               <span className="hero-contact-sep" aria-hidden="true">·</span>
-              <a className="hero-gh-link gh" href="https://github.com/hmohyud" target="_blank" rel="noopener noreferrer" aria-label="Open GitHub profile">
+              <a
+                className="hero-gh-link gh"
+                href="https://github.com/hmohyud"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Open GitHub profile"
+              >
                 <span className="gh-url-long">github.com/hmohyud</span>
                 <span className="gh-url-short">github</span>
               </a>
             </div>
           </div>
+          <p className="mission">
+            <span className="mission-text">
+              <span className="mission-copy">
+              I build AI tooling, web platforms, and the occasional strange
+              experiment — I built this site to showcase that work and the
+              thinking behind it. The cards are the tour;{" "}
+              <span className="hint-head">the head takes questions.</span>
+              <span className="hint-fab">
+                the AI button in the corner takes questions.
+              </span>
+              {moreOpen && (
+                <span>
+                  {" "}
+                  That work started with CS and visual arts at UChicago,
+                  then two-ish years in Professor Jason Salavon's studio
+                  building AI research tooling that modifies models at the
+                  tensor level, then client platforms, mobile apps, and
+                  indie tools — the {projects.length} write-ups below. I'm
+                  comfortable being handed unknowns.
+                </span>
+              )}
+              <button
+                type="button"
+                className="mission-toggle"
+                onClick={() => setMoreOpen((v) => !v)}
+                aria-expanded={moreOpen}
+              >
+                <span className={"mission-caret" + (moreOpen ? " open" : "")}>▸</span>
+                {moreOpen ? "less" : "more"}
+              </button>
+              </span>
+            </span>
+          </p>
         </header>
 
         <section className="focus-stage" aria-label="Site sections">
@@ -464,12 +822,12 @@ export default function LandingFocus() {
                 ref={setCardRef(id)}
                 to={to}
                 className={`card card-${id} portal${hoveredCard === id ? " card-hover-active" : ""}`}
-                aria-label={label}
+                aria-label={label + " - " + copy}
                 onMouseEnter={() => setHoveredCard(id)}
                 onMouseLeave={() => setHoveredCard(null)}
               >
                 <span className={`portal-glow portal-${id}`} aria-hidden="true" />
-                <CardBody title={title} copy={copy} Icon={Icon} img={img} isHovered={false} lazy />
+                <CardBody title={title} Icon={Icon} img={img} isHovered={false} lazy />
               </Link>
             ))}
           </div>
@@ -477,21 +835,44 @@ export default function LandingFocus() {
           {/* the window: the page's background painted inside the cloud */}
           <canvas className="focus-window" ref={winRef} aria-hidden="true" />
 
+          {/* the head's hit area, clipped to the cloud each frame: hovering
+              it is hovering the head, clicking it opens the portrait */}
+          <div
+            className="focus-hit"
+            ref={hitRef}
+            role="button"
+            tabIndex={0}
+            aria-label="Open the 3D portrait"
+            onPointerEnter={() => headHover(true)}
+            onPointerLeave={() => headHover(false)}
+            onClick={openHead}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                openHead();
+              }
+            }}
+          />
+
           {/* the front layer: an unmasked twin of each card on the same
               grid, shown only while its card is hovered */}
           <div className="grid focus-grid focus-front" aria-hidden="true">
-            {CARDS.map(({ id, title, copy, Icon, img }) => (
+            {CARDS.map(({ id, title, Icon, img }) => (
               <div key={id} className={`card card-${id} portal${hoveredCard === id ? " card-hover-active" : ""}`}>
                 <span className={`portal-glow portal-${id}`} />
-                <CardBody title={title} copy={copy} Icon={Icon} img={img} isHovered={hoveredCard === id} lazy />
+                <CardBody title={title} Icon={Icon} img={img} isHovered={hoveredCard === id} lazy />
               </div>
             ))}
           </div>
 
+          {/* the boundary light: above the lifted card, drawn only where the
+              cloud's edge crosses it and only as the pointer comes near */}
+          <canvas className="focus-light" ref={lightRef} aria-hidden="true" />
+
           {/* the portrait, centred over the window */}
           <div className="focus-head">
             <FloatingHead
-              big
+              big={desktop}
               hoveredCard={hoveredCard}
               lookTarget={gridFocus ? gridEl : null}
               onHoverChange={(el) => {

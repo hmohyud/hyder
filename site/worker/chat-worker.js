@@ -141,8 +141,16 @@ function chatContext(raw) {
   let last = null;
   if (raw.last && typeof raw.last === "object") {
     const cents = Number(raw.last.cents);
+    const wroteCents = Number(raw.last.wroteCents);
     const model = typeof raw.last.model === "string" && /^[a-z0-9.-]{1,40}$/.test(raw.last.model) ? raw.last.model : "";
-    if (Number.isFinite(cents) && cents >= 0 && cents < 1000) last = { cents, wrote: raw.last.wrote === true, model };
+    if (Number.isFinite(cents) && cents >= 0 && cents < 1000) {
+      last = {
+        cents,
+        wrote: raw.last.wrote === true,
+        wroteCents: Number.isFinite(wroteCents) && wroteCents > 0 && wroteCents < 1000 ? wroteCents : 0,
+        model,
+      };
+    }
   }
   if (!path && !hovered && !look && !last) return null;
   return { path, hovered, look, last };
@@ -189,7 +197,9 @@ function contextLine(context) {
     line +=
       " The reply before this one cost " + centsWords(context.last.cents) + " of the owner's API bill" +
       (who ? " (answered by " + who + ")" : "") +
-      (context.last.wrote ? ", most of it writing the site's knowledge into the one-hour cache after an idle hour" : "") +
+      (context.last.wrote
+        ? ", plus " + (context.last.wroteCents > 0 ? centsWords(context.last.wroteCents) : "a one-off charge") + " to write the site's knowledge into the one-hour cache after an idle hour"
+        : "") +
       "; the visitor can see this in the workings drawer.";
   }
   /* a die for the turn, and a trick for it: when the visitor says "you
@@ -958,7 +968,12 @@ async function anthropicStream(env, messages, ctx, context) {
       }
       if (thinkOpen) await raw("[[/think]]");
       await guard.end();
-      const cents = anthropicCents(usage, model) + ((size && size.cents) || 0);
+      /* the reply's own cost: the tokens it read and wrote. Writing the
+         prompt cache (the site's knowledge, after an idle hour) is a one-off
+         the page shows on its own line, not as part of the step; the day's
+         spend meter (recordAnthropicSpend) still counts everything */
+      const writeCents = (usage.cacheWrite * priceOf(model).cacheWrite1h) / 10000;
+      const cents = anthropicCents(usage, model) - writeCents + ((size && size.cents) || 0);
       await raw(
         statsToken({
           provider: "anthropic",
@@ -974,6 +989,7 @@ async function anthropicStream(env, messages, ctx, context) {
           effort,
           size: size ? { complexity: size.complexity, kind: size.kind, ms: size.ms, model: SIZER_MODEL, cents: round4(size.cents) } : null,
           cents: round4(cents),
+          cacheWriteCents: round4(writeCents),
         })
       );
     } catch (gone) {

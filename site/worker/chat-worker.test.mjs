@@ -211,7 +211,7 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   await (await ask("it was 9 cents", env, { context: { path: "/", last: { cents: 9.04, wrote: true, model: "claude-sonnet-5-5" } } })).text();
   await settle();
   const bl = JSON.parse(anthropicCalls()[0].init.body);
-  assert.match(bl.messages[1].content, /cost 9\.0 cents of the owner's API bill \(answered by Sonnet\), most of it writing the site's knowledge into the one-hour cache/);
+  assert.match(bl.messages[1].content, /cost 9\.0 cents of the owner's API bill \(answered by Sonnet\), plus a one-off charge to write the site's knowledge into the one-hour cache/);
   calls.length = 0;
   await (await ask("and that one?", env, { context: { path: "/", last: { cents: 0.03, wrote: false, model: "claude-haiku-5-5" } } })).text();
   await settle();

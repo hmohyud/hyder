@@ -10,7 +10,6 @@ import {
   stripExtraTokens,
   parseTourToken,
   splitTourSteps,
-  tourPause,
   tourCommand,
   parseThinkOpen,
   splitThink,
@@ -96,6 +95,9 @@ const SHELL_BIAS_SMALL = 0.14; // from a bias sweep on 3x captures of the portra
 // the ring the background embers orbit at (90px in BgVariantB). Scaled down
 // with the portrait so it stays proportionate on small layouts.
 const GAZE_RADIUS_BASE = 135;
+/* the big portrait's gaze origin: this much of the host's height above its
+   centre, between the brows */
+const GAZE_ORIGIN_UP = 0.1;
 
 const POINT_COUNT = 4200; // procedural stand-in only
 const POINTS_URL = process.env.PUBLIC_URL + "/head-points.bin";
@@ -153,7 +155,7 @@ const lookName = (look) =>
    shader samples the rendered cloud's tone per grid cell. */
 const SUPER = (dpr) => Math.max(2, Math.min(4, Math.round(4 / dpr)));
 /* the performed tricks: shader id and length in ms */
-const FX = { scatter: [1, 2400], melt: [2, 3200], shatter: [3, 2600], ember: [4, 3000], glitch: [5, 1300], hue: [6, 2200] };
+const FX = { scatter: [1, 2400], melt: [2, 6400], shatter: [3, 2600], ember: [4, 3000], glitch: [5, 2600], hue: [6, 2200] };
 /* the warps take the face apart, so while one plays the head neither blinks
    nor talks (the words still arrive; the mouth picks up what is left after).
    The glitch keeps talking: a stutter through the slices is in character. */
@@ -559,7 +561,7 @@ const WK_TIPS = {
   complexity: "A small, fast model (Claude Haiku) rates the question 1 to 5. It answers 1 and 2 itself; 3 to 5 are handed to Claude Sonnet.",
   effort: "How hard the answering model was told to think: low for 1-2, medium for 3, high for 4-5.",
   cache: "The 21k-token site prompt is cached for an hour; a hit costs a tenth of a fresh read. After an idle hour the next question writes it again, at twice the fresh price.",
-  cost: "API fees for this reply, all in: prompt, question, reasoning, answer and sizing. A reply that wrote the cache carries that too, about 8 cents on Sonnet.",
+  cost: "API fees for this reply: prompt, question, reasoning, answer and sizing. Writing the cache after an idle hour is a one-off, shown on the cache line and kept out of this figure.",
   time: "Grey is sizing, purple thinking, green writing; the steps beside carry the same colours and seconds.",
   steps: "Who did what: each call, its model, its time and its cost. Open one for the detail.",
   size: "Haiku rates the question 1 to 5 and names its kind, then hands it on: to itself for 1-2, to Sonnet for 3-5 with effort set by the rating.",
@@ -1515,7 +1517,7 @@ const TOUR = {
   index: -1, // the stop on screen
   maxShown: -1, // the furthest stop reached, for the transcript
   waiting: false, // the pause has elapsed but the next stop is not complete yet
-  manual: false, // the visitor took the wheel (back); no auto-advance until next
+  manual: true, // the visitor drives: the tour never moves on by itself
   ended: false, // the last stop has had its time; the caption stays until dismissed
   timer: 0,
   stage: null, // the mounted head: { navigate, setMsgs, speak, onPage, onTour }
@@ -1575,7 +1577,7 @@ const tourPage = () => ({
 function tourStart(transcript, replyAt, abort) {
   clearTimeout(TOUR.timer);
   Object.assign(TOUR, {
-    running: true, streaming: true, steps: [], index: -1, maxShown: -1, waiting: false, manual: false, ended: false,
+    running: true, streaming: true, steps: [], index: -1, maxShown: -1, waiting: false, manual: true, ended: false,
     timer: 0, pending: null, transcript, replyAt, shown: "", abort, stats: null, thinking: "",
   });
   if (TOUR.stage) {
@@ -1627,7 +1629,9 @@ function tourShow(i) {
   if (!crosses) tourDeliver();
 }
 
-/* the next stop, by the clock or by "next" */
+/* the next stop, by "next" (or the first one, as soon as it has arrived):
+   the tour never moves on by itself - the visitor reads at their own pace
+   and presses next and back */
 function tourAdvance() {
   if (!TOUR.running || TOUR.ended) return;
   clearTimeout(TOUR.timer);
@@ -1643,7 +1647,6 @@ function tourAdvance() {
     return;
   }
   tourShow(next);
-  if (!TOUR.manual) TOUR.timer = setTimeout(tourAdvance, tourPause(step.text));
 }
 
 /* the last stop has had its time: the caption stays, with back and close,
@@ -1674,14 +1677,12 @@ function tourResume(transcript, replyAt) {
 
 function tourNext() {
   if (!TOUR.running || TOUR.ended) return;
-  TOUR.manual = false;
   tourAdvance();
 }
 
 function tourBack() {
   if (!TOUR.running || TOUR.index <= 0) return;
   clearTimeout(TOUR.timer);
-  TOUR.manual = true; // the visitor is driving now
   TOUR.ended = false;
   tourShow(TOUR.index - 1);
 }
@@ -2149,6 +2150,20 @@ export default function FloatingHead({
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     renderer.setPixelRatio(dpr);
     const canvas = renderer.domElement;
+    /* The canvas stays invisible until the real point cloud has replaced
+       the procedural stand-in and the occlusion shell is in (or has had its
+       chance): the stand-in was never meant to be seen, and the real cloud
+       without its shell reads as a see-through blob for a moment. Then it
+       fades in. The page can wait on window.__fhReal for the same moment. */
+    canvas.style.opacity = "0";
+    canvas.style.transition = "opacity 0.35s ease";
+    let realPoints = false, realShell = false;
+    const showReal = () => {
+      if (!realPoints || !realShell) return;
+      canvas.style.opacity = "1";
+      window.__fhReal = true;
+    };
+    const shellDone = () => { realShell = true; showReal(); };
     canvas.className = "fh-canvas";
     mini.appendChild(canvas);
 
@@ -2746,8 +2761,13 @@ export default function FloatingHead({
           drawRangeRef.current();
           if (worldRef.current.resliceWire) worldRef.current.resliceWire();
         }
+        realPoints = true;
+        showReal();
+        /* a shell that is slow or missing does not keep the head hidden */
+        setTimeout(() => { if (!cancelled) shellDone(); }, 1500);
       } catch (err) {
-        /* stand-in head stays */
+        /* stand-in head stays - shown after all, rather than nothing */
+        if (!cancelled) { realPoints = true; shellDone(); }
       }
     })();
 
@@ -2801,8 +2821,10 @@ export default function FloatingHead({
             wireLines.visible = true;
           }
         }
+        shellDone();
       } catch (err) {
         /* no shell = no occlusion; the head still renders */
+        if (!cancelled) shellDone();
       }
     })();
 
@@ -2813,11 +2835,25 @@ export default function FloatingHead({
     const samples = [];
     let judged = window.__fhNoGuard === true;
     const RETURN = 0.9; // how firmly it eases back to facing forward
+    /* once the pointer's influence ends, how slowly the gaze drifts home:
+       a time constant of two and a half seconds, so the head keeps looking
+       where it was and the sway carries on from there, nothing snapping */
+    const HOME_RATE = 0.4;
     const sstep = (x) => x * x * (3 - 2 * x);
     let rectCalm = 0;
-    const rectify = (v, dir) => {
-      if (rectCalm <= 0.001 || dir === 0) return v * (1 - 0.5 * rectCalm);
-      return v * (v * dir < 0 ? 1 - 0.88 * rectCalm : 1 - 0.5 * rectCalm);
+    /* The sway's rectifier, continuous in the look target. It used to key
+       on the target's SIGN, so as the pointer crossed the head's centre
+       line the multiplier jumped between its "with the look" and "against
+       it" values and the pitch (or yaw) offset jumped with it - a visible
+       seam right across the middle of the head. Now the agreement between
+       a sway component and the look ramps over the first ~0.12 rad of
+       target, and at zero target the two values meet halfway. */
+    const rectify = (v, target) => {
+      if (rectCalm <= 0.001) return v * (1 - 0.5 * rectCalm);
+      /* soft on both sides: the look's direction ramps over ~0.12 rad and
+         the component's over ~0.04 rad, so neither flips the multiplier */
+      const agree = Math.max(-1, Math.min(1, target / 0.12)) * Math.max(-1, Math.min(1, v / 0.04)); // 1 with the look, -1 against it
+      return v * (1 - rectCalm * (0.69 - 0.19 * agree));
     };
 
     const frame = (t) => {
@@ -2875,7 +2911,17 @@ export default function FloatingHead({
       // dizziness leaks away: only sustained spinning crosses the threshold
       if (s.dizzy) s.dizzy -= Math.sign(s.dizzy) * Math.min(Math.abs(s.dizzy), 3.5 * dt);
       if (s.shake) s.shake = Math.max(0, s.shake - 2.2 * dt);
-      const k = 1 - Math.exp(-6 * dt);
+      /* a big portrait turns through more pixels for the same angle, so the
+         same easing reads as lag there; it follows a little quicker */
+      /* the pointer has left the window, or moved off everything that
+         draws the gaze: the look it had becomes the state it floats around,
+         and only slowly drifts back to forward */
+      if (s.freeLook && !s.lookLock && !s.dragging) {
+        const kr = 1 - Math.exp(-HOME_RATE * dt);
+        s.targetY += (0 - s.targetY) * kr;
+        s.targetX += (0 - s.targetX) * kr;
+      }
+      const k = 1 - Math.exp(-(s.big ? 8 : 6) * dt);
       s.rotY += (s.spin + s.targetY - s.rotY) * k;
       s.rotX += (s.targetX - s.rotX) * k;
 
@@ -2913,8 +2959,14 @@ export default function FloatingHead({
         const rect = rectify; // hoisted - no per-frame closure allocation
         const wx = (Math.cos(w * 0.61) * 0.085 + Math.sin(w * 1.13) * 0.03) * ampBase;
         const wy = (Math.sin(w * 0.47) * 0.075 + Math.cos(w * 0.91) * 0.028) * ampBase;
-        group.rotation.x = s.rotX + rect(wx, Math.sign(s.targetX || 0));
-        group.rotation.y = s.rotY + rect(wy, Math.sign(s.targetY || 0));
+        /* the rectified sway, smoothed over ~0.8 s: rectification changes
+           the sway's speed as its components turn, and with the look far
+           to one side (a card focused) that read as a twitch that way */
+        const kSway = 1 - Math.exp(-dt / 0.8);
+        s.swX = (s.swX || 0) + (rect(wx, s.targetX || 0) - (s.swX || 0)) * kSway;
+        s.swY = (s.swY || 0) + (rect(wy, s.targetY || 0) - (s.swY || 0)) * kSway;
+        group.rotation.x = s.rotX + s.swX;
+        group.rotation.y = s.rotY + s.swY;
         const drift = 1 - 0.6 * calmT;
         group.rotation.z =
           (Math.sin(w * 0.53) * 0.055 + Math.cos(w * 1.27) * 0.018) * ampBase * drift;
@@ -3229,38 +3281,55 @@ export default function FloatingHead({
       const dist = Math.hypot(dx, dy);
       const GAZE_RADIUS = GAZE_RADIUS_BASE * Math.min(1, r.width / 100);
 
-      if (dist > GAZE_RADIUS) {
-        // Outside the close range it still follows the cursor across a card,
-        // just more gently — that is the whole hero reacting, not the portrait
-        // noticing you. A big portrait sits among the cards, so it follows
-        // gently everywhere: snapping to centre between cards read as jitter.
-        const overCard =
-          big || (e.target && e.target.closest && e.target.closest(".landing .card"));
-        if (overCard) {
-          const fx = dx / Math.max(1, window.innerWidth / 2);
-          const fy = dy / Math.max(1, window.innerHeight / 2);
-          s.targetY = Math.max(-0.8, Math.min(0.8, fx * 0.9));
-          s.targetX = Math.max(-0.4, Math.min(0.4, fy * 0.5));
-        } else {
-          s.targetY = 0;
-          s.targetX = 0;
-        }
+      /* two parts that add up, so there is no seam at the close-range
+         radius: a gentle whole-page follow (over a card, or everywhere for
+         a big portrait that sits among the cards), and a close look that
+         ramps in across the outer third of the radius and out again at
+         its edge. Before, the two were either/or and the switch between
+         them put a small jump in the gaze wherever the pointer crossed
+         the radius - on a big portrait that is most of the head. */
+      if (big) {
+        /* the big portrait: one continuous mapping from the pointer's offset
+           to a focal point between the brows, the same over the head as
+           anywhere on the page - no close-range regime, so no seam and no
+           deadzone. tanh keeps it responsive near the head and eases it
+           toward the limits at the edges of the window. */
+        const ox = dx;
+        const oy = dy + r.height * GAZE_ORIGIN_UP;
+        const u = ox / Math.max(1, window.innerWidth * 0.5);
+        const v = oy / Math.max(1, window.innerHeight * 0.5);
+        s.freeLook = false;
+        s.targetY = Math.tanh(u * 1.6) * 1.1;
+        s.targetX = Math.tanh(v * 1.6) * 0.6;
         return;
       }
-
-      // ramp in across the outer third so the look does not snap on
-      const strength = Math.min(1, (GAZE_RADIUS - dist) / (GAZE_RADIUS * 0.35));
-      const ny = (dx / GAZE_RADIUS) * 1.15 * strength;
-      const nx = (dy / GAZE_RADIUS) * 0.6 * strength;
+      const overCard =
+        e.target && e.target.closest && e.target.closest(".landing .card");
+      /* nothing draws the gaze here: keep the look it has (the frame loop
+         drifts it home slowly) rather than snapping it to forward */
+      if (!overCard && dist >= GAZE_RADIUS) {
+        s.freeLook = true;
+        return;
+      }
+      s.freeLook = false;
+      let ny = 0, nx = 0;
+      if (overCard) {
+        ny = (dx / Math.max(1, window.innerWidth / 2)) * 0.9;
+        nx = (dy / Math.max(1, window.innerHeight / 2)) * 0.5;
+      }
+      if (dist < GAZE_RADIUS) {
+        const strength = Math.min(1, (GAZE_RADIUS - dist) / (GAZE_RADIUS * 0.35));
+        ny += (dx / GAZE_RADIUS) * 1.15 * strength;
+        nx += (dy / GAZE_RADIUS) * 0.6 * strength;
+      }
       s.targetY = Math.max(-1.25, Math.min(1.25, ny));
       s.targetX = Math.max(-0.6, Math.min(0.6, nx));
     };
 
-    /* leaving the window entirely returns it to forward too */
+    /* leaving the window: the look stays, and drifts home slowly */
     const onPointerOut = (e) => {
       if (e.relatedTarget) return;
-      stateRef.current.targetY = 0;
-      stateRef.current.targetX = 0;
+      stateRef.current.freeLook = true;
     };
     window.addEventListener("pointerout", onPointerOut, { passive: true });
     window.addEventListener("pointermove", onPointerMove, { passive: true });
@@ -3306,6 +3375,7 @@ export default function FloatingHead({
       renderer.forceContextLoss();
       canvas.remove();
       window.__fhU = window.__fhG = window.__fhS = window.__fhSay = null;
+      delete window.__fhReal;
       worldRef.current = null;
     };
   }, [needsScene, big]);
@@ -3326,6 +3396,13 @@ export default function FloatingHead({
      fighting it while the cursor moves around inside the target. */
   useEffect(() => {
     const s = stateRef.current;
+    /* the big portrait tracks the pointer alone, continuously (see the
+       pointer handler): attending the grid only tints it, and nothing here
+       snaps the gaze to forward on the way out */
+    if (big) {
+      s.lookLock = false;
+      return;
+    }
     if (lookTarget && miniRef.current) {
       const a = miniRef.current.getBoundingClientRect();
       const b = lookTarget.getBoundingClientRect();
@@ -3343,7 +3420,7 @@ export default function FloatingHead({
       s.targetX = 0;
       s.targetY = 0;
     }
-  }, [lookTarget]);
+  }, [lookTarget, big]);
 
   /* size + re-parent the canvas when the lightbox opens or closes */
   const layout = useCallback(() => {
@@ -3385,6 +3462,7 @@ export default function FloatingHead({
        frame; the point sprites scale with it so they keep their CSS size. */
     const s = stateRef.current;
     s.small = (!open && !big) || caption;
+    s.big = !!big;
     s.headCss = headPx;
     const viaRT = s.small || s.look.lattice;
     let f = 0;
@@ -3569,7 +3647,14 @@ export default function FloatingHead({
     /* what the previous reply cost, as the drawer shows it, so the model can
        explain its own figure when a visitor asks about it */
     const prev = [...msgs].reverse().find((m) => m.role === "assistant" && m.stats && typeof m.stats.cents === "number");
-    if (prev) ctx.last = { cents: prev.stats.cents, wrote: prev.stats.cacheWrite > 0, model: String(prev.stats.model || "") };
+    if (prev) {
+      ctx.last = {
+        cents: prev.stats.cents,
+        wrote: prev.stats.cacheWrite > 0,
+        wroteCents: typeof prev.stats.cacheWriteCents === "number" ? prev.stats.cacheWriteCents : 0,
+        model: String(prev.stats.model || ""),
+      };
+    }
     return ctx;
   };
 
@@ -4697,7 +4782,13 @@ export default function FloatingHead({
                               </>
                             ) : wkStats.cacheWrite > 0 ? (
                               <>
-                                cache written <span className="fh-wk-gloss">· {kfmt(wkStats.cacheWrite)} tok · 1 h</span>
+                                cache written{" "}
+                                <span className="fh-wk-gloss">
+                                  · {kfmt(wkStats.cacheWrite)} tok · 1 h
+                                  {typeof wkStats.cacheWriteCents === "number" && wkStats.cacheWriteCents > 0
+                                    ? " · " + usd(wkStats.cacheWriteCents) + " to write, kept out of the cost"
+                                    : ""}
+                                </span>
                               </>
                             ) : (
                               <>

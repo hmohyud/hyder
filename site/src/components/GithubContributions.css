@@ -71,18 +71,30 @@
   user-select: none;
   cursor: pointer;
   width: 100%;
-  transition: filter 0.25s ease;
 }
-.gh-contrib-grid-wrap:hover,
-.gh-contrib-grid-wrap:focus-visible {
-  filter: brightness(1.08);
-}
-.gh-contrib-grid-wrap:hover .gh-contrib-grid,
-.gh-contrib-grid-wrap:focus-visible .gh-contrib-grid {
-  border-color: rgba(158, 216, 255, 0.28);
+/* The hover glow lives on an overlay inside the grid and only its opacity
+   animates: a box-shadow or filter transition on the grid itself repainted
+   all 371 glowing cells on every frame of the transition (sixty repaints
+   in a quarter of a second at 240 Hz), which stalled the page's dots for
+   a moment each time the pointer crossed the grid. */
+.gh-contrib-grid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  border: 1px solid rgba(158, 216, 255, 0.28);
   box-shadow:
-    0 0 0 1px rgba(158, 216, 255, 0.12),
-    0 0 22px rgba(158, 216, 255, 0.08);
+    inset 0 0 0 1px rgba(158, 216, 255, 0.12),
+    inset 0 0 22px rgba(158, 216, 255, 0.08);
+  background: rgba(158, 216, 255, 0.035);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  will-change: opacity;
+}
+.gh-contrib-grid-wrap:hover .gh-contrib-grid::after,
+.gh-contrib-grid-wrap:focus-visible .gh-contrib-grid::after {
+  opacity: 1;
 }
 
 .gh-contrib-grid {
@@ -112,13 +124,13 @@
   );
   width: 100%;
 
+  position: relative;
   border-radius: 10px;
   background: rgba(10, 14, 28, 0.35);
   border: 1px solid rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   overflow: hidden;
-  transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
 .gh-col {
@@ -141,6 +153,13 @@
 .gh-cell.gh-empty {
   background: transparent;
   border: 1px dashed rgba(255, 255, 255, 0.04);
+}
+/* settled: the pop-in is over and the cells are plain painted boxes again,
+   not 371 compositor layers (see ContribGrid) */
+.gh-contrib-grid.gh-settled .gh-cell {
+  animation: none;
+  opacity: 1;
+  transform: none;
 }
 
 /* Loading-state placeholder — preserves layout height while the API fetches,

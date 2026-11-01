@@ -1,17 +1,34 @@
 /* The landing: the portrait at the centre of the cards */
 
-.focus-hero {
-  grid-template-columns: auto 1fr;
-  grid-template-areas:
-    "title  label"
-    "sub    grid"
-    "gh     grid";
-  align-items: end;
+/* the hero is the old landing's, less the portrait: its grid kept a 132px
+   column for the head between the name and the contributions, which is gone
+   here, so the columns close up; everything else (the mission, the contacts,
+   the tablet layout) is Landing.css as it was */
+@media (min-width: 1051px) {
+  .focus-hero {
+    grid-template-columns: auto 1fr;
+    grid-template-areas:
+      "title   label"
+      "title   grid"
+      "sub     gh"
+      "mission mission";
+  }
 }
-.focus-hero > .title { align-self: end; }
-.focus-hero .gh-contrib-grid-wrap { justify-self: end; max-width: 520px; }
-.focus-hero .subtitle { grid-area: sub; margin: 0; }
-.focus-hero .hero-contact { grid-area: gh; justify-self: start; }
+
+/* every card's title sits centred, its icon just to the left of it */
+.landing-focus .card-head {
+  justify-content: center;
+}
+
+/* at 1050px and below the portrait lives in the mission paragraph
+   (FloatingHead's tablet layout): no cloud, no hit area, no light */
+@media (max-width: 1050px) {
+  .focus-window,
+  .focus-light,
+  .focus-hit {
+    display: none;
+  }
+}
 
 .focus-stage {
   position: relative;
@@ -61,18 +78,50 @@
 .focus-front * {
   pointer-events: none !important;
 }
+/* A twin leaves the way the old landing's single card did: it fades out
+   over the normal 0.3 s while settling back down over 0.22 s, over the real
+   card already sitting dim beneath it (card-dim-now), so it reads as one
+   card dimming. Coming in it appears at once and lifts (below). */
 .landing-focus .focus-front .card {
   opacity: 0;
   filter: none;
-  transition: opacity 0.22s ease, transform 0.22s ease;
+  transform: none;
+  transition: opacity 0.3s ease, transform 0.22s ease;
+}
+/* the real card under an active twin is hidden at once: only one card is
+   ever visible, the twin, which lifts; the real card returns (dim, at
+   once, through card-dim-now) the moment the twin starts to fade away */
+.landing-focus .focus-grid:not(.focus-front) .card.card-hover-active {
+  opacity: 0;
+  filter: none;
+  transition: none;
+}
+/* a twin that is leaving drops its preview video at once, so it fades out
+   as the same still the real card shows beneath it: the fade is then pure
+   dimming of one picture, not a video frame cross-fading into a still */
+.landing-focus .focus-front .card:not(.card-hover-active) .peek-video {
+  opacity: 0;
+  transition: none;
+}
+/* the grid card under a twin that is fading away goes dim at once, so the
+   fade ends on the dimmed card and not on one still fading (the page adds
+   card-dim-now for the fade's duration) */
+.landing-focus .focus-grid .card.card-dim-now {
+  transition: none;
 }
 .landing-focus .focus-front .card:not(.card-hover-active) {
   opacity: 0;
   filter: none;
 }
+/* Hovered, the twin IS the card: it appears at once (no fade - it starts
+   as an exact copy over the real card, which hides at the same instant),
+   then lifts over 0.22 s exactly as the old landing's single card did.
+   A fade here showed two cards for its length, the lifting copy over the
+   still one, and the two fading at different rates. */
 .landing-focus .focus-front .card.card-hover-active {
   opacity: 1;
   filter: none;
+  transition: transform 0.22s ease, opacity 0s;
   transform: translateY(-6px) scale(1.035) rotate(0.4deg);
   box-shadow: 0 26px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.12);
   background: rgba(11, 13, 18, 0.96);
@@ -83,7 +132,7 @@
 }
 /* the head steps back while a card is in front */
 .focus-head {
-  transition: opacity 0.35s ease;
+  transition: opacity 0.3s ease;
 }
 .landing-focus.card-focus .focus-head {
   opacity: 0.35;
@@ -91,22 +140,68 @@
 /* everything else darkens around it: the background, the hero, the siblings
    (the hero and siblings already dim through .card-focus in Landing.css) */
 .landing-focus .bg-particles {
-  transition: filter 0.45s ease;
+  transition: filter 0.3s ease;
 }
-.landing-focus.card-focus .bg-particles {
-  filter: brightness(0.35);
+/* every focus change on the landing eases over the same 0.3 s: the cards,
+   the hero and its items, the background, the portrait, the window */
+.landing-focus .hero,
+.landing-focus .focus-grid:not(.focus-front) .card,
+.landing-focus .title,
+.landing-focus .gh-contrib-label,
+.landing-focus .gh-contrib-grid-wrap,
+.landing-focus .subtitle,
+.landing-focus .hero-contact,
+.landing-focus .mission-text {
+  transition: opacity 0.3s ease, filter 0.3s ease;
 }
-/* hovering the portrait does not dim the page here: the head sits among the
-   cards, so the pointer crosses its edge all the time, and a page-wide dim
-   flickering on and off read as choppiness */
-.landing-focus.head-focus .card,
+.landing-focus.card-focus .bg-particles,
+.landing-focus.head-focus .bg-particles,
+.landing-focus.gh-focus .bg-particles {
+  filter: brightness(0.8);
+}
+/* hovering the contributions grid dims the rest exactly as a card or the
+   head does: the same background, the same cards (Landing.css), and the
+   portrait to the same 0.35 through the same element, not 0.25 through its
+   host as the old landing's rule had it */
+.landing-focus.gh-focus .focus-head {
+  opacity: 0.35;
+}
+.landing-focus.gh-focus .focus-head .fh-mini {
+  opacity: 1;
+}
+/* hovering the portrait quiets the rest a little, the way a hovered card
+   does, only gentler: the head's hover now comes from the cloud-shaped hit
+   area, so its edge is the cloud's and the dim no longer flickers */
+/* the head's focus dims exactly what a card's focus dims, to the same
+   values (Landing.css: siblings 0.3 + brightness 0.5, the hero 0.25, the
+   background 0.6), so handing the focus from a card to the head or back
+   changes nothing but which thing is lit - before, the two states dimmed
+   to different levels and the page re-lit for a moment in between */
+.landing-focus.head-focus .card {
+  opacity: 0.3;
+  filter: brightness(0.5);
+}
+/* the grid's cards keep their own compositor layers, so a dim is a fade
+   the compositor runs by itself: starting one no longer re-rasters four
+   cards (measured as a run of 38 ms frames at the start of each hover) */
+.landing-focus .focus-grid .card {
+  will-change: opacity;
+}
+/* the head's focus dims the hero as ONE element, exactly as a card's focus
+   does (Landing.css: .card-focus .hero), so the handoff between the two
+   changes nothing on the hero. The old landing dims the hero's items one
+   by one (its head sits among them); here that crossed with the
+   container's fade and the product bulged brighter halfway through. */
+.landing-focus.head-focus .hero {
+  opacity: 0.25;
+}
 .landing-focus.head-focus .title,
 .landing-focus.head-focus .gh-contrib-label,
 .landing-focus.head-focus .gh-contrib-grid-wrap,
 .landing-focus.head-focus .subtitle,
-.landing-focus.head-focus .hero-contact {
+.landing-focus.head-focus .hero-contact,
+.landing-focus.head-focus .mission-text {
   opacity: 1;
-  filter: none;
 }
 
 .focus-head {
@@ -117,6 +212,41 @@
   z-index: 4;
   display: grid;
   place-items: center;
+  /* the portrait's square box takes no pointer: the cloud-shaped hit area
+     below does, so the cards keep the pointer right up to the cloud's edge */
+  pointer-events: none;
+}
+.focus-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  cursor: pointer;
+  /* clip-path is set by the script each frame, to the cloud */
+}
+/* nothing of the cloud shows until the real head is in (the page adds
+   head-real once it is); then the window and the light fade in with it */
+.focus-window,
+.focus-light {
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.landing-focus.head-real .focus-window,
+.landing-focus.head-real .focus-light {
+  opacity: 1;
+}
+.landing-focus:not(.head-real) .focus-hit {
+  visibility: hidden;
+}
+/* the boundary light sits above the lifted card (z 6) and takes no pointer */
+.focus-light {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 7;
+  pointer-events: none;
+}
+.focus-hit:focus-visible {
+  outline: none;
 }
 .focus-head .fh-mini {
   width: 360px;
@@ -157,4 +287,18 @@
   color: #e9e0ff;
   font: 12px/1.5 "JetBrains Mono", "Fira Code", monospace;
   pointer-events: none;
+}
+
+
+/* the name is a link: it keeps the title's gradient text (the title clips
+   its background to all of its text, the link's included) */
+.focus-hero .title-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.focus-hero .title-link:focus-visible {
+  outline: 2px solid rgba(158, 216, 255, 0.7);
+  outline-offset: 6px;
+  border-radius: 4px;
 }
