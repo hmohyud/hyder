@@ -211,11 +211,12 @@ const NEAR_CELL = 0.05;
    scan's shell carries a neck base and a shoulder the cloud never had, and
    the wire is cut where the dots stop. A hashed grid keeps each query to the
    27 cells around it. */
-function cloudOccupancy(pos) {
+function cloudOccupancy(pos, neck = NECK_DEFAULT) {
   const grid = new Map();
   const key = (x, y, z) => x * 4194304 + y * 2048 + z;
   const cell = (v) => Math.floor(v / NEAR_CELL) + 1000;
   for (let i = 0; i < pos.length; i += 3) {
+    if (!neckKeep(neck, pos[i], pos[i + 1], pos[i + 2])) continue;
     const k = key(cell(pos[i]), cell(pos[i + 1]), cell(pos[i + 2]));
     let a = grid.get(k);
     if (!a) grid.set(k, (a = []));
@@ -339,7 +340,48 @@ function sliceShell(verts, idx, d, near) {
    height). The scan's neck base widens into a shoulder on one side; the dots
    there are sparse and dim, but contour lines pile up on the slope and read
    as a piece jutting out, so the lines go before the dots do. */
-const WIRE_NECK = [-1.16, -0.98];
+const WIRE_NECK = [-9, -8.9]; // retired: the cut planes (NECK_PLANES) do this now
+/* the neck cut: planes through three points each, in the head's own rest
+   frame (cloud units; the cloud spans y -1.2..1.2, the face toward +z). A
+   dot on the far side of ANY plane - away from the face's centre - is not
+   drawn in any look, and is left out of the wire's clip, the solid print
+   and the silhouette. The /cut editor moves the points live
+   (window.__fhCutEditor); the chosen sets go here. Up to NECK_MAX planes. */
+const NECK_PLANES = [
+  [[0.65, -1.476, 1.744], [0.484, -1.142, -0.143], [0.308, -1.116, -0.829]], // the owner's cuts, 2026-11-01
+  [[-1.269, -1.645, 0.533], [1.396, -1.424, 0.823], [0.829, -0.553, -1.159]],
+];
+const NECK_MAX = 4;
+const NECK_BAND = 0.06; // the cut fades over this much distance from a plane
+/* a plane as a normal and an offset, the normal pointing toward the kept
+   side (the side the middle of the face is on): keep where n.p - d >= 0 */
+function planeFrom(pts) {
+  const [a, b, c] = pts;
+  const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
+  const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+  let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+  const l = Math.hypot(nx, ny, nz) || 1;
+  nx /= l; ny /= l; nz /= l;
+  let d = nx * a[0] + ny * a[1] + nz * a[2];
+  if (ny * 0.2 - d < 0) { nx = -nx; ny = -ny; nz = -nz; d = -d; } // the face's middle (0, 0.2, 0) is kept
+  return { n: [nx, ny, nz], d };
+}
+const planesFrom = (sets) => sets.slice(0, NECK_MAX).map(planeFrom);
+/* the same test in GLSL, for the shell (the occluder and the solid print):
+   the signed distance to the nearest cutting plane (negative = cut). It is
+   computed per vertex and interpolated, and a plane's distance is linear
+   across a triangle, so the fragment-side cut lands exactly on the plane. */
+const PLANE_GLSL =
+  "uniform vec4 uPlanes[4]; uniform int uPlaneCount;" +
+  " float planeDist(vec3 p){ float k = 9.0; for (int i = 0; i < 4; i++) { if (i < uPlaneCount) { k = min(k, dot(uPlanes[i].xyz, p) - uPlanes[i].w); } } return k; }";
+const NECK_DEFAULT = planesFrom(NECK_PLANES);
+const neckKeep = (planes, x, y, z) => {
+  for (let i = 0; i < planes.length; i++) {
+    const pl = planes[i];
+    if (pl.n[0] * x + pl.n[1] * y + pl.n[2] * z - pl.d < 0) return false;
+  }
+  return true;
+};
 const wireSpacing = (headCss) => Math.round(Math.max(0.08, Math.min(0.3, 7 / (Math.max(20, headCss) / 2.6))) * 100) / 100;
 /* ---------- the performed tricks, shared by the dots and the wire ----------
    uFx picks one, uFxT runs 0..1 through it; everything is a function of the
@@ -998,6 +1040,9 @@ varying vec3 vColor;
 varying float vFacing;
 varying float vGlow;
 varying float vKey;
+varying float vCut;
+uniform vec4 uPlanes[4]; // the neck cut: normals (xyz) and offsets (w); kept where n.p - d >= 0 for every plane
+uniform int uPlaneCount;
 ${FX_VERT_GLSL}
 ${FACE_GLSL}
 
@@ -1012,6 +1057,10 @@ void main() {
   /* distance from the crown: the colour trick's wash sweeps this field,
      so the tint pours down over the head instead of switching on */
   vKey = length(p - vec3(0.0, 1.35, 0.0));
+  vCut = 1.0;
+  for (int i = 0; i < 4; i++) {
+    if (i < uPlaneCount) vCut *= smoothstep(0.0, ${g4(NECK_BAND)}, dot(uPlanes[i].xyz, position) - uPlanes[i].w);
+  }
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   vec3 n = normalize(normalMatrix * normal);
   vFacing = smoothstep(-0.35, 0.55, n.z);
@@ -1033,6 +1082,7 @@ const FRAG = [
   "varying float vFacing;",
   "varying float vGlow;",
   "varying float vKey;",
+  "varying float vCut;",
   FX_FRAG_GLSL,
   "void main() {",
   "  vec4 t = texture2D(uMap, gl_PointCoord);",
@@ -1040,6 +1090,7 @@ const FRAG = [
   // side, and at the solid-state floor of 2% there would be nothing to see
   "  float fl = 0.02 + 0.35 * uGhost;",
   "  float a = t.a * (fl + (1.0 - fl) * vFacing) * uAlpha;",
+  "  a *= vCut;",
   "  if (a < 0.012) discard;",
   // keep each point's own brightness when tinting, so the shading survives
   "  float lum = max(max(vColor.r, vColor.g), vColor.b);",
@@ -1739,6 +1790,7 @@ export default function FloatingHead({
   hoveredCard = null,
   onHoverChange,
   lookTarget = null,
+  big = false, // a large parked portrait (the /focus prototype): drawn direct, not through the small-host texture
   fabOnly = false,
 }) {
   const [mode, setMode] = useState(() => (fabOnly ? "phone" : detectMode()));
@@ -2041,9 +2093,9 @@ export default function FloatingHead({
     /* the caption head draws the whole cloud like the lightbox: it is
        supersampled, so the overlap averages out instead of blowing out, and
        a thinned cloud at that size read as splotches */
-    const shown = !s.open ? Math.min(world.total, MINI_POINTS) : world.total;
+    const shown = !s.open && !big ? Math.min(world.total, MINI_POINTS) : world.total; // a big parked portrait draws it all
     world.points.geometry.setDrawRange(0, shown);
-  }, []);
+  }, [big]);
   const drawRangeRef = useRef(applyDrawRange);
   drawRangeRef.current = applyDrawRange;
 
@@ -2108,6 +2160,12 @@ export default function FloatingHead({
     scene.add(group);
 
     const geometry = new THREE.BufferGeometry();
+    /* the cut planes, one set of uniform objects shared by the dots, the
+       occluder and the solid print, so one update cuts all three */
+    const planeUniforms = {
+      uPlanes: { value: [0, 1, 2, 3].map((i) => (NECK_DEFAULT[i] ? new THREE.Vector4(...NECK_DEFAULT[i].n, NECK_DEFAULT[i].d) : new THREE.Vector4(0, 1, 0, -9))) },
+      uPlaneCount: { value: NECK_DEFAULT.length },
+    };
     const material = new THREE.ShaderMaterial({
       uniforms: {
         uMap: { value: makeSprite() },
@@ -2119,6 +2177,8 @@ export default function FloatingHead({
         uGhost: { value: 0 },
         uAlpha: { value: 1 },
         uEdgeFade: { value: 0 },
+        uPlanes: planeUniforms.uPlanes,
+        uPlaneCount: planeUniforms.uPlaneCount,
         uBlink: { value: 0 },
         uMouth: { value: 0 },
         uMouthW: { value: 1 },
@@ -2151,10 +2211,12 @@ export default function FloatingHead({
          ghost trick eases it: sliding the shell far behind the head makes
          hidden dots reappear nearest-first - a visible depth peel rather
          than a snap. */
-      uniforms: { uShellBias: { value: 0.06 } },
+      uniforms: { uShellBias: { value: 0.06 }, uPlanes: planeUniforms.uPlanes, uPlaneCount: planeUniforms.uPlaneCount },
+      // the cut planes remove the shell too: nothing of the cut part occludes
       vertexShader:
-        "uniform float uShellBias; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); mv.z -= uShellBias; gl_Position = projectionMatrix * mv; }",
-      fragmentShader: "void main(){ gl_FragColor = vec4(0.0); }",
+        "uniform float uShellBias; varying float vKeep; " + PLANE_GLSL +
+        " void main(){ vKeep = planeDist(position); vec4 mv = modelViewMatrix * vec4(position, 1.0); mv.z -= uShellBias; gl_Position = projectionMatrix * mv; }",
+      fragmentShader: "varying float vKeep; void main(){ if (vKeep < 0.0) discard; gl_FragColor = vec4(0.0); }",
       colorWrite: false,
       depthWrite: true,
     });
@@ -2301,7 +2363,8 @@ export default function FloatingHead({
       const span = Math.max(1e-6, maxY - minY);
       /* the wire look clips to where the cloud has points; the procedural
          stand-in counts too, until the real cloud replaces it */
-      const near = data.colorIndex ? cloudOccupancy(data.position) : null;
+      stateRef.current.cloudPos = data.colorIndex ? data.position : null; // kept for a re-cut
+      const near = data.colorIndex ? cloudOccupancy(data.position, stateRef.current.neck || NECK_DEFAULT) : null;
       if (worldRef.current) worldRef.current.cloudNear = near;
       else stateRef.current.pendingCloudNear = near;
       for (let i = 0; i < n; i++) {
@@ -2337,19 +2400,66 @@ export default function FloatingHead({
        colours, lightly lit) rather than the dots: smooth tone, a real print.
        window.__fhLatticeSolid(false) falls back to the dots. */
     const solidMat = new THREE.ShaderMaterial({
-      uniforms: { uLift: { value: 1.0 } },
+      uniforms: { uLift: { value: 1.0 }, uPlanes: planeUniforms.uPlanes, uPlaneCount: planeUniforms.uPlaneCount },
       /* aIn marks shell vertices near the cloud's dots (the scan's neck base,
          which the cloud never had, is cut away); aSolid is the colour of the
          dots around the vertex - the same posterised tone in the same place,
          so the print is the cloud's own picture, filled in. A touch of a
          lamp from the upper left keeps the surface from reading flat. */
-      vertexShader: "attribute float aIn; attribute vec3 aSolid; varying vec3 vCol; varying float vL; varying float vIn; void main(){ vCol = aSolid; vIn = aIn; vec3 n = normalize(normalMatrix * normal); vL = 0.55 + 0.2 * max(0.0, n.z) + 0.25 * max(0.0, dot(n, normalize(vec3(-0.45, 0.6, 0.65)))); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+      vertexShader: "attribute float aIn; attribute vec3 aSolid; varying vec3 vCol; varying float vL; varying float vIn; varying float vKeep; " + PLANE_GLSL + " void main(){ vCol = aSolid; vIn = aIn; vKeep = planeDist(position); vec3 n = normalize(normalMatrix * normal); vL = 0.55 + 0.2 * max(0.0, n.z) + 0.25 * max(0.0, dot(n, normalize(vec3(-0.45, 0.6, 0.65)))); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
       fragmentShader: [
-        "uniform float uLift; varying vec3 vCol; varying float vL; varying float vIn;",
-        "void main(){ if (vIn < 0.5) discard; gl_FragColor = vec4(vCol * vL * uLift, 1.0); }",
+        "uniform float uLift; varying vec3 vCol; varying float vL; varying float vIn; varying float vKeep;",
+        "void main(){ if (vIn < 0.5 || vKeep < 0.0) discard; gl_FragColor = vec4(vCol * vL * uLift, 1.0); }",
       ].join("\n"),
     });
     window.__fhLatticeSolid = (on) => { stateRef.current.latticeSolid = !!on; };
+    /* the head's silhouette as the page sees it right now: the farthest
+       projected dot in each of `bins` screen angles (x right, y down), in
+       CSS px from the host's centre, following the head's turn and sway.
+       Every fourth dot is enough for an outline. */
+    const silM = new THREE.Matrix4();
+    const silV = new THREE.Vector4();
+    window.__fhSilhouette = (bins, out, neck = stateRef.current.neck || NECK_DEFAULT) => {
+      const pos = geometry.attributes.position.array;
+      const n = pos.length / 3;
+      const step = Math.max(1, Math.floor(n / 4000));
+      group.updateMatrixWorld();
+      camera.updateMatrixWorld();
+      silM.multiplyMatrices(camera.matrixWorldInverse, group.matrixWorld).premultiply(camera.projectionMatrix);
+      const hw = canvas.clientWidth / 2, hh = canvas.clientHeight / 2;
+      const res = out && out.length === bins ? out : new Float32Array(bins);
+      res.fill(0);
+      for (let i = 0; i < n; i += step) {
+        if (!neckKeep(neck, pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2])) continue; // the cut is not part of the outline
+        silV.set(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2], 1).applyMatrix4(silM);
+        if (silV.w <= 0) continue;
+        const x = (silV.x / silV.w) * hw, y = (-silV.y / silV.w) * hh;
+        const b = (((Math.round((Math.atan2(y, x) / (Math.PI * 2)) * bins) % bins) + bins) % bins);
+        const r = Math.hypot(x, y);
+        if (r > res[b]) res[b] = r;
+      }
+      return res;
+    };
+    /* the same projection as pairs of CSS px (x right, y down) about the
+       host's centre, every `step`th dot, for a page that wants to draw the
+       head's footprint itself; returns the number of pairs written */
+    window.__fhProject = (out, step = 8, neck = stateRef.current.neck || NECK_DEFAULT) => {
+      const pos = geometry.attributes.position.array;
+      const n = pos.length / 3;
+      group.updateMatrixWorld();
+      camera.updateMatrixWorld();
+      silM.multiplyMatrices(camera.matrixWorldInverse, group.matrixWorld).premultiply(camera.projectionMatrix);
+      const hw = canvas.clientWidth / 2, hh = canvas.clientHeight / 2;
+      let k = 0;
+      for (let i = 0; i < n && k + 1 < out.length; i += step) {
+        if (!neckKeep(neck, pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2])) continue;
+        silV.set(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2], 1).applyMatrix4(silM);
+        if (silV.w <= 0) continue;
+        out[k++] = (silV.x / silV.w) * hw;
+        out[k++] = (-silV.y / silV.w) * hh;
+      }
+      return k / 2;
+    };
     // the lab's dials: { latticeCellPx, latticeFill, latticeGain, latticeShape, latticeStagger, latticeSolid }
     window.__fhLattice = (o) => { Object.assign(stateRef.current, o || {}); };
     const bakeShellIn = (geo) => {
@@ -2460,6 +2570,145 @@ export default function FloatingHead({
     worldRef.current = {
       renderer, scene, camera, group, points, material, canvas, total: 0, rt, dpr, wire: wireLines, ensureWire, resliceWire,
       cloudNear: stateRef.current.pendingCloudNear, shellMat: shellMaterial,
+    };
+    /* the neck cut, live: the dots' fade, the wire's dissolve, the clip the
+       wire and the solid print share, and (through the hooks' default) the
+       silhouette. Local tuning; the chosen height becomes NECK_CUT. */
+    const setPlaneUniforms = (planes) => {
+      const arr = planeUniforms.uPlanes.value;
+      for (let i = 0; i < NECK_MAX; i++) {
+        if (planes[i]) arr[i].set(planes[i].n[0], planes[i].n[1], planes[i].n[2], planes[i].d);
+        else arr[i].set(0, 1, 0, -9);
+      }
+      planeUniforms.uPlaneCount.value = Math.min(NECK_MAX, planes.length);
+    };
+    window.__fhNeckCut = (sets, onTopOfBaked = false) => {
+      const s = stateRef.current;
+      // the editor cuts on top of the planes already baked in; a plain call replaces them
+      s.neck = onTopOfBaked ? planesFrom([...NECK_PLANES, ...sets]) : planesFrom(sets);
+      setPlaneUniforms(s.neck);
+      if (s.cloudPos && worldRef.current) {
+        worldRef.current.cloudNear = cloudOccupancy(s.cloudPos, s.neck);
+        resliceWire();
+      }
+      return s.neck;
+    };
+    window.__fhNeckDefault = () => NECK_PLANES.map((set) => set.map((p) => p.slice()));
+    // the dots at rest, [x, y, z, ...], for an editor that needs to know the head is in
+    window.__fhRestPoints = () => stateRef.current.cloudPos || null;
+    /* the cut editor (local): three handles per plane in the head's own
+       frame, each with an arrow per axis to drag, and each plane shown as a
+       pane. The head holds still; a right-button drag on the canvas turns
+       it. Returns {setView, points, setPoints, screen, destroy}. */
+    window.__fhCutEditor = async (sets, onChange) => {
+      const { TransformControls } = await import("three/examples/jsm/controls/TransformControls.js");
+      const s = stateRef.current;
+      const palette = [[0xff72a1, 0x7fd3ff, 0x78ffa8], [0xffb347, 0xfff07a, 0xffffff], [0xc3a6ff, 0x9ed8ff, 0xb4ffd0], [0xff9ecb, 0xa0e0ff, 0xd0ffe0]];
+      const markers = []; // [plane][3]
+      const controls = [];
+      const panes = [];
+      const points = () => markers.map((set) => set.map((m) => [+m.position.x.toFixed(3), +m.position.y.toFixed(3), +m.position.z.toFixed(3)]));
+      const apply = () => {
+        const all = points();
+        window.__fhNeckCut(all, true);
+        const planes = planesFrom(all);
+        all.forEach((p, j) => {
+          const pane = panes[j], pl = planes[j];
+          if (!pane || !pl) return;
+          pane.position.set((p[0][0] + p[1][0] + p[2][0]) / 3, (p[0][1] + p[1][1] + p[2][1]) / 3, (p[0][2] + p[1][2] + p[2][2]) / 3);
+          pane.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(pl.n[0], pl.n[1], pl.n[2]));
+        });
+        if (onChange) onChange(all);
+      };
+      sets.slice(0, NECK_MAX).forEach((set, j) => {
+        const pane = new THREE.Mesh(
+          new THREE.PlaneGeometry(3.4, 3.4),
+          new THREE.MeshBasicMaterial({ color: palette[j][0], transparent: true, opacity: 0.1, side: THREE.DoubleSide, depthWrite: false })
+        );
+        group.add(pane);
+        panes.push(pane);
+        const row = [];
+        set.forEach((p, i) => {
+          const m = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 12), new THREE.MeshBasicMaterial({ color: palette[j][i], depthTest: false }));
+          m.position.set(p[0], p[1], p[2]);
+          m.renderOrder = 10;
+          group.add(m);
+          row.push(m);
+          const c = new TransformControls(camera, canvas);
+          c.attach(m);
+          c.setSpace("local");
+          c.setSize(0.5);
+          c.addEventListener("objectChange", apply);
+          scene.add(c.getHelper());
+          controls.push(c);
+        });
+        markers.push(row);
+      });
+      /* the canvas takes the pointer while editing; nothing of it reaches
+         the host button (which would open the lightbox). A right-button
+         drag turns the head. */
+      const stop = (e) => e.stopPropagation();
+      let turning = null;
+      /* capture-phase, so a right-button press never reaches the arrows'
+         own handlers (they would grab it as a drag) */
+      const onDown = (e) => {
+        if (e.button !== 2) return; // the arrows' own handlers take the left button
+        e.stopImmediatePropagation();
+        turning = { x: e.clientX, y: e.clientY, ty: s.targetY, tx: s.targetX };
+        try { canvas.setPointerCapture(e.pointerId); } catch (err) { /* a synthetic pointer */ }
+      };
+      const onMove = (e) => {
+        if (!turning) return;
+        s.targetY = turning.ty + (e.clientX - turning.x) * 0.006;
+        s.targetX = Math.max(-1.2, Math.min(1.2, turning.tx + (e.clientY - turning.y) * 0.006));
+      };
+      const onUp = (e) => {
+        if (e.button !== 2) return;
+        e.stopImmediatePropagation();
+        turning = null;
+      };
+      const noMenu = (e) => e.preventDefault();
+      canvas.addEventListener("pointerdown", onDown, true);
+      canvas.addEventListener("pointermove", onMove, true);
+      canvas.addEventListener("pointerup", onUp, true);
+      canvas.addEventListener("pointercancel", onUp, true);
+      canvas.addEventListener("click", stop);
+      canvas.addEventListener("contextmenu", noMenu);
+      canvas.style.pointerEvents = "auto";
+      s.editor = true;
+      s.lookLock = true;
+      s.targetX = 0;
+      s.targetY = 0;
+      apply();
+      const tmp = new THREE.Vector3();
+      return {
+        setView: (yaw, pitch = 0) => { s.targetY = yaw; s.targetX = pitch; },
+        points,
+        setPoints: (next) => {
+          next.forEach((set, j) => set.forEach((p, i) => markers[j] && markers[j][i] && markers[j][i].position.set(p[0], p[1], p[2])));
+          apply();
+        },
+        /* each handle's place on the page, CSS px, for a test or a hint */
+        screen: () => markers.map((set) => set.map((m) => {
+          m.getWorldPosition(tmp).project(camera);
+          const r = canvas.getBoundingClientRect();
+          return [r.left + ((tmp.x + 1) / 2) * r.width, r.top + ((1 - tmp.y) / 2) * r.height];
+        })),
+        destroy: () => {
+          for (const c of controls) { scene.remove(c.getHelper()); c.dispose(); }
+          for (const row of markers) for (const m of row) group.remove(m);
+          for (const pane of panes) group.remove(pane);
+          canvas.removeEventListener("pointerdown", onDown, true);
+          canvas.removeEventListener("pointermove", onMove, true);
+          canvas.removeEventListener("pointerup", onUp, true);
+          canvas.removeEventListener("pointercancel", onUp, true);
+          canvas.removeEventListener("click", stop);
+          canvas.removeEventListener("contextmenu", noMenu);
+          canvas.style.pointerEvents = "";
+          s.editor = false;
+          s.lookLock = false;
+        },
+      };
     };
     setReady(true);
 
@@ -2588,11 +2837,13 @@ export default function FloatingHead({
         return;
       }
 
-      if (last && !judged && t - firstFrameT > 900) {
+      if (last && !judged && t - firstFrameT > 900 && !document.hidden) {
         /* the first ~0.9s after a scene build is layout/upload jank on even
            strong devices - judging it would condemn capable phones on the
-           overlay-open transition */
-        samples.push(t - last);
+           overlay-open transition. A gap of a quarter second or more is a
+           pause (a tab switch, a throttled background page), not a slow
+           machine, and is not a sample either. */
+        if (t - last < 250) samples.push(t - last);
         if (samples.length >= 70) {
           const sorted = samples.slice().sort((a, b) => a - b);
           judged = true;
@@ -2628,7 +2879,7 @@ export default function FloatingHead({
       s.rotY += (s.spin + s.targetY - s.rotY) * k;
       s.rotX += (s.targetX - s.rotX) * k;
 
-      if (s.reduced) {
+      if (s.reduced || s.editor) {
         group.rotation.set(s.rotX, s.rotY, 0);
         group.position.set(0, 0, 0);
       } else {
@@ -2952,6 +3203,10 @@ export default function FloatingHead({
       } else {
         drawScene();
       }
+      /* a page that draws something from the head's pose (the /focus
+         window) does it here, after the head has moved and rendered, so
+         the two never disagree by a frame */
+      if (window.__fhAfterFrame) window.__fhAfterFrame();
     };
     raf = requestAnimationFrame(frame);
 
@@ -3121,7 +3376,7 @@ export default function FloatingHead({
        at any size. The texture is sized here, once per layout, never per
        frame; the point sprites scale with it so they keep their CSS size. */
     const s = stateRef.current;
-    s.small = !open || caption;
+    s.small = (!open && !big) || caption;
     s.headCss = headPx;
     const viaRT = s.small || s.look.lattice;
     let f = 0;
@@ -3145,7 +3400,7 @@ export default function FloatingHead({
       world.wire.visible = s.wireOn;
     }
     applyDrawRange();
-  }, [open, caption, applyDrawRange]);
+  }, [open, caption, applyDrawRange, big]);
 
   useEffect(() => {
     stateRef.current.open = open;
