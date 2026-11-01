@@ -373,6 +373,7 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget })
 
   return (
     <canvas ref={canvasRef}
+      className="bg-particles"
       style={{ position: "fixed", inset: 0, zIndex: 0 }} />
   );
 }

@@ -1,0 +1,160 @@
+/* The landing: the portrait at the centre of the cards */
+
+.focus-hero {
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "title  label"
+    "sub    grid"
+    "gh     grid";
+  align-items: end;
+}
+.focus-hero > .title { align-self: end; }
+.focus-hero .gh-contrib-grid-wrap { justify-self: end; max-width: 520px; }
+.focus-hero .subtitle { grid-area: sub; margin: 0; }
+.focus-hero .hero-contact { grid-area: gh; justify-self: start; }
+
+.focus-stage {
+  position: relative;
+  margin-top: 8px;
+}
+/* the cards sit lowest, with the moving cloud masked out of them; the head
+   sits on top. The mask is an SVG mask element (see LandingFocus.js), in
+   the grid's own pixel space. */
+.focus-grid {
+  position: relative;
+  z-index: 1;
+  gap: 22px;
+}
+/* the window: a canvas over the cards that paints the page's background
+   inside the cloud and nothing outside (see LandingFocus.js) */
+.focus-window {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+.focus-grid .card {
+  min-height: 300px;
+}
+/* the masked copies stay put when hovered (the front twin does the lifting)
+   and cast no shadow into the gaps, so the window's inside and the page
+   around the cards are the same tone */
+.focus-grid .card,
+.focus-grid .card:hover {
+  box-shadow: none;
+  transform: none;
+}
+/* the front layer sits over the window and the head; each twin is invisible
+   and inert until its card is hovered, then it comes forward and lifts */
+.focus-front {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  -webkit-mask: none;
+  mask: none;
+  pointer-events: none;
+}
+/* the twins' previews set their own pointer-events (Landing.css), which
+   would catch the hover over the real card's image: nothing in the front
+   layer may take the pointer */
+.focus-front * {
+  pointer-events: none !important;
+}
+.landing-focus .focus-front .card {
+  opacity: 0;
+  filter: none;
+  transition: opacity 0.22s ease, transform 0.22s ease;
+}
+.landing-focus .focus-front .card:not(.card-hover-active) {
+  opacity: 0;
+  filter: none;
+}
+.landing-focus .focus-front .card.card-hover-active {
+  opacity: 1;
+  filter: none;
+  transform: translateY(-6px) scale(1.035) rotate(0.4deg);
+  box-shadow: 0 26px 60px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.12);
+  background: rgba(11, 13, 18, 0.96);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+.focus-front .card .portal-glow {
+  opacity: 0.3;
+}
+/* the head steps back while a card is in front */
+.focus-head {
+  transition: opacity 0.35s ease;
+}
+.landing-focus.card-focus .focus-head {
+  opacity: 0.35;
+}
+/* everything else darkens around it: the background, the hero, the siblings
+   (the hero and siblings already dim through .card-focus in Landing.css) */
+.landing-focus .bg-particles {
+  transition: filter 0.45s ease;
+}
+.landing-focus.card-focus .bg-particles {
+  filter: brightness(0.35);
+}
+/* hovering the portrait does not dim the page here: the head sits among the
+   cards, so the pointer crosses its edge all the time, and a page-wide dim
+   flickering on and off read as choppiness */
+.landing-focus.head-focus .card,
+.landing-focus.head-focus .title,
+.landing-focus.head-focus .gh-contrib-label,
+.landing-focus.head-focus .gh-contrib-grid-wrap,
+.landing-focus.head-focus .subtitle,
+.landing-focus.head-focus .hero-contact {
+  opacity: 1;
+  filter: none;
+}
+
+.focus-head {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  display: grid;
+  place-items: center;
+}
+.focus-head .fh-mini {
+  width: 360px;
+  height: 360px;
+  margin: 0;
+  opacity: 1;
+}
+.focus-head .fh-mini:hover {
+  transform: scale(1.02);
+}
+
+@media (max-width: 760px) {
+  .focus-window {
+    display: none;
+  }
+  .focus-head {
+    position: static;
+    transform: none;
+    margin: 0 auto 12px;
+  }
+  .focus-head .fh-mini {
+    width: 180px;
+    height: 180px;
+  }
+}
+
+/* local diagnostics (?stats) */
+.focus-stats {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  z-index: 100000;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(195, 166, 255, 0.5);
+  border-radius: 8px;
+  background: rgba(10, 13, 19, 0.92);
+  color: #e9e0ff;
+  font: 12px/1.5 "JetBrains Mono", "Fira Code", monospace;
+  pointer-events: none;
+}

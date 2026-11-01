@@ -3216,7 +3216,14 @@ export default function FloatingHead({
       if (s.open || s.reduced || !miniRef.current) return;
       if (s.lookLock) return; // attending something - the gaze holds
 
-      const r = miniRef.current.getBoundingClientRect();
+      /* the host's box, read at most a few times a second: a pointer can
+         report hundreds of moves a second, and each read forces layout */
+      const now = performance.now();
+      if (!s.miniRect || now - (s.miniRectAt || 0) > 120) {
+        s.miniRect = miniRef.current.getBoundingClientRect();
+        s.miniRectAt = now;
+      }
+      const r = s.miniRect;
       const dx = e.clientX - (r.left + r.width / 2);
       const dy = e.clientY - (r.top + r.height / 2);
       const dist = Math.hypot(dx, dy);
@@ -3225,9 +3232,10 @@ export default function FloatingHead({
       if (dist > GAZE_RADIUS) {
         // Outside the close range it still follows the cursor across a card,
         // just more gently — that is the whole hero reacting, not the portrait
-        // noticing you.
+        // noticing you. A big portrait sits among the cards, so it follows
+        // gently everywhere: snapping to centre between cards read as jitter.
         const overCard =
-          e.target && e.target.closest && e.target.closest(".landing .card");
+          big || (e.target && e.target.closest && e.target.closest(".landing .card"));
         if (overCard) {
           const fx = dx / Math.max(1, window.innerWidth / 2);
           const fy = dy / Math.max(1, window.innerHeight / 2);
@@ -3300,7 +3308,7 @@ export default function FloatingHead({
       window.__fhU = window.__fhG = window.__fhS = window.__fhSay = null;
       worldRef.current = null;
     };
-  }, [needsScene]);
+  }, [needsScene, big]);
 
   /* hovering a card pulls the whole cloud toward that card's accent; attending
      something (lookTarget) overrides with the off-white */

@@ -1,0 +1,53 @@
+/* LOCAL ONLY: the neck-cut editor page (/cut) */
+.cut-page {
+  position: relative;
+  min-height: 100svh;
+  background: #0b0e14;
+  color: #c9cfdd;
+}
+.cut-stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+}
+.cut-stage .fh-mini {
+  width: 480px;
+  height: 480px;
+  margin: 0;
+  opacity: 1;
+}
+.cut-panel {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 10;
+  display: grid;
+  gap: 8px;
+  width: 360px;
+  padding: 10px 12px;
+  border: 1px solid rgba(195, 166, 255, 0.5);
+  border-radius: 8px;
+  background: rgba(10, 13, 19, 0.92);
+  color: #e9e0ff;
+  font: 12px/1.4 "JetBrains Mono", "Fira Code", monospace;
+}
+.cut-panel label {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+.cut-panel input {
+  width: 100%;
+}
+.cut-panel pre {
+  margin: 0;
+  color: #fff;
+  user-select: all;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font: inherit;
+}
