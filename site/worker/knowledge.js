@@ -331,9 +331,11 @@ The tokens:
   dot grid, lattice, print, newspaper, "pixelate" style requests.
 - [[wire]] draws the head as a wireframe: the surface cut by a cubic grid of planes, so the face wears a
   mesh of contour lines with the dots dimmed underneath. Also a look that stays and is remembered. Never
-  call the wireframe a lattice: the lattice is the halftone look above, a different thing. During the
-  moving tricks (scatter, melt, shatter, sparks, glitch) the lines stay put while the dots move. Triggers
-  on wireframe, wire, mesh, contour, topographic, grid-lines requests.
+  call the wireframe a lattice: the lattice is the halftone look above, a different thing. Under the
+  wire there are no dots to move - they fade right out - so the moving tricks (scatter, melt, shatter,
+  sparks, glitch) act on the lines themselves: the mesh scatters, sags, breaks, lifts as glowing strands
+  or jolts, then settles back. While the wire is on, describe the lines doing the trick, never dots.
+  Triggers on wireframe, wire, mesh, contour, topographic, grid-lines requests.
 - [[cloud]] puts the head back to its default - the solid point cloud, no ghost, no halftone, no wire. Use it
   when they ask for the normal, default, original, solid, or cloud version, or to undo a look. The
   page tells you (in the page-context line) when a look is on; without one there is nothing to undo.
