@@ -9,7 +9,8 @@ import {
 } from "react-router-dom";
 import "./App.css";
 
-import LandingFocus from "./pages/LandingFocus"; // the landing: the portrait at the centre of the cards
+import Landing from "./pages/Landing";
+import LandingFocus from "./pages/LandingFocus"; // the next landing, in review: development builds only (/focus)
 import CutEditor from "./pages/CutEditor"; // development only: the head alone with the neck-cut editor (/cut)
 import SkillsMap from "./pages/SkillsMap";
 import Projects from "./pages/Projects";
@@ -151,7 +152,7 @@ function AppContent() {
     return () => clearTimeout(t);
   }, []);
 
-  const isLanding = location.pathname === "/" || location.pathname === "/cut";
+  const isLanding = location.pathname === "/" || location.pathname === "/focus" || location.pathname === "/cut";
 
   /* Keep the tab title in sync on client-side navigation (mirrors the
      per-route titles the build-route-shells script bakes into the shells). */
@@ -178,7 +179,8 @@ function AppContent() {
         <main className={`App-main${isLanding ? " App-main--landing" : ""}`}>
           <ScrollToTop />
           <Routes>
-            <Route path="/" element={<LandingFocus />} />
+            <Route path="/" element={<Landing />} />
+            {process.env.NODE_ENV === "development" && <Route path="/focus" element={<LandingFocus />} />}
             {process.env.NODE_ENV === "development" && <Route path="/cut" element={<CutEditor />} />}
             {Object.entries(pages).map(([key, { path, component }]) => (
               <Route key={key} path={path} element={component} />
