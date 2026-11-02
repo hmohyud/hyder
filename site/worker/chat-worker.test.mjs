@@ -668,7 +668,7 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   await settle();
   const solidPrint = JSON.parse(anthropicCalls()[0].init.body).messages[1].content;
   assert.match(solidPrint, /also switched the ghost off: the halftone is a solid print with no gaps/);
-  assert.match(solidPrint, /If they ask for the ghost, the halftone comes off to make room/);
+  assert.ok(!/If they ask for the ghost/.test(solidPrint), "the next-ask hints are for typed turns, not presses");
   assert.ok(!/undid/.test(JSON.stringify(JSON.parse(anthropicCalls()[0].init.body).messages)), "undid is words, never a field the model sees");
   // the cloud pill on a plain head: nothing changed, and it is never described as a return
   calls.length = 0;
@@ -685,7 +685,8 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   await settle();
   const wireToPrint = JSON.parse(anthropicCalls()[0].init.body);
   assert.match(wireToPrint.messages[1].content, /Its form went from the wireframe to the halftone print\./);
-  assert.match(wireToPrint.messages[1].content, /say plainly what the head went from and to, then at most one dry beat - and never open with a \[\[token\]\]/);
+  assert.match(wireToPrint.messages[1].content, /naming both: the wireframe and the halftone print, then at most one dry beat - and never open with a \[\[token\]\]/);
+  assert.ok(!/ghost/.test(wireToPrint.messages[1].content), "no ghost was involved, so no ghost is mentioned");
   assert.ok(wireToPrint.system[0].text.includes("say plainly what it goes from and"), "typed requests get the same rule");
   // a performed trick says how it played in the form the head is in
   calls.length = 0;
@@ -695,6 +696,18 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   assert.match(scatterOnWire, /It did it as the wireframe: what moves is the wireframe's lines/);
   assert.match(scatterOnWire, /say which trick it did and how it played as the wireframe/);
   assert.ok(!/Its form went from/.test(scatterOnWire), "a trick is not a form change");
+  // the colour pill under the wire: the wash colours only the dots, so nothing turned blue
+  calls.length = 0;
+  await (await ask("make yourself blue", env, { context: { path: "/", look: "wire", performed: "tint", from: "wire" } })).text();
+  await settle();
+  const tintOnWire = JSON.parse(anthropicCalls()[0].init.body).messages[1].content;
+  assert.match(tintOnWire, /colours only the dots, and the wireframe does not draw them, so nothing visibly turned blue/);
+  assert.match(tintOnWire, /say plainly that the colour did not show on the wireframe/);
+  // a typed turn on the halftone still gets the next-ask hint
+  calls.length = 0;
+  await (await ask("go ghost", env, { context: { path: "/", look: "lattice" } })).text();
+  await settle();
+  assert.match(JSON.parse(anthropicCalls()[anthropicCalls().length - 1].init.body).messages.slice(-1)[0].content, /If they ask for the ghost, the halftone comes off to make room/);
   // a bad `from` is dropped, never echoed
   calls.length = 0;
   await (await ask("go ghost", env, { context: { path: "/", look: "ghost", performed: "ghost", from: "<b>x</b>" } })).text();

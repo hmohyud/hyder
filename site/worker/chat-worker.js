@@ -79,12 +79,12 @@ const SHOWY_TRICKS = ["fire", "lattice", "wire", "scatter", "melt", "shatter", "
 /* the help sheet's trick buttons: the page performs the trick itself and
    asks for one line about it. What each one does, for the remark. */
 const PILL_WORDS = {
-  ghost: "fading see-through, a look that stays until undone (it takes the halftone off if that was on: a solid print has no gaps for a ghost)",
-  "ghost-off": "coming back solid: the ghost look was on and that press switched it OFF (a wireframe, if on, stays and is solid-fronted again); it is not going ghost",
-  lattice: "re-rendering itself as a halftone print of the cloud, a look that stays (it replaces the wireframe if that was on, and switches a ghost off: the print is a solid frame with no gaps)",
-  "lattice-off": "coming back from the halftone print to its plain dots: the lattice look was on and that press switched it OFF",
-  wire: "turning into a wireframe, a look that stays (it replaces the halftone if that was on; a ghost, if on, stays and makes the mesh see-through)",
-  "wire-off": "coming back from the wireframe to its plain dots: the wire look was on and that press switched it OFF (a ghost, if on, stays)",
+  ghost: "fading see-through, a look that stays until undone",
+  "ghost-off": "coming back solid: the ghost look was on and that press switched it OFF; it is not going ghost",
+  lattice: "re-rendering itself as a halftone print of the cloud, a look that stays",
+  "lattice-off": "coming back from the halftone print to its dots: the lattice look was on and that press switched it OFF",
+  wire: "turning into a wireframe, a look that stays",
+  "wire-off": "coming back from the wireframe to its dots: the wire look was on and that press switched it OFF",
   cloud: "the plain point cloud, every look off",
   spin: "whipping round about three times and unwinding",
   fire: "breathing a burst of fire from its mouth",
@@ -259,10 +259,10 @@ function contextLine(context) {
     }
     /* the halftone is a solid print with no gaps: it and the ghost replace
        each other, so a request for one while the other is on is a swap */
-    if (/ghost/.test(context.look) && !/lattice/.test(context.look)) {
+    if (!context.performed && /ghost/.test(context.look) && !/lattice/.test(context.look)) {
       line += " If they ask for the halftone (lattice), the ghost goes off with it: the print is a solid frame with no gaps, nothing shows through it.";
     }
-    if (/lattice/.test(context.look)) {
+    if (!context.performed && /lattice/.test(context.look)) {
       line += " If they ask for the ghost, the halftone comes off to make room for it: a solid print has no gaps for a ghost.";
     }
   } else {
@@ -285,6 +285,15 @@ function contextLine(context) {
     line +=
       " The visitor just pressed the '" + context.performed.replace(/-off$/, "") + "' button in the help sheet, and the head is already " +
       (PILL_WORDS[context.performed] || "doing it") + ": the page performed it, not you.";
+    /* the change in plain words, first, so the line is built on it */
+    const now = context.look || "cloud";
+    const formPress = FORM_PRESS_RX.test(context.performed);
+    const same = context.from ? context.from === now : context.performed === "cloud" && !context.undid;
+    if (formPress && context.from) {
+      line += same
+        ? " Its form did not change: it is still " + formWords(now) + "."
+        : " Its form went from " + formWords(context.from) + " to " + formWords(now) + ".";
+    }
     /* what the press switched off on the side, each with its real reason,
        so the line can say so; a cloud press on a plain head changed nothing */
     const undone = (context.undid || "").split("+").filter(Boolean);
@@ -312,27 +321,28 @@ function contextLine(context) {
     }
     /* the line says what happened in words: the form it went from and to,
        or the trick it did and how that played in the form it is in */
-    const now = context.look || "cloud";
     let ask;
-    if (FORM_PRESS_RX.test(context.performed)) {
-      const same = !!context.from && context.from === now;
-      if (context.from) {
-        line += same
-          ? " Its form did not change: it is still " + formWords(now) + "."
-          : " Its form went from " + formWords(context.from) + " to " + formWords(now) + ".";
-      }
+    if (formPress) {
       ask = same
         ? "say plainly that nothing changed and what it still is"
-        : "say plainly what the head went from and to";
+        : context.from
+          ? "say plainly what the head went from and to, naming both: " + formWords(context.from) + " and " + formWords(now)
+          : "say plainly what the head is now";
     } else {
       const p = context.performed;
+      /* the blue wash colours the dots only: under the halftone or the wire,
+         which do not draw the dots, nothing turned blue */
+      const unseen = p === "tint" && /lattice|wire/.test(now);
       const how =
         p === "spin" ? "the whole head turns"
           : p === "fire" ? "the fire comes from the mouth"
-            : p === "tint" || p === "hue" ? "the colour washes over " + formWords(now)
-              : "what moves is " + (FORM_MEDIUM[now] || "its dots");
+            : unseen ? "the blue wash colours only the dots, and " + formWords(now) + " does not draw them, so nothing visibly turned blue"
+              : p === "tint" || p === "hue" ? "the colour washes over " + formWords(now)
+                : "what moves is " + (FORM_MEDIUM[now] || "its dots");
       line += " It did it as " + formWords(now) + ": " + how + ".";
-      ask = "say which trick it did and how it played as " + formWords(now);
+      ask = unseen
+        ? "say plainly that the colour did not show on " + formWords(now) + ", dryly"
+        : "say which trick it did and how it played as " + formWords(now);
     }
     line +=
       " Reply in one or two short sentences in your voice, under thirty words: " + ask +

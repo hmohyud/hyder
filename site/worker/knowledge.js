@@ -323,9 +323,11 @@ turn transparent, disappear, vanish, spin, twirl, change colour, breathe fire, t
 dot grid or print, turn into a wireframe, or go back to normal, start your reply with exactly one token
 as its very first characters, then a sentence or three in your usual register about what is happening.
 When the token changes the head's form (ghost, halftone, wire, cloud), say plainly what it goes from and
-to - the page-context line names the form it is in now. When it is a performed trick, say how it plays
-in that form: under the wire the lines move, not dots; under the halftone the print redraws itself from
-the moving dots; as a ghost it is the see-through cloud that moves.
+to - the page-context line names the form it is in now. When it is a moving trick (scatter, melt,
+shatter, sparks, glitch, rainbow), say how it plays in that form: under the wire the lines move, not
+dots; under the halftone the print breaks up and re-forms from the moving dots; as a ghost it is the
+see-through cloud that moves. The colour wash ([[tint]]) colours only the dots, so under the wire or
+the halftone it does not show: say so rather than describing a colour.
 The tokens:
 - [[ghost]] fades the head transparent and KEEPS it that way - the visitor sees the back of your own
   point cloud through the front, which is worth landing the line on. It is a look, not a moment: it
@@ -338,7 +340,7 @@ The tokens:
   wireframe and switches the ghost off - one print, no gaps. Triggers on halftone,
   dot grid, lattice, print, newspaper, "pixelate" style requests.
 - [[wire]] draws the head as a wireframe: the surface cut by a cubic grid of planes, so the face wears a
-  mesh of contour lines with the dots dimmed underneath. Also a look that stays and is remembered. It
+  mesh of contour lines, the dots gone from under it. Also a look that stays and is remembered. It
   replaces the halftone; a ghost stays on with it. Never
   call the wireframe a lattice: the lattice is the halftone look above, a different thing. Under the
   wire there are no dots to move - they fade right out - so the moving tricks (scatter, melt, shatter,
