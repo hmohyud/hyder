@@ -9,6 +9,10 @@ import { useEffect, useRef } from "react";
  * - Card magnetism: when a card is hovered, nearby particles drift toward it
  * - Click-hold gravity well: hold mouse on background to attract particles,
  *   release to toss them outward based on accumulated velocity
+ * - The white dots: a far layer that climbs at a tenth of an ember's pace,
+ *   straight up, no sway. They answer the cursor, the well, the portrait
+ *   and the contribution grid like any ember; on a grid hover they are
+ *   drawn in and fall out of it as commits.
  *
  * Props:
  *   magnetTarget — ref to the DOM element particles should magnetize toward (or null)
@@ -139,47 +143,40 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget, g
 
     let particles = [];
 
-    /* The 60 ambient white dots that used to be `.particle` spans built in
-       Landing.js. As DOM elements they animated `transform`, but Chrome would
-       not composite them, so every frame cost 60 style resolutions on the main
-       thread - measured at roughly 200ms per 4 seconds, forever, at every
-       viewport width. Drawn here they ride a loop that is already running and
-       cost 60 more fills. They deliberately ignore the cursor, the magnets and
-       the vortex, exactly as the CSS version did.
-       fx/fy are fractions of the viewport, mirroring the old `left: %` /
-       `top: %`, so a resize repositions them without rebuilding anything. */
-    const FLOAT_PATH = [[0, 0], [28, -24], [-26, 20], [18, 26], [0, 0]];
-    const floaters = [];
-    for (let i = 0; i < 60; i++) {
-      floaters.push({
-        fx: Math.random(),
-        fy: Math.random(),
-        size: 1 + Math.random() * 2,
-        dur: 18 + Math.random() * 10,
-        delay: Math.random() * 5,
-        alpha: 0.25 + Math.random() * 0.5,
-      });
-    }
-    // smoothstep stands in for CSS ease-in-out; the two differ by ~2%, which on
-    // a 1-3px dot moving 28px over five seconds is not resolvable.
-    const easeInOut = (t) => t * t * (3 - 2 * t);
-    const drawFloaters = (sec) => {
-      for (const f of floaters) {
-        const phase = ((sec + f.delay) / f.dur) % 1;
-        const seg = Math.min(3, Math.floor(phase * 4));
-        const k = easeInOut(phase * 4 - seg);
-        const a = FLOAT_PATH[seg];
-        const b = FLOAT_PATH[seg + 1];
-        stamp(
-          f.fx * W + a[0] + (b[0] - a[0]) * k,
-          f.fy * H + a[1] + (b[1] - a[1]) * k,
-          f.size / 2,
-          WHITE_ROW,
-          f.alpha
-        );
-      }
-      if (ctx) ctx.globalAlpha = 1;
-    };
+    /* The 60 white dots (once `.particle` spans in Landing.js, then a loop of
+       their own that ignored everything) are ordinary particles now: the far
+       layer. Each climbs straight up at a tenth of an ember's pace, with no
+       drift and no sway, and comes back in at the bottom when it leaves the
+       top. The cursor's updraft, the well and its toss, the portrait's edge
+       and the grid's pull move it exactly as they move an ember. White
+       matches no card, so the card magnets leave it alone. While the
+       contribution grid is hovered the white dots come to it and the rain
+       takes the ones that arrive, so white goes in and commits fall out. */
+    const WHITE_N = 60;
+    const WHITE_CLIMB = 0.023; // px a frame: a tenth of the embers' mean rise (0.08 + 0.15)
+    const initWhite = () => ({
+      white: true,
+      row: WHITE_ROW,
+      rowBase: WHITE_ROW,
+      x: 0,
+      baseX: Math.random() * (W || 1920),
+      y: Math.random() * (H || 1080),
+      vx: 0,
+      vy: -WHITE_CLIMB,
+      size: 0.5 + Math.random(), // the old 1-3 px dots, as radii
+      r: 255, g: 255, b: 255,
+      alpha: 0.25 + Math.random() * 0.5,
+      drift: 0,
+      sineAmp: 0,
+      sineFreq: 0,
+      sineOff: 0,
+      tvx: 0,
+      tvy: 0,
+      /* always caught by the portrait's edge while the head is focused: an
+         ember that loses the coin flip passes through the window on its way
+         up, but a white dot that lost it would just sit inside the window */
+      rail: true,
+    });
 
     /* The dots are stamped from one sprite atlas rather than filled as
        paths. ~1800 separately filled circles a frame was what held the
@@ -187,7 +184,7 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget, g
        the frame from 17 ms to 26 ms while its own script time was under
        3 ms, so the cost was the rasteriser filling path after path - and a
        colour string parsed per dot was most of that script time. The atlas
-       is one texture: a row per colour (the floaters' white last), a column
+       is one texture: a row per colour (the white dots' white last), a column
        per radius step, and each dot is one stamp with its alpha on
        globalAlpha. Sized to the device pixel ratio so a stamp lands at the
        radius the path had. */
@@ -309,6 +306,7 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget, g
         p.baseX = p.x;
         particles.push(p);
       }
+      for (let i = 0; i < WHITE_N; i++) particles.push(initWhite());
     };
     resize();
     window.addEventListener("resize", resize);
@@ -428,9 +426,16 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget, g
         let r = Math.random() * total, col = 0;
         for (; col < gh.cols - 1; col++) { r -= gh.colInt[col] || 0; if (r <= 0) break; }
         let p = null;
+        /* a white dot that the grid's pull has brought inside it goes first:
+           that is what the pull was for */
+        const R = gh.rect;
         for (let k = 0; k < particles.length; k++) {
+          const q = particles[k];
+          if (q.white && !q.rain && q.y >= R.top && q.y <= R.bottom && q.baseX >= R.left && q.baseX <= R.right) { p = q; break; }
+        }
+        for (let k = 0; !p && k < particles.length; k++) {
           const q = particles[(gh.rainIdx + k) % particles.length];
-          if (!q.rain && (q.y > H || q.y < 0)) { p = q; gh.rainIdx = (gh.rainIdx + k + 1) % particles.length; break; }
+          if (!q.rain && !q.white && (q.y > H || q.y < 0)) { p = q; gh.rainIdx = (gh.rainIdx + k + 1) % particles.length; break; }
         }
         if (!p) {
           let best = null, bestN = 0;
@@ -607,6 +612,23 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget, g
           }
         }
 
+        /* while the grid is hovered the white dots come to it, as a card's
+           embers come to the card: a steady pull from anywhere, stronger
+           within reach; ghRain takes them once they are inside */
+        if (gh.active && p.white && !p.rain) {
+          const gx = gh.rect.left + gh.rect.width / 2;
+          const gy = gh.rect.top + gh.rect.height / 2;
+          const adx = gx - drawX;
+          const ady = gy - p.y;
+          const adist = Math.sqrt(adx * adx + ady * ady);
+          if (adist > 5) {
+            const near = Math.max(0, 1 - adist / MAGNET_RADIUS);
+            const f = (0.4 + 0.6 * near) * MAGNET_FORCE;
+            p.baseX += (adx / adist) * f;
+            p.y += (ady / adist) * f;
+          }
+        }
+
         /* a falling commit gathers speed to its terminal fall (time-based,
            so the rain looks the same at any frame rate) and drifts a little
            sideways; the drift and the forces above have already acted on it */
@@ -614,7 +636,7 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget, g
           p.rainSpeed = Math.min(RAIN_FALL, p.rainSpeed + RAIN_ACCEL * dtF);
           p.vy = p.rainSpeed * dtF;
           p.baseX += p.rainVx;
-        } else if (gh.active && p.y > 0 && p.y < H) {
+        } else if (gh.active && !p.white && p.y > 0 && p.y < H) {
           /* the page's density, for the drop that has to come from somewhere on screen */
           const key = Math.floor(drawX / DENS) * 1000 + Math.floor(p.y / DENS);
           const cell = gh.dens.get(key);
@@ -628,13 +650,14 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget, g
           p.tvx = 0;
           p.tvy = 0;
         }
-        // Respawn at top if tossed below screen
+        // Respawn at top if tossed below screen; a white dot at the bottom,
+        // to climb again
         if (p.y > H + 60) {
-          p.y = -20;
+          p.y = p.white ? H + 20 : -20;
           p.baseX = Math.random() * W;
           p.tvx = 0;
           p.tvy = 0;
-          if (p.rain) { p.rain = false; p.vy = -(0.08 + Math.random() * 0.3); p.row = p.rowBase; }
+          if (p.rain) { p.rain = false; p.vy = p.white ? -WHITE_CLIMB : -(0.08 + Math.random() * 0.3); p.row = p.rowBase; }
         }
         if (p.baseX < -40) p.baseX = W + 40;
         if (p.baseX > W + 40) p.baseX = -40;
@@ -649,7 +672,6 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget, g
       }
       if (ctx) ctx.globalAlpha = 1;
 
-      drawFloaters(performance.now() / 1000);
       if (glr) glEnd();
 
       raf = requestAnimationFrame(draw);
