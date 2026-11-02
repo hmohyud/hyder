@@ -256,6 +256,17 @@
   border-color: rgba(195, 166, 255, 0.6);
   outline: none;
 }
+/* a look that is on right now: lit, so the ghost pill reads as a toggle */
+.fh-help-look.on {
+  color: #c3a6ff;
+  border-color: rgba(195, 166, 255, 0.75);
+  background: rgba(195, 166, 255, 0.1);
+}
+/* the ghost pill while the halftone or the wire is on: it would change
+   nothing visible, so it is dimmed (still a toggle; the title says why) */
+.fh-help-look.muted {
+  opacity: 0.5;
+}
 /* the pick caption: the same card as a tour stop */
 .fh-pick-line .fh-lead {
   color: #ffb86b;
@@ -944,6 +955,22 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+/* "workings" pressed while the drawer is already open: the outline goes
+   white for a moment and fades back, so the press still lands somewhere */
+.fh-workings.fh-flash {
+  animation: fhWkFlash 1.9s ease-out both;
+}
+@keyframes fhWkFlash {
+  0%,
+  55% {
+    border-color: #fff;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.9), 0 0 22px rgba(255, 255, 255, 0.25);
+  }
+  100% {
+    border-color: rgba(70, 78, 96, 0.5);
+    box-shadow: none;
+  }
 }
 .fh-wk-head {
   margin: 0;

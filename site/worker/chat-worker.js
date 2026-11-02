@@ -3,7 +3,11 @@
  *
  * Contract (shared with chat-dev-server.mjs so the UI never changes):
  *   POST /chat  { messages: [{ role: "user" | "assistant", content: string }],
- *                 context?: { path: string, hovered?: string, look?: string } }
+ *                 context?: { path: string, hovered?: string, look?: string,
+ *                             performed?: string } }
+ *   `context.performed` names a trick the page has ALREADY performed (a
+ *   help-sheet button): the reply is one line about it, straight from
+ *   Haiku with no sizing, and the page ignores any token it opens with.
  *   -> streams plain UTF-8 text chunks, no SSE framing for the client to parse.
  *   The stream may OPEN with [[think]]...[[/think]] - the model's summarised
  *   reasoning, streamed as it thinks - and always CLOSES with one
@@ -72,6 +76,27 @@ const TRICKS = ["ghost", "spin", "fire", "a colour of your choosing", "lattice",
    repertoire; the quiet ones (a spin, a colour, the ghost) only join the
    roll once a few have been seen */
 const SHOWY_TRICKS = ["fire", "lattice", "wire", "scatter", "melt", "shatter", "ember", "glitch", "hue"];
+/* the help sheet's trick buttons: the page performs the trick itself and
+   asks for one line about it. What each one does, for the remark. */
+const PILL_WORDS = {
+  ghost: "fading see-through, a look that stays until undone (it takes the halftone off if that was on: a solid print has no gaps for a ghost)",
+  "ghost-off": "coming back solid: the ghost look was on and that press switched it OFF (any lattice or wire stays); it is not going ghost",
+  lattice: "re-rendering itself as a halftone print of the cloud, a look that stays (it replaces the wireframe if that was on, and switches a ghost off: the print is a solid frame with no gaps)",
+  "lattice-off": "coming back from the halftone print to its plain dots: the lattice look was on and that press switched it OFF (a ghost, if on, stays)",
+  wire: "turning into a wireframe, a look that stays (it replaces the halftone if that was on)",
+  "wire-off": "coming back from the wireframe to its plain dots: the wire look was on and that press switched it OFF (a ghost, if on, stays)",
+  cloud: "going back to the plain point cloud, every look off",
+  spin: "whipping round about three times and unwinding",
+  fire: "breathing a burst of fire from its mouth",
+  tint: "being washed in a blue that pours from the crown and holds ten seconds",
+  scatter: "bursting apart, hanging, and gliding back into the face",
+  melt: "melting downward and reforming",
+  shatter: "shattering and reassembling",
+  ember: "turning to sparks",
+  glitch: "glitching and settling back",
+  hue: "running a rainbow across its face",
+};
+const PILL_RX = new RegExp("^(" + Object.keys(PILL_WORDS).join("|") + ")$");
 /* the hand-off. A tour always goes to Sonnet (the stop protocol wants the
    stronger writer); no verdict in time means Sonnet at low effort, so a
    dead sizer costs quality nothing. */
@@ -158,8 +183,14 @@ function chatContext(raw) {
   }
   const tricks = Number(raw.tricks);
   const tricksSeen = Number.isFinite(tricks) && tricks >= 0 ? Math.min(99, Math.floor(tricks)) : 0;
-  if (!path && !hovered && !look && !last && !tricksSeen) return null;
-  return { path, hovered, look, last, tricks: tricksSeen };
+  /* a trick the visitor started from the help sheet's buttons: the page has
+     already performed it; the model only remarks on it (see contextLine) */
+  const performed = typeof raw.performed === "string" && PILL_RX.test(raw.performed) ? raw.performed : "";
+  /* a look that the press switched off on the side (a ghost under the new
+     halftone, the halftone under a new ghost, wire under halftone or back) */
+  const undid = performed && typeof raw.undid === "string" && /^(ghost|lattice|wire)$/.test(raw.undid) ? raw.undid : "";
+  if (!path && !hovered && !look && !last && !tricksSeen && !performed) return null;
+  return { path, hovered, look, last, tricks: tricksSeen, performed, undid };
 }
 
 /* "9.0 cents", "0.03 cents", "a few hundredths of a cent" */
@@ -193,6 +224,21 @@ function contextLine(context) {
       " The head is currently in its " + words +
       " look, which this visitor asked for earlier; it stays until they ask for the default (cloud) back." +
       " If they ask for that same look again it is already so: say so, and do not describe a change.";
+    /* the ghost fades the dots, and under the wire the dots are not drawn
+       at all: a ghost under the wire is on but shows nothing */
+    if (/ghost/.test(context.look) && /wire/.test(context.look)) {
+      line +=
+        " The ghost is on underneath, but it shows nothing while the wireframe is on - the dots it fades are not drawn;" +
+        " it will show again when the wire comes off. Never describe the head as see-through right now.";
+    }
+    /* the halftone is a solid print with no gaps: it and the ghost replace
+       each other, so a request for one while the other is on is a swap */
+    if (/ghost/.test(context.look) && !/lattice/.test(context.look)) {
+      line += " If they ask for the halftone (lattice), the ghost goes off with it: the print is a solid frame with no gaps, nothing shows through it.";
+    }
+    if (/lattice/.test(context.look)) {
+      line += " If they ask for the ghost, the halftone comes off to make room for it: a solid print has no gaps for a ghost.";
+    }
   } else {
     line +=
       " The head is in its default look, the plain point cloud; no look is on, nothing to undo." +
@@ -207,6 +253,31 @@ function contextLine(context) {
         ? ", plus " + (context.last.wroteCents > 0 ? centsWords(context.last.wroteCents) : "a one-off charge") + " to write the site's knowledge into the one-hour cache after an idle hour"
         : "") +
       "; the visitor can see this in the workings drawer.";
+  }
+  if (context.performed) {
+    line +=
+      " The visitor just pressed the '" + context.performed.replace(/-off$/, "") + "' button in the help sheet, and the head is already " +
+      (PILL_WORDS[context.performed] || "doing it") + ": the page performed it, not you.";
+    /* what the press switched off on the side, so the line can say so */
+    if (context.undid === "ghost") {
+      line += " That press also switched the ghost off: the halftone is a solid print with no gaps, so a ghost cannot show through it.";
+    } else if (context.undid === "lattice") {
+      line += " The halftone came off to make room: it is a solid print with no gaps, so the ghost could not show through it.";
+    } else if (context.undid === "wire") {
+      line += " The wireframe came off to make room: the halftone and the wire are one at a time.";
+    }
+    /* a ghost switched on or off under the wire changes nothing on screen
+       (the dots are not drawn); a wire put over a ghost hides it */
+    if (/^ghost(-off)?$/.test(context.performed) && /wire/.test(context.look || "")) {
+      line +=
+        " But under the wireframe that makes no visible difference - the dots the ghost fades are not drawn -" +
+        " so say that, dryly, rather than describing a fade; the ghost will show once the wire comes off.";
+    } else if (context.performed === "wire" && /ghost/.test(context.look || "")) {
+      line += " The ghost that was on stays on underneath, invisible until the wire comes off.";
+    }
+    line +=
+      " Reply with one short line about it in your voice - a remark, not a description, fifteen words or fewer -" +
+      " and never open with a [[token]]: the trick has happened.";
   }
   /* a die for the turn, and a trick for it: when the visitor says "you
      choose", the model takes these instead of always reaching for the first
@@ -827,8 +898,11 @@ async function workersAiStream(env, messages, context) {
    cached prefix instead of changing it. */
 async function anthropicStream(env, messages, ctx, context) {
   const t0 = Date.now();
-  const size = await sizeUp(env, messages);
-  const { model, effort } = routeFor(size);
+  /* a help-sheet trick button wants one quick line and nothing to size up:
+     straight to Haiku at low effort, the sizer's round trip saved */
+  const pill = !!(context && context.performed);
+  const size = pill ? null : await sizeUp(env, messages);
+  const { model, effort } = pill ? { model: LIGHT_MODEL, effort: "low" } : routeFor(size);
   const light = model === LIGHT_MODEL;
   /* the effort message sits right before the question it applies to; the
      context line, when there is one, stays last */

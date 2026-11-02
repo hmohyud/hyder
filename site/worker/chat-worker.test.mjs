@@ -625,6 +625,60 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   ok("unreadable or corrupt meter -> Claude skipped, /health says so");
 }
 
+// 8b. a help-sheet trick button: the page performed it; one line, straight from Haiku, no sizer
+{
+  const spendSnap = kv.get(SPEND);
+  sizer = "3 explain"; // would route to Sonnet if the sizer were consulted
+  calls.length = 0;
+  const res = await ask("go ghost", env, { context: { path: "/", performed: "ghost" } });
+  const text = await res.text();
+  await settle();
+  assert.equal(res.headers.get("x-chat-model"), "claude-haiku-5-5", "a performed trick goes to Haiku whatever the sizer would say");
+  assert.equal(sizerCalls().length, 0, "no sizer call for a performed trick");
+  assert.equal(anthropicCalls().length, 1);
+  const body = JSON.parse(anthropicCalls()[0].init.body);
+  assert.deepEqual(body.output_config, { effort: "low" });
+  assert.deepEqual(body.messages[0], { role: "user", content: "go ghost" });
+  assert.equal(body.messages[1].role, "system");
+  assert.match(body.messages[1].content, /pressed the 'ghost' button in the help sheet, and the head is already fading see-through/);
+  assert.match(body.messages[1].content, /never open with a \[\[token\]\]/);
+  assert.equal(envelope(text).stats.size, null, "nothing was sized");
+  assert.equal(envelope(text).stats.model, "claude-haiku-5-5");
+  // the ghost pill pressed while the ghost is on: the line is told it is coming OFF
+  calls.length = 0;
+  await (await ask("solid again", env, { context: { path: "/", performed: "ghost-off" } })).text();
+  await settle();
+  assert.equal(sizerCalls().length, 0);
+  assert.match(
+    JSON.parse(anthropicCalls()[0].init.body).messages[1].content,
+    /pressed the 'ghost' button in the help sheet, and the head is already coming back solid: the ghost look was on and that press switched it OFF/
+  );
+  // the ghost pill under the wire: on, but told it shows nothing
+  calls.length = 0;
+  await (await ask("go ghost", env, { context: { path: "/", look: "ghost+wire", performed: "ghost" } })).text();
+  await settle();
+  const underWire = JSON.parse(anthropicCalls()[0].init.body).messages[1].content;
+  assert.match(underWire, /under the wireframe that makes no visible difference/);
+  assert.match(underWire, /ghost is on underneath, but it shows nothing while the wireframe is on/);
+  // the halftone put on over a ghost switches the ghost off, and the line is told why
+  calls.length = 0;
+  await (await ask("lattice look", env, { context: { path: "/", look: "lattice", performed: "lattice", undid: "ghost" } })).text();
+  await settle();
+  const solidPrint = JSON.parse(anthropicCalls()[0].init.body).messages[1].content;
+  assert.match(solidPrint, /also switched the ghost off: the halftone is a solid print with no gaps/);
+  assert.match(solidPrint, /If they ask for the ghost, the halftone comes off to make room/);
+  assert.ok(!/undid/.test(JSON.stringify(JSON.parse(anthropicCalls()[0].init.body).messages)), "undid is words, never a field the model sees");
+  // an unknown name is dropped, so the request is sized and routed as usual
+  calls.length = 0;
+  await (await ask("go ghost", env, { context: { path: "/", performed: "explode" } })).text();
+  await settle();
+  assert.equal(sizerCalls().length, 1, "an unknown trick name is not a performed trick");
+  assert.ok(!/pressed the/.test(JSON.parse(anthropicCalls()[0].init.body).messages[1].content));
+  sizer = "2 chat";
+  kv.set(SPEND, spendSnap);
+  ok("a performed trick: one line from Haiku, no sizing; unknown names ignored");
+}
+
 // 9. a failed spend write pauses Claude (must run last: the pause is isolate-local)
 {
   failPut = (k) => k === SPEND;

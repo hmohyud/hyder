@@ -582,12 +582,14 @@ const HELP = [
   { id: "here", c: "#ffb86b", t: "pick", d: "choose a project card on the page; I tell you about it", q: null, act: "pick" },
   { id: "work", c: "#c3a6ff", t: "workings", d: "a fast model rates each question and answers the small ones; hard ones go to a bigger model that thinks first. Every call, timed and costed.", q: null, act: "workings" },
 ];
-/* the looks, as swatches: each sends the words that ask for it */
+/* the tricks, as pills: each performs its trick on the page and sends its
+   words as the question for one line about it. The three looks are toggles:
+   pressed while on, they switch the look off and send `off` instead. */
 const LOOKS = [
   { id: "cloud", t: "cloud", q: "back to the cloud" },
-  { id: "ghost", t: "ghost", q: "go ghost" },
-  { id: "lattice", t: "lattice", q: "lattice look" },
-  { id: "wire", t: "wire", q: "go wireframe" },
+  { id: "ghost", t: "ghost", q: "go ghost", off: "solid again" },
+  { id: "lattice", t: "lattice", q: "lattice look", off: "drop the halftone" },
+  { id: "wire", t: "wire", q: "go wireframe", off: "lose the wireframe" },
   { id: "spin", t: "spin", q: "give me a spin" },
   { id: "fire", t: "fire", q: "set yourself on fire" },
   { id: "tint", t: "colour", q: "make yourself blue" },
@@ -684,7 +686,7 @@ const Icon = ({ id }) => (
 );
 
 /* the "?" sheet: tiles to click, swatches for the looks, the keys */
-function HelpSheet({ onTry, onTrick, onWorkings, onPick, onClose }) {
+function HelpSheet({ onTry, onTrick, onWorkings, onPick, onClose, look }) {
   return (
     <section className="fh-help" aria-label="What this can do">
       <p className="fh-help-head">
@@ -716,7 +718,29 @@ function HelpSheet({ onTry, onTrick, onWorkings, onPick, onClose }) {
       <div className="fh-help-looks" role="group" aria-label="Tricks">
         <span className="fh-help-label">tricks</span>
         {LOOKS.map((l) => (
-          <button key={l.id} type="button" className="fh-help-look" onClick={() => onTrick(l.id === "tint" ? "tint:#4f8cff" : l.id)} title={l.t}>
+          <button
+            key={l.id}
+            type="button"
+            className={
+              "fh-help-look" +
+              (look && look[l.id] ? " on" : "") +
+              /* the ghost fades the dots, and under the wire the dots are
+                 not drawn at all: the pill still toggles the flag, but it
+                 is dimmed, and its title says why. (Under the halftone it
+                 is not dimmed: there it takes the print off to make room.) */
+              (l.id === "ghost" && look && look.wire ? " muted" : "")
+            }
+            onClick={() => onTrick(l.id === "tint" ? "tint:#4f8cff" : l.id)}
+            title={
+              l.id === "ghost" && look && look.wire
+                ? "ghost (" + (look.ghost ? "on, but " : "") + "no visible effect under the wire)"
+                : l.id === "ghost" && look && look.lattice
+                  ? "ghost (takes the halftone off: a solid print has no gaps for a ghost)"
+                  : look && look[l.id]
+                    ? l.t + " (on - press again to turn it off)"
+                    : l.t
+            }
+          >
             <Icon id={l.id} />
             <span>{l.t}</span>
           </button>
@@ -1905,6 +1929,19 @@ export default function FloatingHead({
   const [wkOpen, setWkOpen] = useState({}); // which pipeline steps are unfolded
   const [wkFocus, setWkFocus] = useState(null); // a particular reply's workings, by index in msgs; null = the latest
   const [help, setHelp] = useState(false); // the "what I can do" sheet
+  /* "workings" pressed while the drawer is already open: its outline goes
+     white for a moment, so the click still points at something */
+  const [wkFlash, setWkFlash] = useState(false);
+  const wkFlashT = useRef(0);
+  const flashWorkings = () => {
+    clearTimeout(wkFlashT.current);
+    setWkFlash(false); // off now and on next frame, so a second press restarts the animation
+    requestAnimationFrame(() => {
+      setWkFlash(true);
+      wkFlashT.current = setTimeout(() => setWkFlash(false), 1900);
+    });
+  };
+  useEffect(() => () => clearTimeout(wkFlashT.current), []);
   const [starters, setStarters] = useState(pickStarters); // re-drawn whenever the transcript empties
   const [wkTab, setWkTab] = useState("reply"); // "reply" | "summary"
   const [wkList, setWkList] = useState(false); // the list of replies under the tab
@@ -2005,6 +2042,7 @@ export default function FloatingHead({
   const [chatEpoch, setChatEpoch] = useState(0);
   const logRef = useRef(null);
   const inputRef = useRef(null);
+  const ghostRef = useRef(""); // the question the placeholder is typing, for Tab to take
 
   useEffect(() => {
     if (busy) return;
@@ -2038,6 +2076,7 @@ export default function FloatingHead({
     if (!open || !CHAT_ENDPOINT) return undefined;
     const input = inputRef.current;
     if (!input) return undefined;
+    ghostRef.current = "";
     if (caption) {
       /* set here, after the previous run's cleanup has had its say - React
          wrote the prop before that cleanup reset the attribute */
@@ -2054,6 +2093,7 @@ export default function FloatingHead({
     const tick = () => {
       if (!alive) return;
       const q = GHOST_QUESTIONS[qi];
+      ghostRef.current = q;
       if (!deleting) {
         pos += 1;
         input.placeholder = q.slice(0, pos);
@@ -2081,6 +2121,7 @@ export default function FloatingHead({
     return () => {
       alive = false;
       clearTimeout(timer);
+      ghostRef.current = "";
       input.placeholder = "Ask me about my work";
     };
   }, [open, tour, caption]);
@@ -3716,19 +3757,47 @@ export default function FloatingHead({
       return;
     }
     if (kind === "lattice" || kind === "wire") {
-      s.look = { ...s.look, [kind]: true };
+      /* the halftone and the wireframe are each a whole look, so one
+         replaces the other (both on at once left the halftone path drawing
+         a print of nothing). The halftone is a solid print with no gaps, so
+         it switches a ghost off too; under the wire a ghost stays, unseen. */
+      s.look = { ...s.look, lattice: kind === "lattice", wire: kind === "wire", ghost: kind === "lattice" ? false : s.look.ghost };
+      if (kind === "lattice") s.ghostTarget = 0;
       writeLook(s.look);
       setLookEpoch((n) => n + 1);
       return;
     }
-    // ghost
-    s.look = { ...s.look, ghost: true };
+    if (kind === "lattice-off" || kind === "wire-off") {
+      /* that look's pill pressed while it is on: the look comes off and the
+         dots come back; a ghost, if on, stays */
+      s.look = { ...s.look, [kind.slice(0, -4)]: false };
+      writeLook(s.look);
+      setLookEpoch((n) => n + 1);
+      return;
+    }
+    if (kind === "ghost-off") {
+      /* the ghost pill pressed while the ghost is on: the ghost comes off,
+         whatever else is on (lattice, wire) stays */
+      s.look = { ...s.look, ghost: false };
+      writeLook(s.look);
+      s.ghostTarget = 0;
+      return;
+    }
+    // ghost: the halftone, if on, comes off to make room - a solid print
+    // has no gaps for a ghost to show through
+    const hadLattice = !!s.look.lattice;
+    s.look = { ...s.look, ghost: true, lattice: false };
     writeLook(s.look);
     s.ghostTarget = 1;
+    if (hadLattice) setLookEpoch((n) => n + 1);
   };
 
-  const send = async (e, asked) => {
+  const send = async (e, asked, opts) => {
     if (e) e.preventDefault();
+    /* a help-sheet trick: the trick has already run on the page, this is
+       the one line about it. Any token the model opens with is ignored, a
+       failure drops the exchange in silence, and the wait is short. */
+    const pillMode = !!(opts && opts.performed);
     const question = (asked != null ? asked : draft).trim();
     let before = msgs; // the transcript the question follows
     if (PICK.running) pickEnd();
@@ -3817,9 +3886,13 @@ export default function FloatingHead({
        exchange at 70s. Long enough to survive the free tier's slow days,
        because the slow-model notice keeps the visitor informed meanwhile. */
     const ctrl = new AbortController();
-    const killT = setTimeout(() => ctrl.abort(), 70000);
-    const slowT = setTimeout(() => setSlowNote(true), 9000);
+    const killT = setTimeout(() => ctrl.abort(), pillMode ? 15000 : 70000); // a trick's line is garnish, not worth a long wait
+    const slowT = pillMode ? 0 : setTimeout(() => setSlowNote(true), 9000);
     const context = pageContext();
+    if (pillMode) {
+      context.performed = opts.performed;
+      if (opts.undid) context.undid = opts.undid;
+    }
     /* a tour reply is not shown as it streams: the raw text, tokens and all,
        goes to the tour controller, which plays it stop by stop */
     let tourMode = false;
@@ -3922,7 +3995,7 @@ export default function FloatingHead({
           /* leading whitespace decides nothing: some models put a space or a
              newline before a token */
           const probe = work.replace(/^\s+/, "");
-          const tourTok = parseTourToken(probe);
+          const tourTok = pillMode ? null : parseTourToken(probe);
           if (tourTok) {
             tourMode = true;
             decided = true;
@@ -3938,8 +4011,12 @@ export default function FloatingHead({
           const m = probe.match(/^\[\[(ghost|spin|fire|tint:#[0-9a-fA-F]{6}|lattice|wire|cloud|scatter|melt|shatter|ember|glitch|hue)\]\]\s*/);
           const act = m ? null : parseActToken(probe);
           if (m) {
-            if (m[1] === "fire") muteVoice = true; // the scream replaces the narration
-            fireTrick(m[1]);
+            if (!pillMode) {
+              /* in pill mode the trick already ran: a token here is the
+                 model disobeying, and it is simply dropped */
+              if (m[1] === "fire") muteVoice = true; // the scream replaces the narration
+              fireTrick(m[1]);
+            }
             work = stripExtraTokens(probe.slice(m[0].length));
             decided = true;
           } else if (act) {
@@ -3948,7 +4025,7 @@ export default function FloatingHead({
                rendered by the landing page is not unmounted mid-reply by its
                own navigation. A target that cannot be resolved is dropped
                silently - the sentence still reads as an answer. */
-            const to = resolveAction(act, { skillIds: SKILL_IDS_ALL, projectRefs: PROJECT_REFS });
+            const to = pillMode ? null : resolveAction(act, { skillIds: SKILL_IDS_ALL, projectRefs: PROJECT_REFS });
             if (to) {
               pendingAct = act;
               pendingNav = to;
@@ -3963,7 +4040,7 @@ export default function FloatingHead({
               return;
             }
           } else if (final || probe.length >= tokenCap(probe) || !couldBeToken(probe)) {
-            work = probe;
+            work = pillMode ? stripExtraTokens(probe) : probe; // pill mode: no token of any kind reaches the visitor
             decided = true; // provably not a directive - let it all through
           } else {
             held = work + rest; // could still be a token: keep holding
@@ -4027,6 +4104,10 @@ export default function FloatingHead({
            or the stream broke: the stops already shown stay as they are and
            whatever arrived in full still plays */
         if (TOUR.running) tourFeed(raw, true);
+      } else if (pillMode) {
+        /* the line was garnish: a failure drops the exchange rather than
+           apologising for a trick that already happened */
+        setMsgs((prev) => (replyAt < prev.length ? prev.slice(0, replyAt - 1) : prev));
       } else {
         const said = String((err && err.message) || "");
         const msg = said.startsWith("said:")
@@ -4582,7 +4663,7 @@ export default function FloatingHead({
                 </div>
               )}
               {!caption && wk && workings && (
-                <section id="fh-workings" className="fh-workings" aria-label="How the answer was made">
+                <section id="fh-workings" className={"fh-workings" + (wkFlash ? " fh-flash" : "")} aria-label="How the answer was made">
                   {answered.length > 0 && (
                     <div className="fh-wk-head" role="tablist" aria-label="Workings views">
                       <button
@@ -4943,14 +5024,33 @@ export default function FloatingHead({
               )}
               {help && !caption && (
                 <HelpSheet
+                  look={stateRef.current.look}
                   onTry={(q) => send(null, q)}
                   onTrick={(kind) => {
                     setHelp(false);
-                    performTrick(kind);
+                    /* a look's pill is a toggle: pressed while that look is
+                       on, it takes the look off - and the line says so */
+                    const id = kind.startsWith("tint:") ? "tint" : kind;
+                    const look = LOOKS.find((l) => l.id === id);
+                    const before = { ...stateRef.current.look };
+                    const off = !!(look && look.off && before[id]);
+                    performTrick(off ? id + "-off" : kind);
+                    /* a look that this press switched off on the side (the
+                       halftone taking a ghost off, a ghost taking the
+                       halftone off, one of halftone/wire replacing the
+                       other), so the line can say so */
+                    const after = stateRef.current.look;
+                    const undid = off ? "" : ["ghost", "lattice", "wire"].find((k) => k !== id && before[k] && !after[k]) || "";
+                    /* and a line about it: the pill's own words go as the
+                       question, with the trick marked as already done, so
+                       the model only remarks (see the worker's contextLine).
+                       Skipped while a reply is in flight; never waited on. */
+                    if (look && CHAT_ENDPOINT) send(null, off ? look.off : look.q, { performed: off ? id + "-off" : id, undid });
                   }}
                   onWorkings={() => {
                     setHelp(false);
                     if (!workings) toggleWorkings();
+                    else flashWorkings();
                   }}
                   onPick={() => {
                     setHelp(false);
@@ -5121,6 +5221,13 @@ export default function FloatingHead({
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={(e) => {
+                    /* Tab takes the question the placeholder is typing, as
+                       text to edit or send; it never sends */
+                    if (e.key === "Tab" && !e.shiftKey && !draft.trim() && ghostRef.current && !TOUR.running) {
+                      e.preventDefault();
+                      setDraft(ghostRef.current);
+                      return;
+                    }
                     /* an empty Enter cannot submit while the Ask button is
                        disabled, so on a tour it is caught here: next stop */
                     if (TOUR.running && !draft.trim()) {
