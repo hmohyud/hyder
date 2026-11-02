@@ -1882,9 +1882,6 @@ export default function FloatingHead({
   };
   const caption = tour || pick; // the small-head, page-visible layout
   const [tourPage, setTourPage] = useState({ i: -1, n: 0, more: false, waiting: false, ended: false, text: "" });
-  /* a chip followed mid-tour: the card says where the visitor went, until the next stop */
-  const [detour, setDetour] = useState("");
-  const spotRef = useRef(null); // the spotlight around the stop's element
   const [lookEpoch, setLookEpoch] = useState(0); // bumped when a look changes, so layout() re-decides the draw path
   const navigate = useNavigate(); // action tokens open pages from the chat
   const navigateRef = useRef(navigate);
@@ -3525,70 +3522,6 @@ export default function FloatingHead({
     if (PICK.running) pickEnd();
     setOpen(false);
   }, []);
-  /* a chip in a reply leads to a page. Outside a tour that is a dismissal
-     (the chat closes and the page is theirs); on a tour it is a detour:
-     the page changes and the tour stays where it is, with the chat open */
-  const goThere = useCallback((e) => {
-    if (TOUR.running) {
-      const label = e && e.currentTarget ? String(e.currentTarget.textContent || "").trim() : "";
-      setDetour(label);
-      return;
-    }
-    dismiss();
-  }, [dismiss]);
-  useEffect(() => { setDetour(""); }, [tourPage.i, tour]);
-
-  /* The tour's anchor. A stop that opens a project's card or the diploma
-     has an element on the page; the caption card goes to sit beside it
-     (right of it, else left, else where it always was) and a spotlight
-     holds it, both following the element as the page scrolls it into view.
-     Positioned here, each frame while the tour runs, with no state: one
-     rect read and a couple of style writes. A stop with no element (a
-     page, the skills map) leaves the card docked at the bottom as before. */
-  useEffect(() => {
-    const card = chatRef.current;
-    const spot = spotRef.current;
-    if (!tour || !open || !card) return undefined;
-    const step = TOUR.steps[TOUR.index];
-    const route = step && step.act ? resolveAction(step.act, { skillIds: SKILL_IDS_ALL, projectRefs: PROJECT_REFS }) : null;
-    const id = route && route.includes("#") && !route.includes("#sel=") ? decodeURIComponent(route.split("#")[1]) : "";
-    /* the resume page's hashes pick a document, not an element: the viewer is the thing to frame */
-    const target = id === "diploma" || id === "resume" ? "pdf-viewer" : id;
-    let raf = 0, el = null, tries = 0;
-    const undock = () => {
-      card.style.left = ""; card.style.top = ""; card.style.bottom = ""; card.style.transform = "";
-      card.classList.remove("fh-chat-beside");
-      if (spot) spot.style.display = "none";
-    };
-    const tick = () => {
-      raf = requestAnimationFrame(tick);
-      if (!el) {
-        if (!id || tries++ > 300) { if (!id) { undock(); cancelAnimationFrame(raf); } return; }
-        el = document.getElementById(target);
-        if (!el) return;
-      }
-      const r = el.getBoundingClientRect();
-      const vw = window.innerWidth, vh = window.innerHeight;
-      const cw = card.offsetWidth, ch = card.offsetHeight;
-      const GAP = 28, PAD = 14;
-      let left = r.right + GAP, side = true;
-      if (left + cw > vw - 16) { left = r.left - GAP - cw; if (left < 16) side = false; }
-      if (side) {
-        const top = Math.max(16 + 70, Math.min(vh - ch - 16, r.top + r.height / 2 - ch / 2));
-        card.style.left = left + "px"; card.style.top = top + "px"; card.style.bottom = "auto"; card.style.transform = "none";
-        card.classList.add("fh-chat-beside");
-      } else {
-        undock();
-      }
-      if (spot) {
-        spot.style.display = "";
-        spot.style.left = r.left - PAD + "px"; spot.style.top = r.top - PAD + "px";
-        spot.style.width = r.width + PAD * 2 + "px"; spot.style.height = r.height + PAD * 2 + "px";
-      }
-    };
-    raf = requestAnimationFrame(tick);
-    return () => { cancelAnimationFrame(raf); undock(); };
-  }, [tour, open, tourPage.i]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -4119,25 +4052,6 @@ export default function FloatingHead({
 
   sendRef.current = send;
   window.__fhPerform = performTrick; // console hook: any trick or look by its token name
-  if (process.env.NODE_ENV === "development") {
-    /* a canned tour through the real tour machinery, to tune the look for free */
-    window.__fhTourDemo = () => {
-      const canned =
-        "[[act:project:SPIM]] First stop, the big one: SPIM, two years of editing a diffusion model's tensors while it runs. The hard part was keeping the model coherent while its insides were being rewritten mid-generation. " +
-        "[[act:skills:PyTorch, Stable Diffusion, Generative AI]] The tools behind it, lit up on the map: PyTorch for the surgery, Stable Diffusion as the patient. " +
-        "[[act:doc:diploma]] And the paperwork, for the sceptics: a BS from Chicago, computer science with a side of visual arts. " +
-        "[[act:page:about]] The rest of the story is on the about page: how the studio years turned into the tooling you just saw.";
-      setOpen(true);
-      setMsgs((prev) => {
-        const history = prev.concat({ role: "user", content: "give me a tour" });
-        setTimeout(() => {
-          tourStart(history.concat({ role: "assistant", content: "" }), history.length, null);
-          tourFeed(canned, true);
-        }, 60);
-        return history;
-      });
-    };
-  }
 
   const onStageDown = (e) => {
     const s = stateRef.current;
@@ -4475,7 +4389,6 @@ export default function FloatingHead({
           >
             ×
           </button>
-          {caption && <div className="fh-tour-spot" ref={spotRef} style={{ display: "none" }} aria-hidden="true" />}
           {CHAT_ENDPOINT && !caption && (
             <button
               type="button"
@@ -4703,9 +4616,6 @@ export default function FloatingHead({
                           latest
                         </button>
                       )}
-                      <button type="button" className="fh-wk-latest fh-wk-hide" onClick={toggleWorkings} aria-label="Hide the workings">
-                        hide
-                      </button>
                     </div>
                   )}
                   {wkTab === "reply" && wkList && (
@@ -5077,7 +4987,7 @@ export default function FloatingHead({
                       <p key={"tour-page-" + tourPage.i} className="fh-msg fh-assistant fh-live fh-tour-page">
                         <span className="fh-who">hyder</span>
                         {tourPage.text ? (
-                          renderReply(tourPage.text, goThere, true, (q, kind) => (kind ? performTrick(kind) : send(null, q)))
+                          renderReply(tourPage.text, dismiss, true, (q, kind) => (kind ? performTrick(kind) : send(null, q)))
                         ) : (
                           <span className="fh-cue fh-cue-wait" role="status" aria-label="thinking" />
                         )}
@@ -5113,7 +5023,7 @@ export default function FloatingHead({
                             <span className="fh-tour-card-go">back to the tour ›</span>
                           </button>
                         ) : m.role === "assistant" ? (
-                          renderReply(m.content, goThere, live, (q, kind) => (kind ? performTrick(kind) : send(null, q)))
+                          renderReply(m.content, dismiss, live, (q, kind) => (kind ? performTrick(kind) : send(null, q)))
                         ) : (
                           userText(m.content)
                         )}
@@ -5157,31 +5067,17 @@ export default function FloatingHead({
                   )}
                 </div>
               )}
-              {tour && detour && (
-                <p className="fh-tour-detour">
-                  A detour to {detour}; the tour waits at stop {Math.max(1, tourPage.i + 1)}. Next carries on.
-                </p>
-              )}
               {tour && (
                 <div className="fh-tour-bar">
                   <button type="button" className="fh-tour-btn" disabled={tourPage.i <= 0} onClick={() => tourBack()}>
                     ‹ back
                   </button>
                   <span className="fh-tour-pos">
-                    {/* the rail: one segment per stop, the current one lit, the seen ones half lit */}
-                    <span className="fh-tour-rail" aria-hidden="true">
-                      {Array.from({ length: Math.max(tourPage.n, tourPage.i + 1, 1) }).map((_, k) => (
-                        <i key={k} className={k === tourPage.i ? "on" : k < tourPage.i ? "seen" : ""} />
-                      ))}
-                      {tourPage.more && <i className="more" />}
-                    </span>
-                    <span className="fh-tour-count">
-                      {tourPage.ended
-                        ? "end of the tour"
-                        : tourPage.i < 0
-                          ? "starting the tour"
-                          : (tourPage.i + 1) + (tourPage.more ? "" : " / " + tourPage.n) + (tourPage.waiting ? " · next is on its way" : "")}
-                    </span>
+                    {tourPage.ended
+                      ? "end of the tour"
+                      : tourPage.i < 0
+                        ? "starting the tour"
+                        : "stop " + (tourPage.i + 1) + (tourPage.more ? "" : " of " + tourPage.n) + (tourPage.waiting ? " · next is on its way" : "")}
                   </span>
                   <button
                     type="button"
@@ -5190,17 +5086,6 @@ export default function FloatingHead({
                     onClick={() => tourNext()}
                   >
                     next ›
-                  </button>
-                  <button
-                    type="button"
-                    className="fh-tour-btn"
-                    onClick={() => {
-                      /* the tour ends, the chat stays open, the input is ready: a question can follow at once */
-                      tourEnd("question");
-                      if (inputRef.current) inputRef.current.focus();
-                    }}
-                  >
-                    ask instead
                   </button>
                   <button type="button" className="fh-tour-btn" onClick={() => tourEnd("stop")}>
                     {tourPage.ended ? "done" : "stop"}

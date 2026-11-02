@@ -1166,9 +1166,6 @@
 .fh-wk-sum .fh-wk-dots {
   margin: 3px 0 2px;
 }
-.fh-wk-hide {
-  margin-left: auto; /* the drawer's own way to close, at the end of its header */
-}
 .fh-wk-latest {
   padding: 0 6px;
   border: 1px solid rgba(120, 130, 150, 0.4);
@@ -1749,8 +1746,6 @@
    half above its top edge, the speaker above the caption */
 .fh-tour .fh-chat {
   width: min(600px, calc(100vw - 40px));
-  /* beside a stop's element the card is narrower, and it glides between places */
-  transition: left 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), top 0.5s cubic-bezier(0.2, 0.8, 0.2, 1), width 0.3s ease;
   gap: 8px;
   padding: 10px 12px 8px;
   border: 1px solid rgba(120, 255, 168, 0.22);
@@ -1894,59 +1889,7 @@
 }
 .fh-tour-pos {
   flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
   letter-spacing: 0.05em;
-}
-/* the rail: one segment per stop */
-.fh-tour-rail {
-  flex: 1 1 auto;
-  display: flex;
-  gap: 4px;
-  min-width: 60px;
-}
-.fh-tour-rail i {
-  flex: 1 1 0;
-  height: 3px;
-  border-radius: 2px;
-  background: rgba(120, 130, 150, 0.3);
-  transition: background 0.3s ease;
-}
-.fh-tour-rail i.seen {
-  background: rgba(120, 255, 168, 0.42);
-}
-.fh-tour-rail i.on {
-  background: #78ffa8;
-  box-shadow: 0 0 8px rgba(120, 255, 168, 0.55);
-}
-.fh-tour-rail i.more {
-  flex: 0 0 10px;
-  background: repeating-linear-gradient(90deg, rgba(120, 130, 150, 0.3) 0 2px, transparent 2px 4px);
-}
-.fh-tour-count {
-  flex: 0 0 auto;
-  white-space: nowrap;
-}
-.fh-tour-detour {
-  margin: -4px 6px 0;
-  font-size: 0.72rem;
-  color: #9aa3ad;
-}
-/* the spotlight: the stop's element lit, the rest of the page dimmed; it
-   follows the element while the page scrolls it into view */
-.fh-tour-spot {
-  position: fixed;
-  z-index: 1;
-  border-radius: 18px;
-  box-shadow: 0 0 0 9999px rgba(6, 8, 12, 0.55), 0 0 0 1px rgba(120, 255, 168, 0.35), 0 0 30px rgba(120, 255, 168, 0.16);
-  pointer-events: none;
-  transition: left 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), top 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), width 0.45s ease, height 0.45s ease;
-}
-/* beside its element the card is a compact caption */
-.fh-tour .fh-chat.fh-chat-beside {
-  width: min(400px, calc(100vw - 40px));
 }
 .fh-tour-btn:disabled {
   opacity: 0.4;
