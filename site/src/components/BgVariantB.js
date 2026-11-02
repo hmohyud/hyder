@@ -148,21 +148,23 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget, g
        layer. Each climbs straight up at a tenth of an ember's pace, with no
        drift and no sway, and comes back in at the bottom when it leaves the
        top. The cursor's updraft, the well and its toss, the portrait's edge
-       and the grid's pull move it exactly as they move an ember. White
+       (which catches every white, not one in two) and the grid's pull move
+       it as they move an ember. White
        matches no card, so the card magnets leave it alone. While the
        contribution grid is hovered the white dots come to it and the rain
        takes the ones that arrive, so white goes in and commits fall out. */
     const WHITE_N = 60;
     const WHITE_CLIMB = 0.023; // px a frame: a tenth of the embers' mean rise (0.08 + 0.15)
+    /* each white climbs at its own pace around that mean, so a batch the
+       rain sent down together never comes back up as a straight row */
+    const whiteClimb = () => -WHITE_CLIMB * (0.6 + 0.8 * Math.random());
     const initWhite = () => ({
       white: true,
       row: WHITE_ROW,
       rowBase: WHITE_ROW,
-      x: 0,
       baseX: Math.random() * (W || 1920),
       y: Math.random() * (H || 1080),
-      vx: 0,
-      vy: -WHITE_CLIMB,
+      vy: whiteClimb(),
       size: 0.5 + Math.random(), // the old 1-3 px dots, as radii
       r: 255, g: 255, b: 255,
       alpha: 0.25 + Math.random() * 0.5,
@@ -383,9 +385,10 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget, g
        given a downward velocity, so the head's edge ride, the card magnets
        and the cursor act on it like on any other; its fall is time-based
        (px/s) so the rain is the same at 60 Hz and 240 Hz. Never a new
-       particle: a drop is an ember waiting off-screen, or failing that one
-       taken from the densest patch of the page, where one fewer is not
-       noticed. The grid's columns are read once per hover. */
+       particle: a drop is a white dot the pull has brought inside the grid,
+       else an ember waiting off-screen, or failing that one taken from the
+       densest patch of the page, where one fewer is not noticed. The
+       grid's columns are read once per hover. */
     const RAIN_RATE = 80; // drops a second
     const RAIN_FALL = 400; // terminal fall, px per second
     const RAIN_ACCEL = 500; // px per second per second
@@ -653,11 +656,11 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget, g
         // Respawn at top if tossed below screen; a white dot at the bottom,
         // to climb again
         if (p.y > H + 60) {
-          p.y = p.white ? H + 20 : -20;
+          p.y = p.white ? H + 20 + Math.random() * 240 : -20; // whites spread out below, not in one line
           p.baseX = Math.random() * W;
           p.tvx = 0;
           p.tvy = 0;
-          if (p.rain) { p.rain = false; p.vy = p.white ? -WHITE_CLIMB : -(0.08 + Math.random() * 0.3); p.row = p.rowBase; }
+          if (p.rain) { p.rain = false; p.vy = p.white ? whiteClimb() : -(0.08 + Math.random() * 0.3); p.row = p.rowBase; }
         }
         if (p.baseX < -40) p.baseX = W + 40;
         if (p.baseX > W + 40) p.baseX = -40;

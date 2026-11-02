@@ -124,10 +124,10 @@ export default function Landing() {
     return () => window.removeEventListener("resize", fit);
   }, []);
 
-  /* The 60 ambient dots now live in BgVariantB's canvas - see the `floaters`
-     block there. As DOM spans they were style-recalculated on the main thread
-     every frame because Chrome declined to composite them; on the canvas they
-     are 60 more fills in a loop that was already running. */
+  /* The 60 ambient dots now live in BgVariantB's canvas as the white
+     particles (initWhite there). As DOM spans they were style-recalculated
+     on the main thread every frame because Chrome declined to composite
+     them; on the canvas they ride the loop that was already running. */
 
   const PU = process.env.PUBLIC_URL;
 

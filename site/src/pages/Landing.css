@@ -185,7 +185,7 @@
   animation: float 22s ease-in-out infinite;
   filter: blur(1px);
 }
-/* .particle moved into BgVariantB's canvas - see `floaters` there. */
+/* .particle moved into BgVariantB's canvas - the white dots (initWhite) there. */
 
 /* HERO — CSS Grid layout, swaps areas at mobile breakpoints */
 .hero{
