@@ -764,7 +764,7 @@ export default function LandingFocus() {
       ref={rootRef}
       className={`landing landing-focus${hoveredCard ? " card-focus" : ""}${headFocus ? " head-focus" : ""}${gridFocus ? " gh-focus" : ""}`}
     >
-      <BgVariantB magnetTarget={magnetTarget} magnetCardId={hoveredCard} vortexTarget={vortexTarget} />
+      <BgVariantB magnetTarget={magnetTarget} magnetCardId={hoveredCard} vortexTarget={vortexTarget} ghTarget={gridFocus ? gridEl : null} />
       <TubesCursorOverlay hoveredCard={hoveredCard} />
 
       <div className="wrap focus-wrap" ref={wrapRef}>

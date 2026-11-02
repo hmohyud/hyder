@@ -79,18 +79,20 @@ function makeGlRenderer(canvas) {
   return r;
 }
 
-export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget }) {
+export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget, ghTarget }) {
   const canvasRef = useRef(null);
   const magnetTargetRef = useRef(null);
   const magnetCardIdRef = useRef(null);
   const vortexTargetRef = useRef(null);
+  const ghTargetRef = useRef(null); // the contribution grid while hovered (the commit rain)
 
   // Keep magnetTarget in a ref so the rAF loop can read it without re-running useEffect
   useEffect(() => {
     magnetTargetRef.current = magnetTarget;
     magnetCardIdRef.current = magnetCardId;
     vortexTargetRef.current = vortexTarget;
-  }, [magnetTarget, magnetCardId, vortexTarget]);
+    ghTargetRef.current = ghTarget;
+  }, [magnetTarget, magnetCardId, vortexTarget, ghTarget]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -271,6 +273,7 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget })
       const c = COLORS[Math.floor(Math.random() * COLORS.length)];
       return {
         row: colorRow(c[0], c[1], c[2]),
+        rowBase: colorRow(c[0], c[1], c[2]), // the colour to come back to after the rain recolours it
         x: Math.random() * (W || 1920),
         y: startRandom ? Math.random() * (H || 1080) : (H || 1080) + Math.random() * 100,
         vx: 0,
@@ -376,6 +379,70 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget })
     window.addEventListener("mousedown", onDown);
     window.addEventListener("mouseup", onUp);
 
+    /* Commit rain: while the contribution grid is hovered it leaks its
+       commits - embers fall from the bottom edge of each week's column, more
+       from the busy weeks, in the grid's blues. A drop is an ordinary ember
+       given a downward velocity, so the head's edge ride, the card magnets
+       and the cursor act on it like on any other; its fall is time-based
+       (px/s) so the rain is the same at 60 Hz and 240 Hz. Never a new
+       particle: a drop is an ember waiting off-screen, or failing that one
+       taken from the densest patch of the page, where one fewer is not
+       noticed. The grid's columns are read once per hover. */
+    const RAIN_RATE = 80; // drops a second
+    const RAIN_FALL = 400; // terminal fall, px per second
+    const RAIN_ACCEL = 500; // px per second per second
+    const DENS = 120; // the density grid's cell, px
+    const GH_ROW = colorRow(127, 211, 255);
+    const GH_PALE = colorRow(200, 210, 235);
+    const gh = { el: null, active: false, rect: null, cols: 0, colInt: [], maxInt: 1, rainAcc: 0, rainIdx: 0, dens: new Map() };
+    const ghRead = (el) => {
+      const colInt = [];
+      let i = 0;
+      el.querySelectorAll(".gh-cell").forEach((c) => {
+        const r = c.getBoundingClientRect();
+        if (r.width <= 0) return;
+        const col = Math.floor(i / 7);
+        i++;
+        const m = /gh-l(\d)/.exec(c.className);
+        colInt[col] = (colInt[col] || 0) + (m ? Number(m[1]) : 0);
+      });
+      const grid = el.querySelector(".gh-contrib-grid");
+      gh.el = el; gh.rect = (grid || el).getBoundingClientRect();
+      gh.cols = Math.ceil(i / 7); gh.colInt = colInt; gh.maxInt = Math.max(1, ...colInt);
+    };
+    const ghDrop = (p, col) => {
+      const colW = gh.rect.width / Math.max(1, gh.cols);
+      p.baseX = gh.rect.left + colW * (col + 0.5) + (Math.random() - 0.5) * colW * 0.6;
+      p.y = gh.rect.bottom + 1;
+      p.rain = true;
+      p.rainSpeed = 90 + Math.random() * 60; // px/s to start
+      p.rainVx = (Math.random() - 0.5) * 0.25;
+      p.vy = 0; p.tvx = 0; p.tvy = 0;
+      p.row = (gh.colInt[col] || 0) / gh.maxInt > 0.45 ? GH_ROW : GH_PALE;
+    };
+    const ghRain = (dtF) => {
+      gh.rainAcc += dtF * RAIN_RATE;
+      const total = gh.colInt.reduce((a, b) => a + b, 0) || 1;
+      while (gh.rainAcc >= 1) {
+        gh.rainAcc -= 1;
+        let r = Math.random() * total, col = 0;
+        for (; col < gh.cols - 1; col++) { r -= gh.colInt[col] || 0; if (r <= 0) break; }
+        let p = null;
+        for (let k = 0; k < particles.length; k++) {
+          const q = particles[(gh.rainIdx + k) % particles.length];
+          if (!q.rain && (q.y > H || q.y < 0)) { p = q; gh.rainIdx = (gh.rainIdx + k + 1) % particles.length; break; }
+        }
+        if (!p) {
+          let best = null, bestN = 0;
+          for (const cell of gh.dens.values()) if (cell.n > bestN) { bestN = cell.n; best = cell; }
+          if (best && best.sample && !best.sample.rain) p = best.sample;
+        }
+        if (!p) return;
+        ghDrop(p, col);
+      }
+    };
+    let lastFrameT = 0;
+
     let raf;
     const draw = () => {
       if (glr) {
@@ -400,6 +467,21 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget })
         const r = vt.getBoundingClientRect();
         vortex = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
       }
+
+      const nowT = performance.now();
+      const dtF = Math.min(0.05, (nowT - (lastFrameT || nowT)) / 1000); // seconds this frame
+      lastFrameT = nowT;
+
+      /* the contribution grid's hover: the rain starts, continues, or ends */
+      const ghEl = ghTargetRef.current;
+      if (ghEl) {
+        if (!gh.active || gh.el !== ghEl) { ghRead(ghEl); gh.active = true; gh.rainAcc = 0; }
+        ghRain(dtF);
+      } else if (gh.active) {
+        gh.active = false;
+        gh.el = null;
+      }
+      gh.dens.clear();
 
       // Gravity well strength ramps up the longer you hold
       let wellStrength = 0;
@@ -525,6 +607,20 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget })
           }
         }
 
+        /* a falling commit gathers speed to its terminal fall (time-based,
+           so the rain looks the same at any frame rate) and drifts a little
+           sideways; the drift and the forces above have already acted on it */
+        if (p.rain) {
+          p.rainSpeed = Math.min(RAIN_FALL, p.rainSpeed + RAIN_ACCEL * dtF);
+          p.vy = p.rainSpeed * dtF;
+          p.baseX += p.rainVx;
+        } else if (gh.active && p.y > 0 && p.y < H) {
+          /* the page's density, for the drop that has to come from somewhere on screen */
+          const key = Math.floor(drawX / DENS) * 1000 + Math.floor(p.y / DENS);
+          const cell = gh.dens.get(key);
+          if (cell) { cell.n++; if (Math.random() < 1 / cell.n) cell.sample = p; } else gh.dens.set(key, { n: 1, sample: p });
+        }
+
         // Respawn at bottom
         if (p.y < -20) {
           p.y = H + 20;
@@ -538,6 +634,7 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget })
           p.baseX = Math.random() * W;
           p.tvx = 0;
           p.tvy = 0;
+          if (p.rain) { p.rain = false; p.vy = -(0.08 + Math.random() * 0.3); p.row = p.rowBase; }
         }
         if (p.baseX < -40) p.baseX = W + 40;
         if (p.baseX > W + 40) p.baseX = -40;
@@ -547,7 +644,8 @@ export default function BgVariantB({ magnetTarget, magnetCardId, vortexTarget })
         const fadeBot = Math.min(1, (H - p.y) / 100);
         const a = p.alpha * fadeTop * fadeBot;
 
-        stamp(drawX, p.y, p.size, p.row, a);
+        if (p.rain) stamp(drawX, p.y, p.size * 1.3, p.row, Math.min(1, a * 2.4));
+        else stamp(drawX, p.y, p.size, p.row, a);
       }
       if (ctx) ctx.globalAlpha = 1;
 
