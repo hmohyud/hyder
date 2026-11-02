@@ -779,8 +779,8 @@ const STARTER_ASKS = [
   "what was it like growing up?",
 ];
 const STARTER_TRICKS = [
-  "become a ghost", "halftone", "wireframe", "breathe fire", "scatter yourself", "melt", "shatter",
-  "turn to sparks", "glitch out", "go blue", "do a spin",
+  "halftone", "wireframe", "breathe fire", "scatter yourself", "melt",
+  "turn to sparks", "go blue", "do a spin",
 ];
 const STARTER_STAR = "do a cool trick"; // always there, and lit: the model picks from the whole repertoire
 const drawFrom = (pool, n) => pool.slice().sort(() => Math.random() - 0.5).slice(0, n);
