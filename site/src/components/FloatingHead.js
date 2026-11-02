@@ -565,6 +565,7 @@ const WK_TIPS = {
   time: "Grey is sizing, purple thinking, green writing; the steps beside carry the same colours and seconds.",
   steps: "Who did what: each call, its model, its time and its cost. Open one for the detail.",
   size: "Haiku rates the question 1 to 5 and names its kind, then hands it on: to itself for 1-2, to Sonnet for 3-5 with effort set by the rating.",
+  pill: "A trick pressed in the help sheet: the page did the trick, so there is nothing to rate. The line about it goes straight to Haiku.",
   think: "Sonnet reasons before it writes (extended thinking at the effort set above): it weighs the facts, settles an order, checks the rules. This is its own summary of that, as it streamed. It is part of the answer's call, so its cost sits in that line. Haiku's small answers skip it.",
   reply: "Not a step: the reply itself, below in the chat. The model that wrote it, its length, the time it took and what that call cost.",
   tokens: "In is what was read fresh (the question and page context); out is the answer written. The cached prompt is the row above.",
@@ -721,23 +722,15 @@ function HelpSheet({ onTry, onTrick, onWorkings, onPick, onClose, look }) {
           <button
             key={l.id}
             type="button"
-            className={
-              "fh-help-look" +
-              (look && look[l.id] ? " on" : "") +
-              /* the ghost fades the dots, and under the wire the dots are
-                 not drawn at all: the pill still toggles the flag, but it
-                 is dimmed, and its title says why. (Under the halftone it
-                 is not dimmed: there it takes the print off to make room.) */
-              (l.id === "ghost" && look && look.wire ? " muted" : "")
-            }
+            className={"fh-help-look" + (look && look[l.id] ? " on" : "")}
             onClick={() => onTrick(l.id === "tint" ? "tint:#4f8cff" : l.id)}
             title={
-              l.id === "ghost" && look && look.wire
-                ? "ghost (" + (look.ghost ? "on, but " : "") + "no visible effect under the wire)"
+              look && look[l.id]
+                ? l.t + " (on - press again to turn it off)"
                 : l.id === "ghost" && look && look.lattice
                   ? "ghost (takes the halftone off: a solid print has no gaps for a ghost)"
-                  : look && look[l.id]
-                    ? l.t + " (on - press again to turn it off)"
+                  : l.id === "lattice" && look && look.ghost
+                    ? "lattice (takes the ghost off: a solid print has no gaps for a ghost)"
                     : l.t
             }
           >
@@ -3760,7 +3753,8 @@ export default function FloatingHead({
       /* the halftone and the wireframe are each a whole look, so one
          replaces the other (both on at once left the halftone path drawing
          a print of nothing). The halftone is a solid print with no gaps, so
-         it switches a ghost off too; under the wire a ghost stays, unseen. */
+         it switches a ghost off too; a ghost stays on with the wire, whose
+         mesh it makes see-through. */
       s.look = { ...s.look, lattice: kind === "lattice", wire: kind === "wire", ghost: kind === "lattice" ? false : s.look.ghost };
       if (kind === "lattice") s.ghostTarget = 0;
       writeLook(s.look);
@@ -3843,12 +3837,17 @@ export default function FloatingHead({
     setWkTab("reply");
     setWkList(false);
     setWkPeek(null);
-    phaseRef.current = { sendAt: performance.now(), thinkAt: 0, textAt: 0 };
+    phaseRef.current = { sendAt: performance.now(), thinkAt: 0, textAt: 0, pill: pillMode };
     setElapsed(0);
     stateRef.current.busy = true; // timer callbacks cannot see React state
-    stateRef.current.talkBuf = "";
-    stateRef.current.talkPos = 0;
-    stateRef.current.talkNext = 0;
+    /* the fire pill has just queued the scream: leave it to play, and the
+       line about it goes unvoiced, as when the model breathes the fire */
+    const screaming = pillMode && opts.performed === "fire";
+    if (!screaming) {
+      stateRef.current.talkBuf = "";
+      stateRef.current.talkPos = 0;
+      stateRef.current.talkNext = 0;
+    }
     stateRef.current.voicePitch = 0.95 + Math.random() * 0.2;
     ensureAudio(); // sending IS the user gesture autoplay policy wants
 
@@ -3931,7 +3930,7 @@ export default function FloatingHead({
       let acted = false;
       let pendingAct = null;
       let pendingNav = null;
-      let muteVoice = false;
+      let muteVoice = screaming; // the fire pill's scream replaces the narration
       let firstText = false;
       /* the envelope: "maybe" while the opening could still be [[think]],
          "in" inside the reasoning block, "done" once the reply proper begins */
@@ -4078,7 +4077,12 @@ export default function FloatingHead({
       } else if (acc.trim()) {
         replace(acc); // once more, so the reasoning and the stats ride with the message
       } else if (!acc.trim()) {
-        if (trickFired || acted) {
+        if (pillMode) {
+          /* a help-sheet trick whose line came back empty (a bare token,
+             stripped): the trick was the answer, so the exchange goes,
+             question and all, rather than "(no answer came back)" */
+          setMsgs((prev) => prev.filter((_, i) => i !== replyAt - 1 && i !== replyAt));
+        } else if (trickFired || acted) {
           // token-only reply: drop the empty bubble - the trick IS the answer
           setMsgs((prev) => prev.filter((_, i) => i !== replyAt));
         } else {
@@ -4107,7 +4111,7 @@ export default function FloatingHead({
       } else if (pillMode) {
         /* the line was garnish: a failure drops the exchange rather than
            apologising for a trick that already happened */
-        setMsgs((prev) => (replyAt < prev.length ? prev.slice(0, replyAt - 1) : prev));
+        setMsgs((prev) => prev.filter((_, i) => i !== replyAt - 1 && i !== replyAt)); // only this exchange: a closer appended meanwhile stays
       } else {
         const said = String((err && err.message) || "");
         const msg = said.startsWith("said:")
@@ -4308,15 +4312,18 @@ export default function FloatingHead({
       });
       return out;
     }
+    /* a help-sheet trick's line skips the sizer by design: said so, rather
+       than "sizing…" and then "no verdict in time" */
+    const wkPill = wkStats ? !!wkStats.pill : wkBusy && !!ph.pill;
     out.push({
       id: "size",
-      label: "sized",
-      model: shortModel((wkSize && wkSize.model) || "claude-haiku-5-5"),
-      ms: wkSize ? wkSize.ms : wkBusy && !ph.thinkAt && !ph.textAt ? elapsed : wkStats ? 0 : null,
-      live: wkBusy && !ph.thinkAt && !ph.textAt,
-      tip: WK_TIPS.size,
+      label: wkPill ? "not sized" : "sized",
+      model: wkPill ? "" : shortModel((wkSize && wkSize.model) || "claude-haiku-5-5"),
+      ms: wkPill ? null : wkSize ? wkSize.ms : wkBusy && !ph.thinkAt && !ph.textAt ? elapsed : wkStats ? 0 : null,
+      live: !wkPill && wkBusy && !ph.thinkAt && !ph.textAt,
+      tip: wkPill ? WK_TIPS.pill : WK_TIPS.size,
       cents: wkSize && typeof wkSize.cents === "number" ? wkSize.cents : null,
-      status: wkSize ? wkSize.complexity + "/5 · " + (KIND_WORDS[wkSize.kind] || wkSize.kind) : wkBusy ? "sizing…" : "no verdict",
+      status: wkPill ? "help-sheet trick" : wkSize ? wkSize.complexity + "/5 · " + (KIND_WORDS[wkSize.kind] || wkSize.kind) : wkBusy ? "sizing…" : "no verdict",
       body: (
         <p className="fh-wk-body fh-wk-verdict">
           {wkSize ? (
@@ -4328,6 +4335,8 @@ export default function FloatingHead({
                 {" → " + (wkStats ? (wkLight ? wkModel + " answers it" : "handed to " + wkModel + ", " + (wkEffort || "low") + " effort") : "…")}
               </span>
             </>
+          ) : wkPill ? (
+            <span className="fh-wk-gloss">the trick already ran → {wkStats ? wkModel : "haiku 5.5"} writes a line about it</span>
           ) : wkBusy ? (
             "…"
           ) : (
@@ -5223,7 +5232,7 @@ export default function FloatingHead({
                   onKeyDown={(e) => {
                     /* Tab takes the question the placeholder is typing, as
                        text to edit or send; it never sends */
-                    if (e.key === "Tab" && !e.shiftKey && !draft.trim() && ghostRef.current && !TOUR.running) {
+                    if (e.key === "Tab" && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey && !draft && ghostRef.current && !TOUR.running) {
                       e.preventDefault();
                       setDraft(ghostRef.current);
                       return;

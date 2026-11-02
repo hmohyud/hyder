@@ -653,13 +653,15 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
     JSON.parse(anthropicCalls()[0].init.body).messages[1].content,
     /pressed the 'ghost' button in the help sheet, and the head is already coming back solid: the ghost look was on and that press switched it OFF/
   );
-  // the ghost pill under the wire: on, but told it shows nothing
+  // the ghost pill over the wire: the mesh goes see-through, and the press is described as just happened
   calls.length = 0;
-  await (await ask("go ghost", env, { context: { path: "/", look: "ghost+wire", performed: "ghost" } })).text();
+  const ghostOnWire = await (await ask("go ghost", env, { context: { path: "/", look: "ghost+wire", performed: "ghost" } })).text();
   await settle();
   const underWire = JSON.parse(anthropicCalls()[0].init.body).messages[1].content;
-  assert.match(underWire, /under the wireframe that makes no visible difference/);
-  assert.match(underWire, /ghost is on underneath, but it shows nothing while the wireframe is on/);
+  assert.match(underWire, /With the wireframe on, that means the mesh has gone see-through/);
+  assert.match(underWire, /The head is now in its ghost and wire \(the wireframe\) look\./);
+  assert.ok(!/shows nothing|no visible difference|asked for earlier|already so/.test(underWire), "a pill press is never 'already so', and the ghost shows on the wire");
+  assert.equal(envelope(ghostOnWire).stats.pill, true, "the stats say the sizer was skipped by design");
   // the halftone put on over a ghost switches the ghost off, and the line is told why
   calls.length = 0;
   await (await ask("lattice look", env, { context: { path: "/", look: "lattice", performed: "lattice", undid: "ghost" } })).text();
@@ -673,7 +675,11 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   await (await ask("go ghost", env, { context: { path: "/", performed: "explode" } })).text();
   await settle();
   assert.equal(sizerCalls().length, 1, "an unknown trick name is not a performed trick");
-  assert.ok(!/pressed the/.test(JSON.parse(anthropicCalls()[0].init.body).messages[1].content));
+  const unknownMsgs = JSON.parse(anthropicCalls()[0].init.body).messages;
+  const unknownCtx = unknownMsgs[unknownMsgs.length - 1]; // the context line is always last (an effort message may come first)
+  assert.equal(unknownCtx.role, "system");
+  assert.match(unknownCtx.content, /^Page context/);
+  assert.ok(!/pressed the/.test(unknownCtx.content), "an unknown trick name never reaches the prompt");
   sizer = "2 chat";
   kv.set(SPEND, spendSnap);
   ok("a performed trick: one line from Haiku, no sizing; unknown names ignored");

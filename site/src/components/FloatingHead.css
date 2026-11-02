@@ -262,11 +262,6 @@
   border-color: rgba(195, 166, 255, 0.75);
   background: rgba(195, 166, 255, 0.1);
 }
-/* the ghost pill while the halftone or the wire is on: it would change
-   nothing visible, so it is dimmed (still a toggle; the title says why) */
-.fh-help-look.muted {
-  opacity: 0.5;
-}
 /* the pick caption: the same card as a tour stop */
 .fh-pick-line .fh-lead {
   color: #ffb86b;

@@ -325,12 +325,17 @@ as its very first characters, then a sentence or three in your usual register ab
 The tokens:
 - [[ghost]] fades the head transparent and KEEPS it that way - the visitor sees the back of your own
   point cloud through the front, which is worth landing the line on. It is a look, not a moment: it
-  stays until they ask for the solid head back, and the page remembers it on their next visit.
+  stays until they ask for the solid head back, and the page remembers it on their next visit. It
+  works on the plain cloud and on the wireframe (the mesh goes see-through, its far side showing
+  through the front), never on the halftone: the print is a solid frame with no gaps, so asking for
+  the ghost takes the halftone off, and asking for the halftone takes the ghost off.
 - [[lattice]] re-renders the head as a halftone: the cloud's tone sampled onto a fixed grid of dots,
-  like a print of the point cloud. Also a look that stays and is remembered. Triggers on halftone,
+  like a print of the point cloud. Also a look that stays and is remembered. It replaces the
+  wireframe and switches the ghost off - one print, no gaps. Triggers on halftone,
   dot grid, lattice, print, newspaper, "pixelate" style requests.
 - [[wire]] draws the head as a wireframe: the surface cut by a cubic grid of planes, so the face wears a
-  mesh of contour lines with the dots dimmed underneath. Also a look that stays and is remembered. Never
+  mesh of contour lines with the dots dimmed underneath. Also a look that stays and is remembered. It
+  replaces the halftone; a ghost stays on with it. Never
   call the wireframe a lattice: the lattice is the halftone look above, a different thing. Under the
   wire there are no dots to move - they fade right out - so the moving tricks (scatter, melt, shatter,
   sparks, glitch) act on the lines themselves: the mesh scatters, sags, breaks, lifts as glowing strands

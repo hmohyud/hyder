@@ -80,10 +80,10 @@ const SHOWY_TRICKS = ["fire", "lattice", "wire", "scatter", "melt", "shatter", "
    asks for one line about it. What each one does, for the remark. */
 const PILL_WORDS = {
   ghost: "fading see-through, a look that stays until undone (it takes the halftone off if that was on: a solid print has no gaps for a ghost)",
-  "ghost-off": "coming back solid: the ghost look was on and that press switched it OFF (any lattice or wire stays); it is not going ghost",
+  "ghost-off": "coming back solid: the ghost look was on and that press switched it OFF (a wireframe, if on, stays and is solid-fronted again); it is not going ghost",
   lattice: "re-rendering itself as a halftone print of the cloud, a look that stays (it replaces the wireframe if that was on, and switches a ghost off: the print is a solid frame with no gaps)",
-  "lattice-off": "coming back from the halftone print to its plain dots: the lattice look was on and that press switched it OFF (a ghost, if on, stays)",
-  wire: "turning into a wireframe, a look that stays (it replaces the halftone if that was on)",
+  "lattice-off": "coming back from the halftone print to its plain dots: the lattice look was on and that press switched it OFF",
+  wire: "turning into a wireframe, a look that stays (it replaces the halftone if that was on; a ghost, if on, stays and makes the mesh see-through)",
   "wire-off": "coming back from the wireframe to its plain dots: the wire look was on and that press switched it OFF (a ghost, if on, stays)",
   cloud: "going back to the plain point cloud, every look off",
   spin: "whipping round about three times and unwinding",
@@ -220,16 +220,19 @@ function contextLine(context) {
       .split("+")
       .map((k) => (k === "lattice" ? "lattice (the halftone)" : k === "wire" ? "wire (the wireframe)" : k))
       .join(" and ");
-    line +=
-      " The head is currently in its " + words +
-      " look, which this visitor asked for earlier; it stays until they ask for the default (cloud) back." +
-      " If they ask for that same look again it is already so: say so, and do not describe a change.";
-    /* the ghost fades the dots, and under the wire the dots are not drawn
-       at all: a ghost under the wire is on but shows nothing */
+    /* a help-sheet press has just set the look: say what it is now, not that
+       it was asked for earlier, or the model answers its own question with
+       "already so" */
+    line += context.performed
+      ? " The head is now in its " + words + " look."
+      : " The head is currently in its " + words +
+        " look, which this visitor asked for earlier; it stays until they ask for the default (cloud) back." +
+        " If they ask for that same look again it is already so: say so, and do not describe a change.";
+    /* the ghost slides the head's occluder back, and the wire's lines are
+       hidden by that occluder like the dots: with both on, the mesh is
+       see-through, its far side showing through the front */
     if (/ghost/.test(context.look) && /wire/.test(context.look)) {
-      line +=
-        " The ghost is on underneath, but it shows nothing while the wireframe is on - the dots it fades are not drawn;" +
-        " it will show again when the wire comes off. Never describe the head as see-through right now.";
+      line += " With the ghost on, the wireframe is see-through: the far side of the mesh shows through its front.";
     }
     /* the halftone is a solid print with no gaps: it and the ghost replace
        each other, so a request for one while the other is on is a swap */
@@ -240,9 +243,10 @@ function contextLine(context) {
       line += " If they ask for the ghost, the halftone comes off to make room for it: a solid print has no gaps for a ghost.";
     }
   } else {
-    line +=
-      " The head is in its default look, the plain point cloud; no look is on, nothing to undo." +
-      " If they ask for the plain, normal or default head it is already so: say so, and do not describe a change.";
+    line += context.performed
+      ? " The head is now the plain point cloud, no look on."
+      : " The head is in its default look, the plain point cloud; no look is on, nothing to undo." +
+        " If they ask for the plain, normal or default head it is already so: say so, and do not describe a change.";
   }
   if (context.last) {
     const who = /haiku/.test(context.last.model) ? "Haiku" : /sonnet/.test(context.last.model) ? "Sonnet" : context.last.model ? "a backup model" : "";
@@ -266,14 +270,14 @@ function contextLine(context) {
     } else if (context.undid === "wire") {
       line += " The wireframe came off to make room: the halftone and the wire are one at a time.";
     }
-    /* a ghost switched on or off under the wire changes nothing on screen
-       (the dots are not drawn); a wire put over a ghost hides it */
-    if (/^ghost(-off)?$/.test(context.performed) && /wire/.test(context.look || "")) {
-      line +=
-        " But under the wireframe that makes no visible difference - the dots the ghost fades are not drawn -" +
-        " so say that, dryly, rather than describing a fade; the ghost will show once the wire comes off.";
+    /* the ghost works on the wire as on the cloud: the mesh goes
+       see-through, its far side showing through the front */
+    if (context.performed === "ghost" && /wire/.test(context.look || "")) {
+      line += " With the wireframe on, that means the mesh has gone see-through: its far side shows through the front.";
+    } else if (context.performed === "ghost-off" && /wire/.test(context.look || "")) {
+      line += " The wireframe stays, solid-fronted again: its far side is hidden once more.";
     } else if (context.performed === "wire" && /ghost/.test(context.look || "")) {
-      line += " The ghost that was on stays on underneath, invisible until the wire comes off.";
+      line += " The ghost stays on, so the new wireframe is see-through: the far side of the mesh shows through its front.";
     }
     line +=
       " Reply with one short line about it in your voice - a remark, not a description, fifteen words or fewer -" +
@@ -1069,6 +1073,7 @@ async function anthropicStream(env, messages, ctx, context) {
           stop: stopReason || (streamError ? "error" : "unknown"),
           effort,
           size: size ? { complexity: size.complexity, kind: size.kind, ms: size.ms, model: SIZER_MODEL, cents: round4(size.cents) } : null,
+          pill: pill, // a help-sheet trick's line: not sized, by design, rather than a sizer that timed out
           cents: round4(cents),
           cacheWriteCents: round4(writeCents),
         })
