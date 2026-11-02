@@ -3905,7 +3905,18 @@ export default function FloatingHead({
       const res = await fetch(CHAT_ENDPOINT, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ messages: history.map(({ role, content }) => ({ role, content })), context }),
+        /* a help-sheet press goes to the model as what it is - a report that
+           the button was pressed - not as the pill's words, which read as a
+           request and drew "already so" for a look the press had just set;
+           the transcript still shows the pill's words */
+        body: JSON.stringify({
+          messages: history.map(({ role, content }, i) =>
+            pillMode && i === history.length - 1
+              ? { role, content: "(I pressed the '" + opts.performed.replace(/-off$/, "") + "' button in the help sheet.)" }
+              : { role, content }
+          ),
+          context,
+        }),
         signal: ctrl.signal,
       });
       /* The worker explains refusals in the body — the daily cap, an unknown

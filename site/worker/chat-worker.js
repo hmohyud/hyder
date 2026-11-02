@@ -336,7 +336,7 @@ function contextLine(context) {
       const how =
         p === "spin" ? "the whole head turns"
           : p === "fire" ? "the fire comes from the mouth"
-            : unseen ? "the blue wash colours only the dots, and " + formWords(now) + " does not draw them, so nothing visibly turned blue"
+            : unseen ? "the blue wash colours only the dots, and " + formWords(now) + " does not draw them, so nothing visibly turned blue; the wash fades after ten seconds, so it will not be waiting when the look comes off"
               : p === "tint" || p === "hue" ? "the colour washes over " + formWords(now)
                 : "what moves is " + (FORM_MEDIUM[now] || "its dots");
       line += " It did it as " + formWords(now) + ": " + how + ".";

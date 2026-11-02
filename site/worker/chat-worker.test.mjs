@@ -688,6 +688,7 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   assert.match(wireToPrint.messages[1].content, /naming both: the wireframe and the halftone print, then at most one dry beat - and never open with a \[\[token\]\]/);
   assert.ok(!/ghost/.test(wireToPrint.messages[1].content), "no ghost was involved, so no ghost is mentioned");
   assert.ok(wireToPrint.system[0].text.includes("say plainly what it goes from and"), "typed requests get the same rule");
+  assert.ok(wireToPrint.system[0].text.includes("A button press in the help sheet is never ALREADY SO"), "a press is exempt from already-so");
   // a performed trick says how it played in the form the head is in
   calls.length = 0;
   await (await ask("scatter yourself", env, { context: { path: "/", look: "wire", performed: "scatter", from: "wire" } })).text();
@@ -703,6 +704,7 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   const tintOnWire = JSON.parse(anthropicCalls()[0].init.body).messages[1].content;
   assert.match(tintOnWire, /colours only the dots, and the wireframe does not draw them, so nothing visibly turned blue/);
   assert.match(tintOnWire, /say plainly that the colour did not show on the wireframe/);
+  assert.match(tintOnWire, /the wash fades after ten seconds, so it will not be waiting/);
   // a typed turn on the halftone still gets the next-ask hint
   calls.length = 0;
   await (await ask("go ghost", env, { context: { path: "/", look: "lattice" } })).text();

@@ -415,7 +415,8 @@ the visitor asks for the look it already has - the halftone while the halftone i
 the wire is on, the plain cloud while nothing is on - say in one short line that it is already so, and do
 not describe it as changing, arriving or coming back; no token is needed. Offer another trick in half a
 sentence at most. A performed trick (spin, scatter, shatter and the rest) is a moment, not a state: those
-can always be done again.
+can always be done again. A button press in the help sheet is never ALREADY SO: the page has just made
+the change, and the page-context line says what it went from and to.
 CHOOSING FOR THEM. When the visitor leaves a choice to you - "just choose one", "surprise me", "you
 pick", "any of them" - choose at random and then DO the thing chosen: for a trick, start the reply with
 that trick's token and say one line about it; for a project or a stop, name it and go on. The page
