@@ -173,9 +173,13 @@ export default function SkillsMap() {
      click handler for the already-built case; before the scene exists it
      is a no-op and the scene build re-derives from the ref anyway. */
   const location = useLocation();
+  /* the nodes a chat link lit up, named above the list so the selection
+     reads as the chat's doing and not a glitch; "clear" puts them back */
+  const [seeded, setSeeded] = useState([]);
   useEffect(() => {
     const ids = parseSelHash(window.location.hash, data.skillNodes);
     if (!ids.length) return;
+    setSeeded(ids);
     const set = expandedNodesRef.current;
     ids.forEach((id) => set.add(id));
     setOpenLearnedFromIds(prev => {
@@ -190,6 +194,20 @@ export default function SkillsMap() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, location]);
+  const clearSeeded = () => {
+    const set = expandedNodesRef.current;
+    seeded.forEach((id) => set.delete(id));
+    setSeeded([]);
+    forceRerender(x => x + 1);
+    mapCircles(svgRef.current).attr('stroke', c => (c && set.has(c.id) ? c.ringColor : '#000'));
+    Object.entries(nodeListRefs.current).forEach(([id, el]) => {
+      if (el) el.dataset.selected = set.has(id) ? 'true' : 'false';
+    });
+    if (tooltipInfoRef.current) tooltipInfoRef.current.style.display = 'none';
+    // the link has been acted on: a refresh should not light them again
+    if (window.location.hash.startsWith('#sel=')) window.history.replaceState(null, '', window.location.pathname);
+  };
+  const lit = seeded.filter((id) => expandedNodesRef.current.has(id));
 
   // --- Single source of truth for viewport width/height (CSS px) using ResizeObserver ---
   useEffect(() => {
@@ -818,6 +836,17 @@ export default function SkillsMap() {
   return (
     <div ref={containerRef} className="skills-container">
       <div className="list-container">
+        {lit.length > 0 && (
+          <div className="list-seeded" role="status">
+            <span>
+              Lit up by the chat:{' '}
+              {lit.map((id, i) => (
+                <b key={id}>{id}{i < lit.length - 1 ? ', ' : ''}</b>
+              ))}
+            </span>
+            <button type="button" onClick={clearSeeded}>clear</button>
+          </div>
+        )}
         {[...data.skillNodes]
           .sort((a, b) => a.id.localeCompare(b.id))
           .map((node) => {

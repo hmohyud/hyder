@@ -753,6 +753,31 @@ const statsToken = (fields) => NEWLINE + "[[stats:" + JSON.stringify(fields) + "
 /* the model's reasoning is for the visitor's eyes, but never the prompt:
    the same leak markers the guard uses, on the summary */
 const LEAK_RX = /you are hyder mohyuddin|everything you know about yourself|knowledge:|# hyder mohyuddin|voice: dry/i;
+/* ...and a grade is a non-topic on this site, not a secret: a sentence of the
+   reasoning that treats grades as something to steer around (a rule, an
+   off-limits, a thing to keep quiet) is dropped, with nothing in its place.
+   For that the reasoning goes to the page a sentence at a time. */
+const GRADES_RX = /\b(?:gpa|grades?|transcript|class rank|marks)\b/i;
+const STEER_RX = /off[- ]limits|suppress|avoid|deflect|steer|redirect|sidestep|dodg|withh[eo]ld|not (?:allowed|supposed|permitted|to (?:share|reveal|disclose|mention|give))|instruct|\brules?\b|briefing|guideline|exclud|\bhid(?:e|ing|den)\b|private|secret|keep (?:it|that|this|them|quiet)|shouldn't|should not|won't (?:share|give|reveal|say)|must not|mustn't|declin|refus|evad|\bduck|skirt|sensitive|touchy|forbid|prohibit|restrict|confidential/i;
+const keepThought = (sentence) => !(GRADES_RX.test(sentence) && STEER_RX.test(sentence));
+/* the complete sentences at the front of a buffer (each with the space after
+   it), and the unfinished rest: a sentence ends at . ! ? followed by white
+   space, or at a line break */
+const splitThought = (buf) => {
+  const out = [];
+  const rx = /[.!?]["')\]]*(?=\s)|\n/g;
+  let from = 0;
+  for (;;) {
+    rx.lastIndex = from;
+    const m = rx.exec(buf);
+    if (!m) break;
+    let end = m.index + m[0].length;
+    while (end < buf.length && /\s/.test(buf[end])) end++;
+    out.push(buf.slice(from, end));
+    from = end;
+  }
+  return { out, rest: buf.slice(from) };
+};
 
 /* ---- Workers AI: SSE in, plain text out ---- */
 async function workersAiStream(env, messages, context) {
@@ -901,8 +926,19 @@ async function anthropicStream(env, messages, ctx, context) {
     let thinking = "";
     let thinkOpen = false;
     let thinkMuted = false;
+    let thinkPending = ""; // the unfinished sentence, held until it ends
     let firstText = 0;
     const raw = (text) => writer.write(encoder.encode(text));
+    const thinkFlush = async (all) => {
+      const { out, rest } = all ? { out: thinkPending ? [thinkPending] : [], rest: "" } : splitThought(thinkPending);
+      thinkPending = rest;
+      for (const sentence of out) if (keepThought(sentence)) await raw(sentence);
+    };
+    const thinkClose = async () => {
+      thinkOpen = false;
+      if (!thinkMuted) await thinkFlush(true);
+      await raw("[[/think]]");
+    };
     try {
       for (;;) {
         const { done, value } = await reader.read();
@@ -931,20 +967,18 @@ async function anthropicStream(env, messages, ctx, context) {
               thinking += piece;
               if (LEAK_RX.test(thinking)) {
                 thinkMuted = true;
+                thinkPending = "";
                 await raw(" (the rest of this I keep to myself)");
               } else {
-                await raw(piece);
+                thinkPending += piece;
+                await thinkFlush(false);
               }
             }
           } else if (json.type === "content_block_stop" && thinkOpen && !firstText) {
-            thinkOpen = false;
-            await raw("[[/think]]");
+            await thinkClose();
           } else if (json.type === "content_block_delta" && json.delta && json.delta.type === "text_delta") {
             // fallback blocks are skipped: only visible text reaches the page
-            if (thinkOpen) {
-              thinkOpen = false;
-              await raw("[[/think]]");
-            }
+            if (thinkOpen) await thinkClose();
             if (!firstText) firstText = Date.now() - t0;
             emitted += json.delta.text.length;
             await guard.push(json.delta.text);

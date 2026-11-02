@@ -50,6 +50,15 @@ const END = (stop, usage) => [
   { type: "message_stop" },
 ];
 const ANSWER = "Dry answer, delivered flat and moved on from.";
+/* a reasoning with one sentence that treats grades as a thing to steer around, cut across deltas mid-sentence */
+const GRADES_THOUGHT = "They want the GPA. Grades are off limits per the briefing, so I steer to the degree. I'll lead with the B.S. and the write-ups.";
+const GRADES_THINK = [
+  { type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "" } },
+  { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: GRADES_THOUGHT.slice(0, 25) } },
+  { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: GRADES_THOUGHT.slice(25, 70) } },
+  { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: GRADES_THOUGHT.slice(70) } },
+  { type: "content_block_stop", index: 0 },
+];
 const LONG = "x".repeat(300) + " and that is the whole of it.";
 
 let mode = "ok";
@@ -73,6 +82,7 @@ globalThis.fetch = async (url, init) => {
     else if (mode === "partial-refusal") events = [START(), ...THINK, ...TEXT("The SPIM work started as a"), ...END("refusal")];
     else if (mode === "long-refusal") events = [START(), ...THINK, ...TEXT(LONG), ...END("refusal")];
     else if (mode === "max_tokens") events = [START(), ...THINK, ...END("max_tokens", { output_tokens: 4096 })];
+    else if (mode === "grades-think") events = [START(), ...GRADES_THINK, ...TEXT(ANSWER), ...END("end_turn")];
     else if (mode === "error-event") events = [START(), { type: "ping" }, { type: "error", error: { type: "overloaded_error", message: "Overloaded" } }];
     else if (mode === "iterations") events = [START(), ...THINK, ...TEXT(ANSWER), ...END("end_turn", {
       output_tokens: 180,
@@ -489,6 +499,23 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   assert.ok(!text2.includes("unanswered"), "nothing appended after released text");
   mode = "ok";
   ok("mid-stream refusal: held fragment replaced, released text left alone");
+}
+
+// 4b2. the reasoning on show: a sentence that treats grades as off limits is dropped, the rest intact
+{
+  mode = "grades-think";
+  const res = await ask("what was your GPA?");
+  const text = await res.text();
+  await settle();
+  const env2 = envelope(text);
+  assert.equal(env2.think, "They want the GPA. I'll lead with the B.S. and the write-ups.", "steering sentence dropped: " + JSON.stringify(env2.think));
+  assert.equal(env2.body, ANSWER);
+  mode = "ok";
+  const res2 = await ask("spim?");
+  const env3 = envelope(await res2.text());
+  await settle();
+  assert.equal(env3.think, THOUGHT, "an ordinary reasoning streams whole: " + JSON.stringify(env3.think));
+  ok("grades in the reasoning: the steering sentence goes, the rest streams");
 }
 
 // 4c. thinking ate the whole token cap: say so instead of returning nothing
