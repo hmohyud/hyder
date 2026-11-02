@@ -88,7 +88,7 @@ const PILL_WORDS = {
   cloud: "the plain point cloud, every look off",
   spin: "whipping round about three times and unwinding",
   fire: "breathing a burst of fire from its mouth",
-  tint: "being washed in a blue that pours from the crown and holds ten seconds",
+  tint: "being washed in a blue that pours from the crown and holds sixteen seconds",
   scatter: "bursting apart, hanging, and gliding back into the face",
   melt: "melting downward and reforming",
   shatter: "shattering and reassembling",
@@ -330,19 +330,15 @@ function contextLine(context) {
           : "say plainly what the head is now";
     } else {
       const p = context.performed;
-      /* the blue wash colours the dots only: under the halftone or the wire,
-         which do not draw the dots, nothing turned blue */
-      const unseen = p === "tint" && /lattice|wire/.test(now);
+      /* the colour wash reaches every form: the dots, the wire's lines and
+         the halftone print */
       const how =
         p === "spin" ? "the whole head turns"
           : p === "fire" ? "the fire comes from the mouth"
-            : unseen ? "the blue wash colours only the dots, and " + formWords(now) + " does not draw them, so nothing visibly turned blue; the wash fades after ten seconds, so it will not be waiting when the look comes off"
-              : p === "tint" || p === "hue" ? "the colour washes over " + formWords(now)
-                : "what moves is " + (FORM_MEDIUM[now] || "its dots");
+            : p === "tint" || p === "hue" ? "the colour washes over " + formWords(now)
+              : "what moves is " + (FORM_MEDIUM[now] || "its dots");
       line += " It did it as " + formWords(now) + ": " + how + ".";
-      ask = unseen
-        ? "say plainly that the colour did not show on " + formWords(now) + ", dryly"
-        : "say which trick it did and how it played as " + formWords(now);
+      ask = "say which trick it did and how it played as " + formWords(now);
     }
     line +=
       " Reply in one or two short sentences in your voice, under thirty words: " + ask +

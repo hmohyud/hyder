@@ -1036,17 +1036,23 @@ vec3 applyFace(vec3 p, float jaw, out float glow) {
 `;
 
 const WIRE_VERT = [
-  "attribute vec3 aNormal; attribute vec3 aColor; attribute vec3 aMid; attribute float aJaw; uniform vec2 uNeck; varying vec3 vColor; varying float vA;",
+  "attribute vec3 aNormal; attribute vec3 aColor; attribute vec3 aMid; attribute float aJaw; uniform vec2 uNeck; varying vec3 vColor; varying float vA; varying float vKey;",
   FX_VERT_GLSL,
   FACE_GLSL,
   "void main(){ vec3 n = normalize(normalMatrix * aNormal); float facing = smoothstep(-0.2, 0.6, n.z);",
   "  vA = (0.12 + 0.88 * facing) * smoothstep(uNeck.x, uNeck.y, position.y); vColor = aColor; float glow; vec3 p = applyFace(position, aJaw, glow); p = applyFx(p, aMid);",
+  // the same crown-distance field as the dots, so the colour wash pours down the lines too
+  "  vKey = length(p - vec3(0.0, 1.35, 0.0));",
   "  gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); vNdc = gl_Position.xy / max(0.001, gl_Position.w); }",
 ].join("\n");
 const WIRE_FRAG = [
-  "uniform float uAlpha; varying vec3 vColor; varying float vA;",
+  "uniform float uAlpha; uniform vec3 uTint; uniform float uTintMix; uniform float uTintEdge; varying vec3 vColor; varying float vA; varying float vKey;",
   FX_FRAG_GLSL,
-  "void main(){ vec3 col = applyFxColor(vColor, max(max(vColor.r, vColor.g), vColor.b)); gl_FragColor = vec4(col, uAlpha * vA * vFxFade * edgeFade()); }",
+  "void main(){ float lum = max(max(vColor.r, vColor.g), vColor.b);",
+  // the colour wash, exactly as on the dots: the lines the sweep has passed take the colour at their own brightness
+  "  float wave = 1.0 - smoothstep(uTintEdge - 0.35, uTintEdge + 0.05, vKey);",
+  "  vec3 col = mix(vColor, uTint * lum, uTintMix * wave);",
+  "  col = applyFxColor(col, lum); gl_FragColor = vec4(col, uAlpha * vA * vFxFade * edgeFade()); }",
 ].join("\n");
 
 const VERT = `
@@ -2452,16 +2458,25 @@ export default function FloatingHead({
        colours, lightly lit) rather than the dots: smooth tone, a real print.
        window.__fhLatticeSolid(false) falls back to the dots. */
     const solidMat = new THREE.ShaderMaterial({
-      uniforms: { uLift: { value: 1.0 }, uPlanes: planeUniforms.uPlanes, uPlaneCount: planeUniforms.uPlaneCount },
+      uniforms: {
+        uLift: { value: 1.0 }, uPlanes: planeUniforms.uPlanes, uPlaneCount: planeUniforms.uPlaneCount,
+        // the colour wash, set each frame alongside the dots', so the print takes it
+        uTint: { value: new THREE.Vector3(1, 1, 1) }, uTintMix: { value: 0 }, uTintEdge: { value: 99 },
+      },
       /* aIn marks shell vertices near the cloud's dots (the scan's neck base,
          which the cloud never had, is cut away); aSolid is the colour of the
          dots around the vertex - the same posterised tone in the same place,
          so the print is the cloud's own picture, filled in. A touch of a
          lamp from the upper left keeps the surface from reading flat. */
-      vertexShader: "attribute float aIn; attribute vec3 aSolid; varying vec3 vCol; varying float vL; varying float vIn; varying float vKeep; " + PLANE_GLSL + " void main(){ vCol = aSolid; vIn = aIn; vKeep = planeDist(position); vec3 n = normalize(normalMatrix * normal); vL = 0.55 + 0.2 * max(0.0, n.z) + 0.25 * max(0.0, dot(n, normalize(vec3(-0.45, 0.6, 0.65)))); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+      vertexShader: "attribute float aIn; attribute vec3 aSolid; varying vec3 vCol; varying float vL; varying float vIn; varying float vKeep; varying float vKey; " + PLANE_GLSL + " void main(){ vCol = aSolid; vIn = aIn; vKeep = planeDist(position); vKey = length(position - vec3(0.0, 1.35, 0.0)); vec3 n = normalize(normalMatrix * normal); vL = 0.55 + 0.2 * max(0.0, n.z) + 0.25 * max(0.0, dot(n, normalize(vec3(-0.45, 0.6, 0.65)))); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
       fragmentShader: [
-        "uniform float uLift; varying vec3 vCol; varying float vL; varying float vIn; varying float vKeep;",
-        "void main(){ if (vIn < 0.5 || vKeep < 0.0) discard; gl_FragColor = vec4(vCol * vL * uLift, 1.0); }",
+        "uniform float uLift; uniform vec3 uTint; uniform float uTintMix; uniform float uTintEdge; varying vec3 vCol; varying float vL; varying float vIn; varying float vKeep; varying float vKey;",
+        "void main(){ if (vIn < 0.5 || vKeep < 0.0) discard;",
+        // the colour wash, as on the dots: the shell the sweep has passed takes the colour at its own brightness
+        "  float lum = max(max(vCol.r, vCol.g), vCol.b);",
+        "  float wave = 1.0 - smoothstep(uTintEdge - 0.35, uTintEdge + 0.05, vKey);",
+        "  vec3 c = mix(vCol, uTint * lum, uTintMix * wave);",
+        "  gl_FragColor = vec4(c * vL * uLift, 1.0); }",
       ].join("\n"),
     });
     window.__fhLatticeSolid = (on) => { stateRef.current.latticeSolid = !!on; };
@@ -2586,6 +2601,8 @@ export default function FloatingHead({
         uFx: { value: 0 }, uFxT: { value: 0 }, uFxSeed: { value: 0 }, uTime: { value: 0 },
         uFxTint: { value: new THREE.Vector3(1.0, 0.55, 0.25) },
         uBlink: { value: 0 }, uMouth: { value: 0 }, uMouthW: { value: 1 }, uRegions: { value: 0 },
+        // the colour wash, set each frame alongside the dots'
+        uTint: { value: new THREE.Vector3(1, 1, 1) }, uTintMix: { value: 0 }, uTintEdge: { value: 99 },
       },
       vertexShader: WIRE_VERT, fragmentShader: WIRE_FRAG,
       transparent: true, depthTest: true, depthWrite: false, blending: THREE.NormalBlending,
@@ -3080,15 +3097,21 @@ export default function FloatingHead({
 
       /* tint: the colour trick outranks the hover tint. The trick's wash
          SPREADS - uTintEdge sweeps the crown-distance field over ~1.4s -
-         then holds, then fades out uniformly when trickTint clears. The
-         hover tint keeps its old instant full-coverage behaviour. */
+         then holds, then fades out uniformly when trickTint clears (16 s
+         after it began). The hover tint keeps its old instant full-coverage
+         behaviour. Both reach the dots, the wire and the halftone alike. */
       const wantTint = s.trickTint || s.wantTint;
       if (wantTint) s.tint = wantTint;
       s.tintMix += ((wantTint ? 1 : 0) - s.tintMix) * (1 - Math.exp(-7 * dt));
       if (s.trickTint) s.tintWave = Math.min(1, (s.tintWave || 0) + dt / 1.4);
-      material.uniforms.uTintEdge.value = s.trickTint ? (s.tintWave || 0) * 3.2 : 99;
-      material.uniforms.uTintMix.value = s.tintMix;
-      material.uniforms.uTint.value.set(s.tint[0], s.tint[1], s.tint[2]);
+      /* one wash for every form: the dots, the wire's lines and the
+         halftone's solid print all take the same colour, sweep and fade */
+      const tintEdge = s.trickTint ? (s.tintWave || 0) * 3.2 : 99;
+      for (const tm of [material, wireMat, solidMat]) {
+        tm.uniforms.uTintEdge.value = tintEdge;
+        tm.uniforms.uTintMix.value = s.tintMix;
+        tm.uniforms.uTint.value.set(s.tint[0], s.tint[1], s.tint[2]);
+      }
       /* the performed tricks: one at a time, timed by the clock, on the dots
          and the wire alike; the sparks take the look's temperature - ember
          on the cloud and the halftone, cold blue-white as a ghost */
@@ -3717,7 +3740,7 @@ export default function FloatingHead({
       clearTimeout(s.tintTimer);
       s.tintTimer = setTimeout(() => {
         stateRef.current.trickTint = null;
-      }, 10000);
+      }, 16000); // the wash holds 16 s (it was 10)
       return;
     }
     if (kind === "fire") {

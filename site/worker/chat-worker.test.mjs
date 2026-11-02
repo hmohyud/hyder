@@ -697,14 +697,14 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   assert.match(scatterOnWire, /It did it as the wireframe: what moves is the wireframe's lines/);
   assert.match(scatterOnWire, /say which trick it did and how it played as the wireframe/);
   assert.ok(!/Its form went from/.test(scatterOnWire), "a trick is not a form change");
-  // the colour pill under the wire: the wash colours only the dots, so nothing turned blue
+  // the colour pill under the wire: the wash shows on the lines
   calls.length = 0;
   await (await ask("make yourself blue", env, { context: { path: "/", look: "wire", performed: "tint", from: "wire" } })).text();
   await settle();
   const tintOnWire = JSON.parse(anthropicCalls()[0].init.body).messages[1].content;
-  assert.match(tintOnWire, /colours only the dots, and the wireframe does not draw them, so nothing visibly turned blue/);
-  assert.match(tintOnWire, /say plainly that the colour did not show on the wireframe/);
-  assert.match(tintOnWire, /the wash fades after ten seconds, so it will not be waiting/);
+  assert.match(tintOnWire, /It did it as the wireframe: the colour washes over the wireframe\./);
+  assert.match(tintOnWire, /holds sixteen seconds/);
+  assert.ok(!/did not show|nothing visibly/.test(tintOnWire), "the wash shows in every form now");
   // a typed turn on the halftone still gets the next-ask hint
   calls.length = 0;
   await (await ask("go ghost", env, { context: { path: "/", look: "lattice" } })).text();
