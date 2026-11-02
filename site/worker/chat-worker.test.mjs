@@ -670,6 +670,27 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   assert.match(solidPrint, /also switched the ghost off: the halftone is a solid print with no gaps/);
   assert.match(solidPrint, /If they ask for the ghost, the halftone comes off to make room/);
   assert.ok(!/undid/.test(JSON.stringify(JSON.parse(anthropicCalls()[0].init.body).messages)), "undid is words, never a field the model sees");
+  // the cloud pill on a plain head: nothing changed, and it is never described as a return
+  calls.length = 0;
+  await (await ask("back to the cloud", env, { context: { path: "/", performed: "cloud" } })).text();
+  await settle();
+  const plainCloud = JSON.parse(anthropicCalls()[0].init.body).messages[1].content;
+  assert.match(plainCloud, /No look was on, so nothing changed: it was already the plain cloud/);
+  assert.ok(!/going back/.test(plainCloud));
+  // the halftone pressed over ghost+wire: both side effects, each with its own reason
+  calls.length = 0;
+  await (await ask("lattice look", env, { context: { path: "/", look: "lattice", performed: "lattice", undid: "ghost+wire" } })).text();
+  await settle();
+  const bothOff = JSON.parse(anthropicCalls()[0].init.body).messages[1].content;
+  assert.match(bothOff, /also switched the ghost off: the halftone is a solid print/);
+  assert.match(bothOff, /The wireframe came off too: the halftone and the wire are one at a time/);
+  // the wire pressed over the halftone: the halftone comes off for the wire's sake, not a ghost's
+  calls.length = 0;
+  await (await ask("go wireframe", env, { context: { path: "/", look: "wire", performed: "wire", undid: "lattice" } })).text();
+  await settle();
+  const wireOverPrint = JSON.parse(anthropicCalls()[0].init.body).messages[1].content;
+  assert.match(wireOverPrint, /The halftone came off to make room: the halftone and the wire are one at a time/);
+  assert.ok(!/ghost could not show/.test(wireOverPrint));
   // an unknown name is dropped, so the request is sized and routed as usual
   calls.length = 0;
   await (await ask("go ghost", env, { context: { path: "/", performed: "explode" } })).text();

@@ -129,7 +129,11 @@ const LOOK_KEY = "fh-look";
 function readLook() {
   try {
     const j = JSON.parse(localStorage.getItem(LOOK_KEY) || "{}");
-    return { ghost: !!(j && j.ghost), lattice: !!(j && j.lattice), wire: !!(j && j.wire) };
+    /* the halftone stands alone (a solid print: no ghost through it, no wire
+       with it); a look saved before that was enforced comes back as what
+       was on screen, which was the halftone */
+    const lattice = !!(j && j.lattice);
+    return { ghost: !lattice && !!(j && j.ghost), lattice, wire: !lattice && !!(j && j.wire) };
   } catch (err) {
     return { ghost: false, lattice: false, wire: false };
   }
@@ -724,15 +728,14 @@ function HelpSheet({ onTry, onTrick, onWorkings, onPick, onClose, look }) {
             type="button"
             className={"fh-help-look" + (look && look[l.id] ? " on" : "")}
             onClick={() => onTrick(l.id === "tint" ? "tint:#4f8cff" : l.id)}
-            title={
-              look && look[l.id]
-                ? l.t + " (on - press again to turn it off)"
-                : l.id === "ghost" && look && look.lattice
-                  ? "ghost (takes the halftone off: a solid print has no gaps for a ghost)"
-                  : l.id === "lattice" && look && look.ghost
-                    ? "lattice (takes the ghost off: a solid print has no gaps for a ghost)"
-                    : l.t
-            }
+            title={(() => {
+              if (look && look[l.id]) return l.t + " (on - press again to turn it off)";
+              /* what this press would switch off: the halftone stands alone */
+              const swaps = { ghost: ["lattice"], lattice: ["ghost", "wire"], wire: ["lattice"] }[l.id] || [];
+              const gone = look ? swaps.filter((k) => look[k]) : [];
+              const word = { ghost: "ghost", lattice: "halftone", wire: "wireframe" };
+              return gone.length ? l.t + " (takes the " + gone.map((k) => word[k]).join(" and the ") + " off)" : l.t;
+            })()}
           >
             <Icon id={l.id} />
             <span>{l.t}</span>
@@ -2103,6 +2106,7 @@ export default function FloatingHead({
           deleting = false;
           qi = (qi + 1) % GHOST_QUESTIONS.length;
           input.placeholder = "";
+          ghostRef.current = ""; // nothing showing, nothing for Tab to take
           timer = setTimeout(tick, 400);
           return;
         }
@@ -4082,6 +4086,8 @@ export default function FloatingHead({
              stripped): the trick was the answer, so the exchange goes,
              question and all, rather than "(no answer came back)" */
           setMsgs((prev) => prev.filter((_, i) => i !== replyAt - 1 && i !== replyAt));
+          setStats(null); // and its workings: the drawer goes back to the reply before
+          setThinking("");
         } else if (trickFired || acted) {
           // token-only reply: drop the empty bubble - the trick IS the answer
           setMsgs((prev) => prev.filter((_, i) => i !== replyAt));
@@ -4112,6 +4118,8 @@ export default function FloatingHead({
         /* the line was garnish: a failure drops the exchange rather than
            apologising for a trick that already happened */
         setMsgs((prev) => prev.filter((_, i) => i !== replyAt - 1 && i !== replyAt)); // only this exchange: a closer appended meanwhile stays
+        setStats(null);
+        setThinking("");
       } else {
         const said = String((err && err.message) || "");
         const msg = said.startsWith("said:")
@@ -4262,6 +4270,9 @@ export default function FloatingHead({
   const wkBusy = busy && !wkStats;
   const wkBackup = !!(wkStats && wkStats.provider && wkStats.provider !== "anthropic");
   const wkSize = wkStats && wkStats.size ? wkStats.size : null;
+  /* a help-sheet trick's line skips the sizer by design: every part of the
+     drawer says so, rather than "sizing…" and then "no verdict in time" */
+  const wkPill = wkStats ? !!wkStats.pill : wkBusy && !!phaseRef.current.pill;
   const wkLight = !!(wkStats && /haiku/.test(String(wkStats.model || "")));
   const wkEffort = wkStats ? wkStats.effort : wkBusy ? "" : "";
   const wkLevel = { low: 1, medium: 2, high: 3, xhigh: 3, max: 3 }[wkEffort] || 0;
@@ -4279,8 +4290,10 @@ export default function FloatingHead({
     const ph = phaseRef.current;
     const now = ph.sendAt ? ph.sendAt + elapsed : 0;
     const sEnd = ph.thinkAt || ph.textAt || now;
-    const s0 = Math.max(0, sEnd - ph.sendAt);
-    const t0 = ph.thinkAt ? Math.max(0, (ph.textAt || now) - ph.thinkAt) : 0;
+    /* a pill line has no sizing: its wait before the first word is the
+       answering call's, as the finished bar will show it */
+    const s0 = ph.pill ? 0 : Math.max(0, sEnd - ph.sendAt);
+    const t0 = ph.pill ? Math.max(0, (ph.textAt || now) - ph.sendAt) : ph.thinkAt ? Math.max(0, (ph.textAt || now) - ph.thinkAt) : 0;
     const w0 = ph.textAt ? Math.max(0, now - ph.textAt) : 0;
     return { s: s0, t: t0, w: w0, total: Math.max(0, elapsed), live: true };
   })();
@@ -4312,9 +4325,6 @@ export default function FloatingHead({
       });
       return out;
     }
-    /* a help-sheet trick's line skips the sizer by design: said so, rather
-       than "sizing…" and then "no verdict in time" */
-    const wkPill = wkStats ? !!wkStats.pill : wkBusy && !!ph.pill;
     out.push({
       id: "size",
       label: wkPill ? "not sized" : "sized",
@@ -4649,7 +4659,7 @@ export default function FloatingHead({
                       )}
                       {!workings && !wkBackup && (
                         <span className="fh-wk-mini" aria-hidden="true">
-                          <span className={"fh-wk-dots" + (wkBusy && !wkSize ? " fh-wk-live" : "")} {...rd(false, wkSize ? readCx(wkSize.complexity) : wkBusy ? "sizing…" : "not sized")}>
+                          <span className={"fh-wk-dots" + (wkBusy && !wkSize && !wkPill ? " fh-wk-live" : "")} {...rd(false, wkSize ? readCx(wkSize.complexity) : wkPill ? "not sized: a help-sheet trick" : wkBusy ? "sizing…" : "not sized")}>
                             {[1, 2, 3, 4, 5].map((i) => (
                               <i key={i} className={wkSize && i <= wkSize.complexity ? "on" : ""} />
                             ))}
@@ -4828,7 +4838,7 @@ export default function FloatingHead({
                         <span className="fh-wk-k">
                           complexity
                         </span>
-                        <span className={"fh-wk-dots" + (wkBusy && !wkSize ? " fh-wk-live" : "")} aria-hidden="true" {...rd(wkSize ? readCx(wkSize.complexity) : wkBusy ? "sizing…" : "not sized")}>
+                        <span className={"fh-wk-dots" + (wkBusy && !wkSize && !wkPill ? " fh-wk-live" : "")} aria-hidden="true" {...rd(wkSize ? readCx(wkSize.complexity) : wkPill ? "not sized: a help-sheet trick" : wkBusy ? "sizing…" : "not sized")}>
                           {[1, 2, 3, 4, 5].map((i) => (
                             <i key={i} className={wkSize && i <= wkSize.complexity ? "on" : ""} />
                           ))}
@@ -4837,6 +4847,10 @@ export default function FloatingHead({
                           {wkSize ? (
                             <>
                               {wkSize.complexity}/5 <span className="fh-wk-gloss">· {KIND_WORDS[wkSize.kind] || wkSize.kind}</span>
+                            </>
+                          ) : wkPill ? (
+                            <>
+                              not sized <span className="fh-wk-gloss">· help-sheet trick</span>
                             </>
                           ) : wkBusy ? (
                             "sizing…"
@@ -4852,7 +4866,7 @@ export default function FloatingHead({
                         <span className="fh-wk-k">
                           effort
                         </span>
-                        <span className="fh-wk-steps" aria-hidden="true" {...rd(wkEffort ? readEffort(wkEffort, wkLevel) : wkBusy ? "deciding…" : "default effort")}>
+                        <span className="fh-wk-steps" aria-hidden="true" {...rd(wkEffort ? readEffort(wkEffort, wkLevel) : wkBusy && !wkPill ? "deciding…" : "default effort")}>
                           {[1, 2, 3].map((i) => (
                             <i key={i} className={i <= wkLevel ? "on" : ""} />
                           ))}
@@ -4862,7 +4876,7 @@ export default function FloatingHead({
                             <>
                               {wkEffort} <span className="fh-wk-gloss">· {EFFORT_WORDS[wkEffort] || ""}</span>
                             </>
-                          ) : wkBusy ? (
+                          ) : wkBusy && !wkPill ? (
                             "deciding…"
                           ) : (
                             "default"
@@ -5049,7 +5063,7 @@ export default function FloatingHead({
                        halftone off, one of halftone/wire replacing the
                        other), so the line can say so */
                     const after = stateRef.current.look;
-                    const undid = off ? "" : ["ghost", "lattice", "wire"].find((k) => k !== id && before[k] && !after[k]) || "";
+                    const undid = off ? "" : ["ghost", "lattice", "wire"].filter((k) => k !== id && before[k] && !after[k]).join("+");
                     /* and a line about it: the pill's own words go as the
                        question, with the trick marked as already done, so
                        the model only remarks (see the worker's contextLine).

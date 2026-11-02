@@ -85,7 +85,7 @@ const PILL_WORDS = {
   "lattice-off": "coming back from the halftone print to its plain dots: the lattice look was on and that press switched it OFF",
   wire: "turning into a wireframe, a look that stays (it replaces the halftone if that was on; a ghost, if on, stays and makes the mesh see-through)",
   "wire-off": "coming back from the wireframe to its plain dots: the wire look was on and that press switched it OFF (a ghost, if on, stays)",
-  cloud: "going back to the plain point cloud, every look off",
+  cloud: "the plain point cloud, every look off",
   spin: "whipping round about three times and unwinding",
   fire: "breathing a burst of fire from its mouth",
   tint: "being washed in a blue that pours from the crown and holds ten seconds",
@@ -188,7 +188,7 @@ function chatContext(raw) {
   const performed = typeof raw.performed === "string" && PILL_RX.test(raw.performed) ? raw.performed : "";
   /* a look that the press switched off on the side (a ghost under the new
      halftone, the halftone under a new ghost, wire under halftone or back) */
-  const undid = performed && typeof raw.undid === "string" && /^(ghost|lattice|wire)$/.test(raw.undid) ? raw.undid : "";
+  const undid = performed && typeof raw.undid === "string" && /^(ghost|lattice|wire)(\+(ghost|lattice|wire)){0,2}$/.test(raw.undid) ? raw.undid : "";
   if (!path && !hovered && !look && !last && !tricksSeen && !performed) return null;
   return { path, hovered, look, last, tricks: tricksSeen, performed, undid };
 }
@@ -262,13 +262,21 @@ function contextLine(context) {
     line +=
       " The visitor just pressed the '" + context.performed.replace(/-off$/, "") + "' button in the help sheet, and the head is already " +
       (PILL_WORDS[context.performed] || "doing it") + ": the page performed it, not you.";
-    /* what the press switched off on the side, so the line can say so */
-    if (context.undid === "ghost") {
-      line += " That press also switched the ghost off: the halftone is a solid print with no gaps, so a ghost cannot show through it.";
-    } else if (context.undid === "lattice") {
-      line += " The halftone came off to make room: it is a solid print with no gaps, so the ghost could not show through it.";
-    } else if (context.undid === "wire") {
-      line += " The wireframe came off to make room: the halftone and the wire are one at a time.";
+    /* what the press switched off on the side, each with its real reason,
+       so the line can say so; a cloud press on a plain head changed nothing */
+    const undone = (context.undid || "").split("+").filter(Boolean);
+    const lookWord = { ghost: "the ghost", lattice: "the halftone", wire: "the wireframe" };
+    if (context.performed === "cloud") {
+      line += undone.length
+        ? " Every look that was on (" + undone.map((k) => lookWord[k]).join(" and ") + ") came off."
+        : " No look was on, so nothing changed: it was already the plain cloud. Say so, dryly, rather than describing a return.";
+    } else {
+      for (const k of undone) {
+        if (k === "ghost") line += " That press also switched the ghost off: the halftone is a solid print with no gaps, so a ghost cannot show through it.";
+        else if (k === "lattice" && context.performed === "ghost") line += " The halftone came off to make room: it is a solid print with no gaps, so the ghost could not show through it.";
+        else if (k === "lattice") line += " The halftone came off to make room: the halftone and the wire are one at a time.";
+        else if (k === "wire") line += " The wireframe came off too: the halftone and the wire are one at a time.";
+      }
     }
     /* the ghost works on the wire as on the cloud: the mesh goes
        see-through, its far side showing through the front */
