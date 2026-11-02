@@ -672,18 +672,42 @@ const ok = (name) => { passed++; console.log("  pass:", name); };
   assert.ok(!/undid/.test(JSON.stringify(JSON.parse(anthropicCalls()[0].init.body).messages)), "undid is words, never a field the model sees");
   // the cloud pill on a plain head: nothing changed, and it is never described as a return
   calls.length = 0;
-  await (await ask("back to the cloud", env, { context: { path: "/", performed: "cloud" } })).text();
+  await (await ask("back to the cloud", env, { context: { path: "/", performed: "cloud", from: "cloud" } })).text();
   await settle();
   const plainCloud = JSON.parse(anthropicCalls()[0].init.body).messages[1].content;
   assert.match(plainCloud, /No look was on, so nothing changed: it was already the plain cloud/);
+  assert.match(plainCloud, /Its form did not change: it is still the plain point cloud\./);
+  assert.match(plainCloud, /say plainly that nothing changed and what it still is/);
   assert.ok(!/going back/.test(plainCloud));
+  // a form press says what it went from and to
+  calls.length = 0;
+  await (await ask("lattice look", env, { context: { path: "/", look: "lattice", performed: "lattice", undid: "wire", from: "wire" } })).text();
+  await settle();
+  const wireToPrint = JSON.parse(anthropicCalls()[0].init.body);
+  assert.match(wireToPrint.messages[1].content, /Its form went from the wireframe to the halftone print\./);
+  assert.match(wireToPrint.messages[1].content, /say plainly what the head went from and to, then at most one dry beat - and never open with a \[\[token\]\]/);
+  assert.ok(wireToPrint.system[0].text.includes("say plainly what it goes from and"), "typed requests get the same rule");
+  // a performed trick says how it played in the form the head is in
+  calls.length = 0;
+  await (await ask("scatter yourself", env, { context: { path: "/", look: "wire", performed: "scatter", from: "wire" } })).text();
+  await settle();
+  const scatterOnWire = JSON.parse(anthropicCalls()[0].init.body).messages[1].content;
+  assert.match(scatterOnWire, /It did it as the wireframe: what moves is the wireframe's lines/);
+  assert.match(scatterOnWire, /say which trick it did and how it played as the wireframe/);
+  assert.ok(!/Its form went from/.test(scatterOnWire), "a trick is not a form change");
+  // a bad `from` is dropped, never echoed
+  calls.length = 0;
+  await (await ask("go ghost", env, { context: { path: "/", look: "ghost", performed: "ghost", from: "<b>x</b>" } })).text();
+  await settle();
+  const badFrom = JSON.parse(anthropicCalls()[0].init.body).messages[1].content;
+  assert.ok(!/Its form went from|<b>/.test(badFrom));
   // the halftone pressed over ghost+wire: both side effects, each with its own reason
   calls.length = 0;
   await (await ask("lattice look", env, { context: { path: "/", look: "lattice", performed: "lattice", undid: "ghost+wire" } })).text();
   await settle();
   const bothOff = JSON.parse(anthropicCalls()[0].init.body).messages[1].content;
   assert.match(bothOff, /also switched the ghost off: the halftone is a solid print/);
-  assert.match(bothOff, /The wireframe came off too: the halftone and the wire are one at a time/);
+  assert.match(bothOff, /The wireframe came off: the halftone and the wire are one at a time/);
   // the wire pressed over the halftone: the halftone comes off for the wire's sake, not a ghost's
   calls.length = 0;
   await (await ask("go wireframe", env, { context: { path: "/", look: "wire", performed: "wire", undid: "lattice" } })).text();

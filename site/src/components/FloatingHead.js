@@ -585,7 +585,7 @@ const HELP = [
   { id: "go", c: "#b48bff", t: "go", d: "name a page or a project; it opens", q: "show me SPIM" },
   { id: "tour", c: "#78ffa8", t: "tour", d: "a few stops, one page at a time", q: "give me a tour" },
   { id: "here", c: "#ffb86b", t: "pick", d: "choose a project card on the page; I tell you about it", q: null, act: "pick" },
-  { id: "work", c: "#c3a6ff", t: "workings", d: "a fast model rates each question and answers the small ones; hard ones go to a bigger model that thinks first. Every call, timed and costed.", q: null, act: "workings" },
+  { id: "work", c: "#c3a6ff", t: "workings", d: "who answered, how long, what it cost", q: null, act: "workings" },
 ];
 /* the tricks, as pills: each performs its trick on the page and sends its
    words as the question for one line about it. The three looks are toggles:
@@ -3895,6 +3895,7 @@ export default function FloatingHead({
     if (pillMode) {
       context.performed = opts.performed;
       if (opts.undid) context.undid = opts.undid;
+      if (opts.from) context.from = opts.from;
     }
     /* a tour reply is not shown as it streams: the raw text, tokens and all,
        goes to the tour controller, which plays it stop by stop */
@@ -4274,7 +4275,7 @@ export default function FloatingHead({
      drawer says so, rather than "sizing…" and then "no verdict in time" */
   const wkPill = wkStats ? !!wkStats.pill : wkBusy && !!phaseRef.current.pill;
   const wkLight = !!(wkStats && /haiku/.test(String(wkStats.model || "")));
-  const wkEffort = wkStats ? wkStats.effort : wkBusy ? "" : "";
+  const wkEffort = wkStats ? wkStats.effort : wkPill ? "low" : ""; // a pill line always runs at low, known from the start
   const wkLevel = { low: 1, medium: 2, high: 3, xhigh: 3, max: 3 }[wkEffort] || 0;
   /* the phase bar: the server's figures once they are in, the page's clock
      while the reply is still arriving */
@@ -5068,7 +5069,10 @@ export default function FloatingHead({
                        question, with the trick marked as already done, so
                        the model only remarks (see the worker's contextLine).
                        Skipped while a reply is in flight; never waited on. */
-                    if (look && CHAT_ENDPOINT) send(null, off ? look.off : look.q, { performed: off ? id + "-off" : id, undid });
+                    /* the form it was in before the press, so the line can say
+                       what it went from and to */
+                    const from = lookName(before) || "cloud";
+                    if (look && CHAT_ENDPOINT) send(null, off ? look.off : look.q, { performed: off ? id + "-off" : id, undid, from });
                   }}
                   onWorkings={() => {
                     setHelp(false);

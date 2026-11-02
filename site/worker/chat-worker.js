@@ -97,6 +97,26 @@ const PILL_WORDS = {
   hue: "running a rainbow across its face",
 };
 const PILL_RX = new RegExp("^(" + Object.keys(PILL_WORDS).join("|") + ")$");
+/* the head's forms in words, for "from what to what" and "as what" */
+const FORM_WORDS = {
+  cloud: "the plain point cloud",
+  ghost: "the see-through ghost cloud",
+  lattice: "the halftone print",
+  wire: "the wireframe",
+  "ghost+wire": "the see-through wireframe",
+};
+const formWords = (look) => FORM_WORDS[look || "cloud"] || String(look).split("+").join(" and ");
+/* what a performed trick moves in each form */
+const FORM_MEDIUM = {
+  cloud: "its dots",
+  ghost: "its see-through dots",
+  lattice: "the halftone print, redrawn from the moving dots while the trick plays",
+  wire: "the wireframe's lines (there are no dots under the wire)",
+  "ghost+wire": "the see-through wireframe's lines (there are no dots under the wire)",
+};
+/* the presses that change the form, as opposed to performing a trick in it */
+const FORM_PRESS_RX = /^(cloud|(ghost|lattice|wire)(-off)?)$/;
+const FORM_RX = /^(cloud|(ghost|lattice|wire)(\+(ghost|lattice|wire)){0,2})$/;
 /* the hand-off. A tour always goes to Sonnet (the stop protocol wants the
    stronger writer); no verdict in time means Sonnet at low effort, so a
    dead sizer costs quality nothing. */
@@ -189,8 +209,11 @@ function chatContext(raw) {
   /* a look that the press switched off on the side (a ghost under the new
      halftone, the halftone under a new ghost, wire under halftone or back) */
   const undid = performed && typeof raw.undid === "string" && /^(ghost|lattice|wire)(\+(ghost|lattice|wire)){0,2}$/.test(raw.undid) ? raw.undid : "";
+  /* the form the head was in before the press ("cloud" for none), so the
+     line can say what it went from and to */
+  const from = performed && typeof raw.from === "string" && FORM_RX.test(raw.from) ? raw.from : "";
   if (!path && !hovered && !look && !last && !tricksSeen && !performed) return null;
-  return { path, hovered, look, last, tricks: tricksSeen, performed, undid };
+  return { path, hovered, look, last, tricks: tricksSeen, performed, undid, from };
 }
 
 /* "9.0 cents", "0.03 cents", "a few hundredths of a cent" */
@@ -275,7 +298,7 @@ function contextLine(context) {
         if (k === "ghost") line += " That press also switched the ghost off: the halftone is a solid print with no gaps, so a ghost cannot show through it.";
         else if (k === "lattice" && context.performed === "ghost") line += " The halftone came off to make room: it is a solid print with no gaps, so the ghost could not show through it.";
         else if (k === "lattice") line += " The halftone came off to make room: the halftone and the wire are one at a time.";
-        else if (k === "wire") line += " The wireframe came off too: the halftone and the wire are one at a time.";
+        else if (k === "wire") line += " The wireframe came off: the halftone and the wire are one at a time.";
       }
     }
     /* the ghost works on the wire as on the cloud: the mesh goes
@@ -287,9 +310,33 @@ function contextLine(context) {
     } else if (context.performed === "wire" && /ghost/.test(context.look || "")) {
       line += " The ghost stays on, so the new wireframe is see-through: the far side of the mesh shows through its front.";
     }
+    /* the line says what happened in words: the form it went from and to,
+       or the trick it did and how that played in the form it is in */
+    const now = context.look || "cloud";
+    let ask;
+    if (FORM_PRESS_RX.test(context.performed)) {
+      const same = !!context.from && context.from === now;
+      if (context.from) {
+        line += same
+          ? " Its form did not change: it is still " + formWords(now) + "."
+          : " Its form went from " + formWords(context.from) + " to " + formWords(now) + ".";
+      }
+      ask = same
+        ? "say plainly that nothing changed and what it still is"
+        : "say plainly what the head went from and to";
+    } else {
+      const p = context.performed;
+      const how =
+        p === "spin" ? "the whole head turns"
+          : p === "fire" ? "the fire comes from the mouth"
+            : p === "tint" || p === "hue" ? "the colour washes over " + formWords(now)
+              : "what moves is " + (FORM_MEDIUM[now] || "its dots");
+      line += " It did it as " + formWords(now) + ": " + how + ".";
+      ask = "say which trick it did and how it played as " + formWords(now);
+    }
     line +=
-      " Reply with one short line about it in your voice - a remark, not a description, fifteen words or fewer -" +
-      " and never open with a [[token]]: the trick has happened.";
+      " Reply in one or two short sentences in your voice, under thirty words: " + ask +
+      ", then at most one dry beat - and never open with a [[token]]: the trick has happened.";
   }
   /* a die for the turn, and a trick for it: when the visitor says "you
      choose", the model takes these instead of always reaching for the first
