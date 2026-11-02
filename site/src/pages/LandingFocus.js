@@ -302,6 +302,14 @@ export default function LandingFocus() {
   /* the dot fill after the mission's text, as the old landing has it */
   useMissionDots(moreOpen);
   const [headFocus, setHeadFocus] = useState(false);
+  /* the real head is in (the stand-in has gone): the window, the light and
+     the hit area fade in on this class. It MUST be state: the root's
+     className is React's, rewritten on every focus change, and a class
+     added by hand was wiped each time - for a frame the hit area was
+     hidden, the card beneath caught the pointer, the hover flipped back
+     and forth and the cloud restarted its fade-in at every handoff. */
+  const [headReal, setHeadReal] = useState(false);
+  const headRealRef = useRef(false);
   const [gridFocus, setGridFocus] = useState(false);
   const [gridEl, setGridEl] = useState(null);
 
@@ -538,7 +546,10 @@ export default function LandingFocus() {
         stats.frames++;
         return;
       }
-      if (!root.classList.contains("head-real")) root.classList.add("head-real");
+      if (!headRealRef.current) {
+        headRealRef.current = true;
+        setHeadReal(true);
+      }
       if (!deskMq.matches) {
         if (wasDesktop) {
           wasDesktop = false;
@@ -759,7 +770,7 @@ export default function LandingFocus() {
       if (still) {
         /* reduced motion draws once, not per frame - but that once must come
            after the real head is in, or the window never appears */
-        if (window.__fhReal && !root.classList.contains("head-real")) safeDraw();
+        if (window.__fhReal && !headRealRef.current) safeDraw();
         return;
       }
       if (performance.now() - lastHook > 150) safeDraw();
@@ -789,7 +800,7 @@ export default function LandingFocus() {
   return (
     <div
       ref={rootRef}
-      className={`landing landing-focus${hoveredCard ? " card-focus" : ""}${headFocus ? " head-focus" : ""}${gridFocus ? " gh-focus" : ""}`}
+      className={`landing landing-focus${headReal ? " head-real" : ""}${hoveredCard ? " card-focus" : ""}${headFocus ? " head-focus" : ""}${gridFocus ? " gh-focus" : ""}`}
     >
       <BgVariantB magnetTarget={magnetTarget} magnetCardId={hoveredCard} vortexTarget={vortexTarget} ghTarget={gridFocus ? gridEl : null} />
       <TubesCursorOverlay hoveredCard={hoveredCard} />
