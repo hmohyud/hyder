@@ -778,13 +778,9 @@ const STARTER_ASKS = [
   "why is your head made of dots?",
   "what was it like growing up?",
 ];
-const STARTER_TRICKS = [
-  "halftone", "wireframe", "breathe fire", "scatter yourself", "melt",
-  "turn to sparks", "go blue", "do a spin",
-];
-const STARTER_STAR = "do a cool trick"; // always there, and lit: the model picks from the whole repertoire
+const STARTER_STAR = "do a cool trick"; // always there, and lit: the model picks the trick (the showy ones first)
 const drawFrom = (pool, n) => pool.slice().sort(() => Math.random() - 0.5).slice(0, n);
-const pickStarters = () => ["give me a tour", STARTER_STAR].concat(drawFrom(STARTER_ASKS, 3), drawFrom(STARTER_TRICKS, 3));
+const pickStarters = () => ["give me a tour", STARTER_STAR].concat(drawFrom(STARTER_ASKS, 3));
 const GHOST_QUESTIONS = [
   "do you design websites?",
   "have you managed databases?",
@@ -3650,6 +3646,7 @@ export default function FloatingHead({
     /* what the previous reply cost, as the drawer shows it, so the model can
        explain its own figure when a visitor asks about it */
     const prev = [...msgs].reverse().find((m) => m.role === "assistant" && m.stats && typeof m.stats.cents === "number");
+    ctx.tricks = stateRef.current.trickCount || 0; // the showy tricks come first (see the worker's roll)
     if (prev) {
       ctx.last = {
         cents: prev.stats.cents,
@@ -3665,6 +3662,7 @@ export default function FloatingHead({
      token the model may open a reply with (and the dev lab's buttons) */
   const performTrick = (kind) => {
     const s = stateRef.current;
+    s.trickCount = (s.trickCount || 0) + 1;
     if (kind.startsWith("tint:")) {
       const hex = kind.slice(6);
       let r = parseInt(hex.slice(0, 2), 16) / 255;
@@ -4124,6 +4122,9 @@ export default function FloatingHead({
   const endDrag = () => {
     stateRef.current.dragging = false;
   };
+  /* the landing's cloud-shaped hit area drives the same drag (it sits over
+     the portrait and takes the pointer there) */
+  window.__fhDrag = { down: onStageDown, move: onStageMove, up: endDrag };
 
   if (!capable) return null;
 
@@ -4298,7 +4299,23 @@ export default function FloatingHead({
           (open || mode === "phone" ? " fh-mini-hidden" : "")
         }
         ref={miniRef}
-        onClick={() => setOpen(true)}
+        /* a tap opens; a drag turns the head (and a rattle shakes it) and
+           the click that follows a drag is swallowed. touch-action: none on
+           the host keeps a finger-drag from panning the page instead. */
+        onClick={() => {
+          const s = stateRef.current;
+          if (s.swallowClick) { s.swallowClick = false; return; }
+          setOpen(true);
+        }}
+        onPointerDown={onStageDown}
+        onPointerMove={onStageMove}
+        onPointerUp={() => {
+          const s = stateRef.current;
+          const dragged = s.dragging && s.moved > 8;
+          endDrag();
+          if (dragged) s.swallowClick = true;
+        }}
+        onPointerCancel={endDrag}
         /* Mouse-only on purpose: on touch, this fires during the tap's
            synthetic hover phase, and mobile Safari withholds the click when a
            hover handler mutates the DOM (onHoverChange re-renders the page

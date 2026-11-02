@@ -68,6 +68,10 @@ const EFFORT_FOR = { 1: "low", 2: "low", 3: "medium", 4: "high", 5: "high" };
    for "surprise me", so the picks are a real shuffle rather than the
    model's habit (it favours the ghost) */
 const TRICKS = ["ghost", "spin", "fire", "a colour of your choosing", "lattice", "wire", "scatter", "melt", "shatter", "ember", "glitch", "hue"];
+/* the first few tricks a visitor asks for come from the showy end of the
+   repertoire; the quiet ones (a spin, a colour, the ghost) only join the
+   roll once a few have been seen */
+const SHOWY_TRICKS = ["fire", "lattice", "wire", "scatter", "melt", "shatter", "ember", "glitch", "hue"];
 /* the hand-off. A tour always goes to Sonnet (the stop protocol wants the
    stronger writer); no verdict in time means Sonnet at low effort, so a
    dead sizer costs quality nothing. */
@@ -152,8 +156,10 @@ function chatContext(raw) {
       };
     }
   }
-  if (!path && !hovered && !look && !last) return null;
-  return { path, hovered, look, last };
+  const tricks = Number(raw.tricks);
+  const tricksSeen = Number.isFinite(tricks) && tricks >= 0 ? Math.min(99, Math.floor(tricks)) : 0;
+  if (!path && !hovered && !look && !last && !tricksSeen) return null;
+  return { path, hovered, look, last, tricks: tricksSeen };
 }
 
 /* "9.0 cents", "0.03 cents", "a few hundredths of a cent" */
@@ -206,7 +212,8 @@ function contextLine(context) {
      choose", the model takes these instead of always reaching for the first
      option (or the ghost) */
   const roll = 1 + Math.floor(Math.random() * 6);
-  const trick = TRICKS[Math.floor(Math.random() * TRICKS.length)];
+  const pool = (context.tricks || 0) < 3 ? SHOWY_TRICKS : TRICKS;
+  const trick = pool[Math.floor(Math.random() * pool.length)];
   return (
     "Page context, from the site itself: " +
     line +

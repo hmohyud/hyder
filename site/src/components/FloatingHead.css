@@ -32,9 +32,16 @@
 }
 /* one tap = one click: without this, the browser may hold taps back while
    deciding whether they are a double-tap zoom */
-.fh-mini,
 .fh-fab {
   touch-action: manipulation;
+}
+/* the portrait: a finger-drag turns it rather than panning the page; a tap still opens it */
+.fh-mini {
+  touch-action: none;
+  cursor: grab;
+}
+.fh-mini:active {
+  cursor: grabbing;
 }
 .fh-mini:focus-visible {
   outline: 1px solid rgba(158, 216, 255, 0.6);

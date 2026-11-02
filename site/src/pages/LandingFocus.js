@@ -229,6 +229,33 @@ export default function LandingFocus() {
     const host = document.querySelector(".focus-head .fh-mini");
     if (host) host.click();
   };
+  /* on the hit area a tap opens the portrait and a drag turns it (the
+     portrait's own drag, through window.__fhDrag); the click that follows a
+     drag is swallowed */
+  const hitDrag = useRef(null);
+  const hitSwallow = useRef(false);
+  const onHitDown = (e) => {
+    hitDrag.current = { x: e.clientX, y: e.clientY, moved: 0 };
+    if (window.__fhDrag) window.__fhDrag.down(e);
+  };
+  const onHitMove = (e) => {
+    const d = hitDrag.current;
+    if (!d) return;
+    d.moved += Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y);
+    d.x = e.clientX;
+    d.y = e.clientY;
+    if (window.__fhDrag) window.__fhDrag.move(e);
+  };
+  const onHitUp = () => {
+    const d = hitDrag.current;
+    hitDrag.current = null;
+    if (window.__fhDrag) window.__fhDrag.up();
+    if (d && d.moved > 8) hitSwallow.current = true;
+  };
+  const onHitClick = () => {
+    if (hitSwallow.current) { hitSwallow.current = false; return; }
+    openHead();
+  };
   const [hoveredCard, setHoveredCard] = useState(null);
   const [vortexTarget, setVortexTarget] = useState(null);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -877,7 +904,11 @@ export default function LandingFocus() {
             aria-label="Open the 3D portrait"
             onPointerEnter={() => headHover(true)}
             onPointerLeave={() => headHover(false)}
-            onClick={openHead}
+            onPointerDown={onHitDown}
+            onPointerMove={onHitMove}
+            onPointerUp={onHitUp}
+            onPointerCancel={onHitUp}
+            onClick={onHitClick}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();

@@ -240,8 +240,13 @@
   position: absolute;
   inset: 0;
   z-index: 5;
-  cursor: pointer;
+  cursor: grab;
+  /* a finger-drag on the cloud turns the head rather than panning the page */
+  touch-action: none;
   /* clip-path is set by the script each frame, to the cloud */
+}
+.focus-hit:active {
+  cursor: grabbing;
 }
 /* nothing of the cloud shows until the real head is in (the page adds
    head-real once it is); then the window and the light fade in with it */
