@@ -92,7 +92,62 @@ function retag(html, route) {
   return out;
 }
 
-const indexHtml = fs.readFileSync(path.join(BUILD, "index.html"), "utf8");
+/* The splash loader (public/index.html) has to be the first thing on screen
+   and stay smooth, so the shell is reordered here, where the hashed asset
+   names are known. Nothing is left that blocks parsing or the first paint:
+   - The app bundle is preloaded, not run. The preload reports when the file
+     has arrived (window.__jsReady, event "js-ready").
+   - The page stylesheet moves from <head> to the end of <body>, below the
+     loader, and reports when it has applied (window.__cssReady, event
+     "css-ready"). Below the loader it cannot hold back the loader's paint,
+     and with no script after it, it holds back nothing else either.
+   - A small release script, placed before the stylesheet, runs the bundle
+     once the stylesheet has applied (the app never renders unstyled) and:
+       * in a visible tab, the loader reports the logo has formed
+         (window.__loaderDone, "loader-done"), so the bundle's first run - one
+         long task, ~0.5 s on a mid phone, ~0.9 s on a slow one - never lands
+         mid-animation and freezes the dots;
+       * in a background or prerendering tab, the loader reports at once
+         (window.__appGo, "app-go") and the release waits for the whole file,
+         so the bundle runs while the tab is still hidden rather than
+         whenever the download happens to finish, possibly mid-animation
+         after the visitor has switched to it.
+     A loader that never reports cannot strand the page: after 6 s the app
+     runs once its stylesheet is in, after 20 s regardless.
+   Idempotent: a shell that already has the release script is left alone. */
+function holdAppForLoader(html) {
+  if (html.includes("data-app-release")) return html;
+  const js = html.match(/<script defer="defer" src="(\/static\/js\/main\.[0-9a-f]+\.js)"><\/script>/);
+  const css = html.match(/<link href="(\/static\/css\/main\.[0-9a-f]+\.css)" rel="stylesheet">/);
+  const ROOT_DIV = '<div id="root"></div>';
+  if (!js || !css || html.split(ROOT_DIV).length !== 2) {
+    throw new Error("holdAppForLoader: the CRA shell no longer has the expected main.js / main.css / #root tags");
+  }
+  const report = (flag, event) => `window.${flag}=1;window.dispatchEvent(new Event('${event}'))`;
+  const preload =
+    `<link rel="preload" as="script" href="${js[1]}" ` +
+    `onload="${report("__jsReady", "js-ready")}" onerror="${report("__jsReady", "js-ready")}">`;
+  const stylesheet =
+    `<link href="${css[1]}" rel="stylesheet" ` +
+    `onload="${report("__cssReady", "css-ready")}" onerror="${report("__cssReady", "css-ready")}">`;
+  const release =
+    "<script data-app-release>(function(){" +
+    "var w=window,d=document,src=" + JSON.stringify(js[1]) + ",injected=0,forced=0;" +
+    "function inject(){if(injected)return;injected=1;var e=d.createElement('script');e.src=src;d.head.appendChild(e)}" +
+    "function check(){if(injected||!w.__cssReady)return;if(forced)return inject();if(!w.__appGo)return;" +
+    "var hidden=d.visibilityState==='hidden'||d.prerendering;" +
+    "if(hidden?w.__jsReady:(w.__loaderDone||!d.getElementById('loader')))inject()}" +
+    "['app-go','loader-done','css-ready','js-ready'].forEach(function(n){w.addEventListener(n,check)});" +
+    "d.addEventListener('visibilitychange',check);" +
+    "setTimeout(function(){forced=1;check()},6000);setTimeout(inject,20000);check()" +
+    "})()</script>";
+  return html
+    .replace(js[0], preload)
+    .replace(css[0], "")
+    .replace(ROOT_DIV, release + stylesheet + ROOT_DIV);
+}
+
+const indexHtml = holdAppForLoader(fs.readFileSync(path.join(BUILD, "index.html"), "utf8"));
 
 let shells = 0;
 for (const route of ROUTES) {

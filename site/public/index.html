@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/logoV6.png" />
+    <link rel="icon" href="%PUBLIC_URL%/icons/hm-48.png" sizes="48x48" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <!-- WebKit data detectors rewrite e-mail/phone text into their own <a>
          elements inside React-owned DOM, which crashes reconciliation on the
@@ -45,7 +45,7 @@
       content="https://hydermohyuddin.com/preview.png"
     />
 
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logoV6.png" />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/icons/hm-180.png" />
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
     <link rel="canonical" href="https://hydermohyuddin.com/" />
 
@@ -132,8 +132,20 @@
         100% { transform: scale(2.3);  opacity: 0; }
       }
 
+      /* Formed, and the app is still loading: the logo breathes. A CSS
+         animation on opacity runs on the compositor, so it keeps going even
+         while the app's first run has the main thread. */
+      #loader.wait #loader-canvas {
+        animation: loaderBreathe 1.8s ease-in-out infinite;
+      }
+      @keyframes loaderBreathe {
+        0%, 100% { opacity: 1; }
+        50%      { opacity: 0.55; }
+      }
+
       @media (prefers-reduced-motion: reduce) {
         .go .loader-impact { animation: none !important; opacity: 0; }
+        #loader.wait #loader-canvas { animation: none; }
       }
     </style>
   </head>
@@ -149,411 +161,308 @@
     </div>
     <script>
       /* Particle-assembly splash loader.
-         ~340 dots in the site's 4-color palette stream in from the edges,
-         resolve into the H and M silhouettes at ~0.75s, then scatter
-         outward on exit while a shockwave ring expands past the viewport. */
+         260-480 dots in the site's 4-colour palette stream in from the edges,
+         resolve into the H and M silhouettes, and hold until the app is up.
+
+         Built to be the first thing on screen and to stay smooth:
+         - Nothing ahead of it blocks its first paint. In a build, the page's
+           stylesheet sits below it and blocks nothing, and the app bundle is
+           only preloaded; a small script there runs the bundle once the
+           stylesheet is in and this says the logo has formed - or, in a tab
+           opened in the background, once the bundle has fully downloaded, so
+           it runs while still hidden (build-route-shells.mjs). The bundle's
+           long first run used to land mid-animation and freeze the dots for
+           up to a second.
+         - It starts on its own first frame, not on `load`.
+         - Motion is a closed-form ease over animation time: the same pace at
+           60, 120 or 240 Hz, and a stalled frame slows it rather than making
+           it jump ahead.
+         - The letters are sampled with a point-in-polygon test, not a canvas
+           read-back.
+         - Once formed it stops drawing. If the app is still loading after a
+           beat, the logo breathes through a CSS animation, which runs off the
+           main thread.
+
+         It reports two things on window, each as a flag and an event:
+           __appGo / "app-go"            the app bundle may run now
+           __loaderDone / "loader-done"  the logo has formed; App.js may
+                                         dismiss the loader
+         Every way out of this script (skip, reduced motion, no canvas, an
+         error) reports both, so the app is never left waiting on it. */
       (function(){
-        // Skip the splash when returning from the art gallery
-        if (sessionStorage.getItem('skip-loader')) {
-          sessionStorage.removeItem('skip-loader');
-          var el = document.getElementById('loader');
-          if (el) el.remove();
-          return;
+        var sent = {};
+        function report(name, flag) {
+          if (sent[name]) return;
+          sent[name] = 1;
+          window[flag] = true;
+          try { window.dispatchEvent(new Event(name)); } catch (_) {}
         }
+        function appGo() { report('app-go', '__appGo'); }
+        function done() { appGo(); report('loader-done', '__loaderDone'); }
 
-        var loader = document.getElementById('loader');
-        var canvas = document.getElementById('loader-canvas');
-        if (!loader || !canvas) return;
-        var ctx = canvas.getContext && canvas.getContext('2d');
-        if (!ctx) return;
-        var logoEl = loader.querySelector('.loader-logo');
+        try { run(); } catch (_) { done(); }
 
-        /* Palette — dark ends of the four landing-page card accent bars
-           (Skills / Projects / About / Resume). Mirrors the on-page UI. */
-        var COLORS = ['#ff72a1', '#b48bff', '#7fd3ff', '#78ffa8'];
-
-        /* Color modes — pick one at random per load.
-           Each fn receives local coords (x, y) inside the logo bounding box
-           (0..w, 0..h) and returns 0..3 for the COLORS array index. */
-        var COLOR_MODES = [
-          function(x, y, w, h) {              // diagonal NW -> SE stripes
-            return Math.min(3, Math.floor(((x / w + y / h) / 2) * 4));
-          },
-          function(x, y, w, h) {              // diagonal NE -> SW stripes
-            return Math.min(3, Math.floor((((w - x) / w + y / h) / 2) * 4));
-          },
-          function(x, y, w, h) {              // horizontal bands
-            return Math.min(3, Math.floor((y / h) * 4));
-          },
-          function(x, y, w, h) {              // vertical bands
-            return Math.min(3, Math.floor((x / w) * 4));
-          },
-          function(x, y, w, h) {              // radial rings
-            var dx = x - w / 2, dy = y - h / 2;
-            var r = Math.sqrt(dx * dx + dy * dy);
-            var rmax = Math.sqrt((w / 2) * (w / 2) + (h / 2) * (h / 2));
-            return Math.min(3, Math.floor((r / rmax) * 4));
-          },
-          function(x, y, w, h) {              // quadrants
-            return (y >= h / 2 ? 2 : 0) + (x >= w / 2 ? 1 : 0);
-          },
-        ];
-        var colorMode = COLOR_MODES[(Math.random() * COLOR_MODES.length) | 0];
-        var H_PATH = 'M8,0 L20,0 L20,28 L49,28 L49,0 L61,0 L61,68 L49,68 L49,40 L20,40 L20,68 L8,68 Z';
-        var M_PATH = 'M49,0 L63,0 L75,30 L87,0 L101,0 L101,68 L89,68 L89,22 L77,50 L73,50 L61,22 L61,68 L49,68 Z';
-        var LOGO_W = 120, LOGO_H = 68;
-        // Content bounds — computed dynamically from sampled points after
-        // sampling, so any future path edits center themselves correctly.
-        var contentMinX = 0, contentMaxX = LOGO_W;
-        var contentMinY = 0, contentMaxY = LOGO_H;
-        var SCALE_MAX = 3.8;
-        var SCALE = SCALE_MAX;        // recomputed on resize so the logo fits any viewport
-        var PER_LETTER = window.innerWidth < 700 ? 130 : 240; // phones draw a smaller logo - fewer dots, same density
-        var ASSEMBLE_DUR = 720;
-        var LERP = 0.095;            // per-frame convergence toward target (lower = slower, more visible streaming)
-
-        var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-        var dpr = 1, cx = 0, cy = 0, offX = 0, offY = 0;
-        function resize() {
-          /* React removes the loader after exit but this listener would live
-             on, re-allocating a full-viewport backing store for a detached
-             canvas on every window resize - self-remove once orphaned */
-          if (!canvas.isConnected) {
-            window.removeEventListener('resize', resize);
-            if (typeof mo !== 'undefined' && mo) mo.disconnect();
-            return;
-          }
-          dpr = Math.min(window.innerWidth < 700 ? 1.5 : 2, window.devicePixelRatio || 1);
-          canvas.width  = Math.floor(window.innerWidth  * dpr);
-          canvas.height = Math.floor(window.innerHeight * dpr);
-          canvas.style.width  = window.innerWidth  + 'px';
-          canvas.style.height = window.innerHeight + 'px';
-          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-          cx = window.innerWidth / 2;
-          cy = window.innerHeight / 2;
-          // Cap SCALE so the logo (LOGO_W * SCALE) fits within the viewport
-          // with comfortable side margins. On phones this drops the scale
-          // automatically so the logo stays fully visible and centered.
-          // Cap SCALE so the rendered content fits within the viewport with
-          // comfortable margins on both axes. Content bounds are measured
-          // from the sampled points (see below), making this fully dynamic.
-          var contentW = Math.max(1, contentMaxX - contentMinX);
-          var contentH = Math.max(1, contentMaxY - contentMinY);
-          var maxByWidth  = (window.innerWidth  - 40) / contentW;
-          var maxByHeight = (window.innerHeight - 80) / contentH;
-          SCALE = Math.max(1, Math.min(SCALE_MAX, maxByWidth, maxByHeight));
-          var contentCx = (contentMinX + contentMaxX) / 2;
-          var contentCy = (contentMinY + contentMaxY) / 2;
-          offX = cx - contentCx * SCALE;
-          offY = cy - contentCy * SCALE;
-          // Reproject existing particle targets onto the new scale/center.
-          if (typeof particles !== "undefined" && particles && particles.length) {
-            for (var i = 0; i < particles.length; i++) {
-              var p = particles[i];
-              if (p.lx != null) {
-                p.tx = offX + p.lx * SCALE;
-                p.ty = offY + p.ly * SCALE;
-              }
-            }
-          }
-        }
-        resize();
-        window.addEventListener('resize', resize);
-
-        /* Sample n random filled points from an SVG path's interior. */
-        function samplePath(pathD, n) {
+        function run() {
+          // Skip the splash when returning from the art gallery. Blocked
+          // storage throws here; that only means there is no skip.
+          var skip = false;
           try {
-            var s = 4;  // supersample for denser sampling space
-            var w = LOGO_W * s, h = LOGO_H * s;
-            var off = document.createElement('canvas');
-            off.width = w; off.height = h;
-            var octx = off.getContext('2d');
-            octx.scale(s, s);
-            octx.fillStyle = '#fff';
-            octx.fill(new Path2D(pathD));
-            var img = octx.getImageData(0, 0, w, h).data;
-            var filled = [];
-            for (var y = 0; y < h; y++) {
-              for (var x = 0; x < w; x++) {
-                if (img[(y * w + x) * 4 + 3] > 128) filled.push([x / s, y / s]);
-              }
-            }
-            if (!filled.length) return [];
-            var out = [];
-            for (var i = 0; i < n; i++) {
-              var p = filled[(Math.random() * filled.length) | 0];
-              out.push([p[0], p[1]]);   // unscaled local coords (0..LOGO_W, 0..LOGO_H)
-            }
-            return out;
-          } catch (_) { return []; }
-        }
-
-        var targetsH = samplePath(H_PATH, PER_LETTER);
-        var targetsM = samplePath(M_PATH, PER_LETTER);
-        if (!targetsH.length || !targetsM.length) return;
-
-        // Measure the actual content bounding box from the sampled points so
-        // the logo centers itself even if the SVG paths change.
-        (function() {
-          var all = targetsH.concat(targetsM);
-          var minX =  Infinity, maxX = -Infinity;
-          var minY =  Infinity, maxY = -Infinity;
-          for (var i = 0; i < all.length; i++) {
-            var p = all[i];
-            if (p[0] < minX) minX = p[0];
-            if (p[0] > maxX) maxX = p[0];
-            if (p[1] < minY) minY = p[1];
-            if (p[1] > maxY) maxY = p[1];
-          }
-          contentMinX = minX; contentMaxX = maxX;
-          contentMinY = minY; contentMaxY = maxY;
-        })();
-        // Re-run resize now that we know the real content bounds.
-        resize();
-
-        var maxD = Math.max(window.innerWidth, window.innerHeight) * 0.9;
-        var particles = [];
-        function pushPs(targets, biasAngle) {
-          for (var i = 0; i < targets.length; i++) {
-            var lx = targets[i][0];                       // 0..LOGO_W (unscaled)
-            var ly = targets[i][1];                       // 0..LOGO_H
-            var q = colorMode(lx, ly, LOGO_W, LOGO_H);
-            var angle = biasAngle + (Math.random() - 0.5) * Math.PI * 1.2;
-            var dist  = maxD * (0.55 + Math.random() * 0.55);
-            var sx = cx + Math.cos(angle) * dist;
-            var sy = cy + Math.sin(angle) * dist;
-            particles.push({
-              lx: lx, ly: ly,                              // unscaled — re-projected on resize
-              tx: offX + lx * SCALE,
-              ty: offY + ly * SCALE,
-              sx: sx, sy: sy,                              // remembered spawn — used on reset
-              x:  sx, y:  sy,
-              color: COLORS[q],
-              size: 1.2 + Math.random() * 1.1,
-              // Stagger start times across 0–140ms so the first particles
-              // begin moving immediately — no frozen "skip" at the start.
-              startDelay: Math.random() * 140,
-            });
-          }
-        }
-        pushPs(targetsH, Math.PI);   // H streams in from the left
-        pushPs(targetsM, 0);         // M streams in from the right
-
-        /* Bucketed by color once, so every draw loop can batch: one path and
-           one fill per color instead of one of each per dot. */
-        var byColor = [[], [], [], []];
-        for (var bi = 0; bi < particles.length; bi++) {
-          byColor[COLORS.indexOf(particles[bi].color)].push(particles[bi]);
-        }
-
-        var phase = 'assembling';
-        var elapsed = 0;              // accumulated real animation time
-        var lastFrameNow = null;      // for dt-based advancement
-        var rafId = 0;
-
-        var mo = new MutationObserver(function(){
-          if (loader.classList.contains('loader-exit') && phase !== 'exiting') {
-            phase = 'exiting';
-          }
-        });
-        mo.observe(loader, { attributes: true, attributeFilter: ['class'] });
-
-        function frame(/* scheduled-paint timestamp ignored on purpose */) {
-          if (phase === 'exiting') return;
-
-          // Don't advance while the page isn't actually being seen
-          // (prerender, hidden tab).
-          if (document.hidden || document.prerendering) {
-            rafId = requestAnimationFrame(frame);
+            skip = !!sessionStorage.getItem('skip-loader');
+            if (skip) sessionStorage.removeItem('skip-loader');
+          } catch (_) {}
+          if (skip) {
+            var el = document.getElementById('loader');
+            if (el) el.remove();
+            done();
             return;
           }
 
-          // Use real wall-clock execution time, NOT the rAF `now` parameter.
-          // rAF passes the scheduled paint timestamp, so a burst of queued
-          // rAFs that fire in rapid succession after a blocked main thread
-          // will all report 16ms-apart `now` values and burn through the
-          // animation. performance.now() reports the actual instant the
-          // callback is running, which collapses to near-zero during a
-          // burst — the dt cap then keeps the animation honest.
-          var realNow = performance.now();
-          if (lastFrameNow != null) {
-            var dt = realNow - lastFrameNow;
-            if (dt < 3) {                    // burst: barely any time passed
-              lastFrameNow = realNow;
-              rafId = requestAnimationFrame(frame);
+          var loader = document.getElementById('loader');
+          var canvas = document.getElementById('loader-canvas');
+          var ctx = canvas && canvas.getContext && canvas.getContext('2d');
+          if (!loader || !ctx) { done(); return; }
+
+          /* Palette - dark ends of the four landing-page card accent bars
+             (Skills / Projects / About / Resume). Mirrors the on-page UI. */
+          var COLORS = ['#ff72a1', '#b48bff', '#7fd3ff', '#78ffa8'];
+
+          /* Colour modes - one at random per load. Each gets local coords
+             inside the logo box (0..w, 0..h) and returns a COLORS index. */
+          var COLOR_MODES = [
+            function(x, y, w, h) {              // diagonal NW -> SE stripes
+              return Math.min(3, Math.floor(((x / w + y / h) / 2) * 4));
+            },
+            function(x, y, w, h) {              // diagonal NE -> SW stripes
+              return Math.min(3, Math.floor((((w - x) / w + y / h) / 2) * 4));
+            },
+            function(x, y, w, h) {              // horizontal bands
+              return Math.min(3, Math.floor((y / h) * 4));
+            },
+            function(x, y, w, h) {              // vertical bands
+              return Math.min(3, Math.floor((x / w) * 4));
+            },
+            function(x, y, w, h) {              // radial rings
+              var dx = x - w / 2, dy = y - h / 2;
+              var r = Math.sqrt(dx * dx + dy * dy);
+              var rmax = Math.sqrt((w / 2) * (w / 2) + (h / 2) * (h / 2));
+              return Math.min(3, Math.floor((r / rmax) * 4));
+            },
+            function(x, y, w, h) {              // quadrants
+              return (y >= h / 2 ? 2 : 0) + (x >= w / 2 ? 1 : 0);
+            },
+          ];
+          var colorMode = COLOR_MODES[(Math.random() * COLOR_MODES.length) | 0];
+
+          /* The monogram as two polygons (they share the middle stem) */
+          var H_POLY = [[8,0],[20,0],[20,28],[49,28],[49,0],[61,0],[61,68],[49,68],[49,40],[20,40],[20,68],[8,68]];
+          var M_POLY = [[49,0],[63,0],[75,30],[87,0],[101,0],[101,68],[89,68],[89,22],[77,50],[73,50],[61,22],[61,68],[49,68]];
+          var LOGO_W = 120, LOGO_H = 68;
+          var BOX = { minX: 8, maxX: 101, minY: 0, maxY: 68 };   // both letters' bounds
+          var SCALE_MAX = 3.8;
+          var SCALE = SCALE_MAX;      // recomputed on resize so the logo fits any viewport
+          var PER_LETTER = window.innerWidth < 700 ? 130 : 240; // phones draw a smaller logo - fewer dots, same density
+
+          /* Timing: each dot waits up to MAX_DELAY, then eases in over DUR.
+             The ease is exponential-out, normalised to land exactly on its
+             target, so the logo is complete at DONE_AT (the 720 ms the
+             splash was always designed around) with no endless tail. */
+          var DUR = 600, MAX_DELAY = 120, DONE_AT = MAX_DELAY + DUR;
+          var EASE_NORM = 1 / (1 - Math.pow(2, -10));
+          function ease(u) { return u >= 1 ? 1 : (1 - Math.pow(2, -10 * u)) * EASE_NORM; }
+          var WAIT_AFTER = 450;       // formed and still waiting this long: breathe
+
+          var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+          var vw = 0, vh = 0, cx = 0, cy = 0, offX = 0, offY = 0;
+          var particles = [];
+          function resize() {
+            /* React removes the loader after exit but this listener would
+               live on, re-allocating a full-viewport backing store for a
+               detached canvas on every resize - self-remove once orphaned */
+            if (!canvas.isConnected) {
+              window.removeEventListener('resize', resize);
+              if (mo) mo.disconnect();
               return;
             }
-            if (dt > 50) dt = 33;            // cap unusually long gaps
-            elapsed += dt;
-          }
-          lastFrameNow = realNow;
-
-          ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-
-          /* Batched by color: 480 individual arc+fill calls with per-dot
-             state changes were the mobile bottleneck - every fill flushed
-             the pipeline. Two passes per color (waiting dots at rest alpha,
-             moving dots on a shared ramp) is at most 8 fills a frame. The
-             per-dot fade stagger collapses into the shared ramp; the stagger
-             that actually reads - the movement - is untouched. */
-          var ramp = Math.min(1, elapsed / 240);
-          for (var c = 0; c < COLORS.length; c++) {
-            var bucket = byColor[c];
-            ctx.fillStyle = COLORS[c];
-            ctx.globalAlpha = 0.22;
-            ctx.beginPath();
-            var drew = false;
-            for (var i = 0; i < bucket.length; i++) {
-              var p = bucket[i];
-              if (elapsed > p.startDelay) continue;
-              ctx.moveTo(p.x + p.size, p.y);
-              ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-              drew = true;
+            vw = window.innerWidth;
+            vh = window.innerHeight;
+            var dpr = Math.min(vw < 700 ? 1.5 : 2, window.devicePixelRatio || 1);
+            canvas.width  = Math.floor(vw * dpr);
+            canvas.height = Math.floor(vh * dpr);
+            canvas.style.width  = vw + 'px';
+            canvas.style.height = vh + 'px';
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            cx = vw / 2;
+            cy = vh / 2;
+            // Fit the logo with comfortable margins on both axes
+            var contentW = BOX.maxX - BOX.minX, contentH = BOX.maxY - BOX.minY;
+            SCALE = Math.max(1, Math.min(SCALE_MAX, (vw - 40) / contentW, (vh - 80) / contentH));
+            offX = cx - ((BOX.minX + BOX.maxX) / 2) * SCALE;
+            offY = cy - ((BOX.minY + BOX.maxY) / 2) * SCALE;
+            for (var i = 0; i < particles.length; i++) {
+              var p = particles[i];
+              p.tx = offX + p.lx * SCALE;
+              p.ty = offY + p.ly * SCALE;
             }
-            if (drew) ctx.fill();
-            ctx.globalAlpha = 0.22 + 0.78 * ramp;
-            ctx.beginPath();
-            drew = false;
-            for (i = 0; i < bucket.length; i++) {
-              p = bucket[i];
-              if (elapsed <= p.startDelay) continue;
-              p.x += (p.tx - p.x) * LERP;
-              p.y += (p.ty - p.y) * LERP;
-              ctx.moveTo(p.x + p.size, p.y);
-              ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-              drew = true;
+            // a resize clears the canvas: put the current state straight back
+            if (byColor) paint(t);
+          }
+
+          /* n uniform random points inside a polygon (even-odd rule) */
+          function inside(poly, x, y) {
+            var c = false;
+            for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+              var xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+              if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c;
             }
-            if (drew) ctx.fill();
+            return c;
           }
-          ctx.globalAlpha = 1;
-
-          if (phase === 'assembling' && elapsed > ASSEMBLE_DUR) phase = 'settled';
-
-          rafId = requestAnimationFrame(frame);
-        }
-
-        function drawStatic() {
-          ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-          ctx.globalAlpha = 1;
-          for (var c = 0; c < COLORS.length; c++) {
-            var bucket = byColor[c];
-            ctx.fillStyle = COLORS[c];
-            ctx.beginPath();
-            for (var i = 0; i < bucket.length; i++) {
-              var p = bucket[i];
-              ctx.moveTo(p.tx + p.size, p.ty);
-              ctx.arc(p.tx, p.ty, p.size, 0, Math.PI * 2);
+          function samplePoly(poly, n) {
+            var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            for (var i = 0; i < poly.length; i++) {
+              minX = Math.min(minX, poly[i][0]); maxX = Math.max(maxX, poly[i][0]);
+              minY = Math.min(minY, poly[i][1]); maxY = Math.max(maxY, poly[i][1]);
             }
-            ctx.fill();
-          }
-        }
-
-        function drawSpawnState() {
-          // Synchronous draw of all particles at their spawn positions, so
-          // whatever the very next paint commits, it shows the start of the
-          // animation — never an advanced state from rAF bursts.
-          ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-          ctx.globalAlpha = 0.22;
-          for (var c = 0; c < COLORS.length; c++) {
-            var bucket = byColor[c];
-            ctx.fillStyle = COLORS[c];
-            ctx.beginPath();
-            for (var i = 0; i < bucket.length; i++) {
-              var p = bucket[i];
-              ctx.moveTo(p.sx + p.size, p.sy);
-              ctx.arc(p.sx, p.sy, p.size, 0, Math.PI * 2);
+            var out = [], tries = n * 40;
+            while (out.length < n && tries-- > 0) {
+              var x = minX + Math.random() * (maxX - minX);
+              var y = minY + Math.random() * (maxY - minY);
+              if (inside(poly, x, y)) out.push([x, y]);
             }
-            ctx.fill();
+            return out;
           }
-          ctx.globalAlpha = 1;
-        }
 
-        function startAnim() {
-          // Reset state so prerender/bfcache restore starts a fresh run
-          elapsed = 0;
-          lastFrameNow = null;
-          phase = 'assembling';
-          for (var i = 0; i < particles.length; i++) {
-            particles[i].x = particles[i].sx;
-            particles[i].y = particles[i].sy;
+          var byColor = null, t = 0;
+          var mo = null;
+          resize();
+          window.addEventListener('resize', resize);
+
+          var maxD = Math.max(vw, vh) * 0.9;
+          function pushPs(targets, biasAngle) {
+            for (var i = 0; i < targets.length; i++) {
+              var lx = targets[i][0], ly = targets[i][1];
+              var angle = biasAngle + (Math.random() - 0.5) * Math.PI * 1.2;
+              var dist  = maxD * (0.55 + Math.random() * 0.55);
+              particles.push({
+                lx: lx, ly: ly,                          // logo units - re-projected on resize
+                tx: offX + lx * SCALE,
+                ty: offY + ly * SCALE,
+                sx: cx + Math.cos(angle) * dist,         // spawn, off towards the edges
+                sy: cy + Math.sin(angle) * dist,
+                c: colorMode(lx, ly, LOGO_W, LOGO_H),
+                size: 1.2 + Math.random() * 1.1,
+                // staggered so the first dots move on the very first frames
+                delay: Math.random() * MAX_DELAY,
+              });
+            }
           }
-          if (rafId) cancelAnimationFrame(rafId);
+          pushPs(samplePoly(H_POLY, PER_LETTER), Math.PI);   // H streams in from the left
+          pushPs(samplePoly(M_POLY, PER_LETTER), 0);         // M streams in from the right
 
-          // Paint the spawn state synchronously. Whatever the browser
-          // commits next is guaranteed to show the start of the animation,
-          // never a half-converged state from rAF bursting.
-          drawSpawnState();
+          /* Bucketed by colour once, so each pass is one path and one fill
+             per colour rather than one of each per dot. */
+          byColor = [[], [], [], []];
+          for (var bi = 0; bi < particles.length; bi++) byColor[particles[bi].c].push(particles[bi]);
 
-          // Reset CSS animations on the loader by removing .go, forcing a
-          // reflow, then re-adding .go on the next frame.
-          loader.classList.remove('go');
-          // eslint-disable-next-line no-unused-expressions
-          void loader.offsetWidth;
+          /* The whole scene at animation time `at` (ms): dots not yet
+             released sit at their spawn, faint; the rest ease toward their
+             targets on one shared fade-in. paint(0) is the opening frame,
+             paint(DONE_AT) the finished logo. */
+          var TWO_PI = Math.PI * 2;
+          function paint(at) {
+            ctx.clearRect(0, 0, vw, vh);
+            var ramp = Math.min(1, at / 240);
+            for (var c = 0; c < 4; c++) {
+              var bucket = byColor[c], i, p, drew;
+              ctx.fillStyle = COLORS[c];
+              ctx.globalAlpha = 0.22;
+              ctx.beginPath();
+              drew = false;
+              for (i = 0; i < bucket.length; i++) {
+                p = bucket[i];
+                if (at > p.delay) continue;
+                ctx.moveTo(p.sx + p.size, p.sy);
+                ctx.arc(p.sx, p.sy, p.size, 0, TWO_PI);
+                drew = true;
+              }
+              if (drew) ctx.fill();
+              ctx.globalAlpha = 0.22 + 0.78 * ramp;
+              ctx.beginPath();
+              drew = false;
+              for (i = 0; i < bucket.length; i++) {
+                p = bucket[i];
+                if (at <= p.delay) continue;
+                var e = ease((at - p.delay) / DUR);
+                var x = p.sx + (p.tx - p.sx) * e, y = p.sy + (p.ty - p.sy) * e;
+                ctx.moveTo(x + p.size, y);
+                ctx.arc(x, y, p.size, 0, TWO_PI);
+                drew = true;
+              }
+              if (drew) ctx.fill();
+            }
+            ctx.globalAlpha = 1;
+          }
+          paint(0);   // the very first paint already shows the opening frame
 
-          requestAnimationFrame(function(){
-            requestAnimationFrame(function(){
-              loader.classList.add('go');
-              // Tell React the animation has actually begun, so MINIMUM_SHOW
-              // counts from here. Otherwise the loader could exit before the
-              // animation visibly runs (e.g. if `load` was unusually delayed).
-              try { window.dispatchEvent(new Event('loader-anim-started')); } catch (_) {}
-              if (reduced) drawStatic();
-              else rafId = requestAnimationFrame(frame);
-            });
+          var phase = 'waiting';      // waiting -> running -> formed, or exiting at any point
+          var last = null, rafId = 0, waitTimer = 0;
+          mo = new MutationObserver(function(){
+            if (loader.classList.contains('loader-exit') && phase !== 'exiting') {
+              phase = 'exiting';
+              if (rafId) cancelAnimationFrame(rafId);
+              clearTimeout(waitTimer);
+            }
           });
-        }
+          mo.observe(loader, { attributes: true, attributeFilter: ['class'] });
 
-        // Defer until the page is actually being viewed, so a prerender or
-        // hidden tab doesn't burn through the animation before the user sees it.
-        function kickoffWhenVisible() {
-          if (document.visibilityState === 'visible') {
-            startAnim();
-          } else {
-            var onVis = function(){
-              if (document.visibilityState !== 'visible') return;
-              document.removeEventListener('visibilitychange', onVis);
-              startAnim();
-            };
-            document.addEventListener('visibilitychange', onVis);
+          function formed() {
+            phase = 'formed';
+            t = DONE_AT;
+            paint(DONE_AT);
+            done();
+            waitTimer = setTimeout(function(){
+              if (phase === 'formed' && loader.isConnected) loader.classList.add('wait');
+            }, WAIT_AFTER);
           }
-        }
 
-        // Show spawn state on the canvas immediately so the loader isn't
-        // blank during the deferred kickoff below.
-        drawSpawnState();
-
-        // Defer the actual rAF loop until the page is fully loaded — this
-        // way React's mount has finished and the main thread is idle when
-        // the animation starts, so the browser paints every frame instead
-        // of bursting through them while the page boots.
-        var kicked = false;
-        function kickoff() {
-          if (kicked) return;
-          if (document.prerendering) {
-            document.addEventListener('prerenderingchange', kickoff, { once: true });
-            return;
+          function frame() {
+            rafId = 0;
+            if (phase !== 'running') return;
+            // Animation time advances by real elapsed time, but a long stall
+            // counts as one ordinary frame: the dots resume where they were
+            // instead of jumping to where they would have been.
+            var now = performance.now();
+            if (last != null) {
+              var dt = now - last;
+              t += dt > 50 ? 33 : dt;
+            }
+            last = now;
+            if (t >= DONE_AT) { formed(); return; }
+            paint(t);
+            rafId = requestAnimationFrame(frame);
           }
-          kicked = true;
-          kickoffWhenVisible();
-        }
-        if (document.readyState === 'complete') {
-          kickoff();
-        } else {
-          window.addEventListener('load', kickoff, { once: true });
-          setTimeout(kickoff, 1500); // safety
-        }
 
-        // Re-run on back-forward cache restore (page was kept in memory;
-        // scripts don't re-execute but pageshow fires with persisted=true).
-        window.addEventListener('pageshow', function(e){
-          if (!loader.parentNode) return;
-          if (e.persisted) {
-            loader.classList.remove('loader-exit');
-            kickoffWhenVisible();
+          function start() {
+            if (phase !== 'waiting') return;
+            if (document.prerendering || document.visibilityState !== 'visible') return;
+            // The app came up while the tab was in the background (App.js sets
+            // __appUp): show the finished logo instead of assembling it over
+            // the app's first frames.
+            if (reduced || window.__appUp) { formed(); return; }
+            phase = 'running';
+            loader.classList.add('go');
+            rafId = requestAnimationFrame(frame);
           }
-        });
 
+          if (document.prerendering || document.visibilityState !== 'visible') {
+            /* Opened in a background tab or prerendered: let the app load
+               now, and play the splash when the page is actually seen. */
+            appGo();
+            document.addEventListener('visibilitychange', start);
+            document.addEventListener('prerenderingchange', start);
+          }
+          start();
+        }
       })();
     </script>
 

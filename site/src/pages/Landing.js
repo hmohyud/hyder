@@ -7,7 +7,7 @@ import FloatingHead from "../components/FloatingHead";
 import CopyEmail from "../components/CopyEmail";
 /* the write-up count in the mission stays honest by reading the same array
    the Projects page renders - add a project, the sentence updates itself */
-import { projects } from "./Projects";
+import { projects } from "./projectsData";
 import { useMissionDots } from "./useMissionDots";
 import "./Landing.css";
 

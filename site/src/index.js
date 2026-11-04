@@ -3,6 +3,13 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import { preloadPage } from './pageLoaders';
+
+/* A visit that opens on a page other than the landing starts fetching that
+   page's own chunk now, alongside React's first render, rather than when the
+   router first asks for it. */
+const openingPage = preloadPage(window.location.pathname);
+if (openingPage) openingPage.catch(() => {}); // a miss is handled where the page renders
 
 // Background dot generation
 document.addEventListener('DOMContentLoaded', () => {

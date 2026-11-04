@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
-import { projects, projectSlug, projectShortName } from "../pages/Projects";
+import { projects, projectSlug, projectShortName } from "../pages/projectsData";
 import {
   parseActToken,
   resolveAction,

@@ -7,7 +7,8 @@ import FloatingHead from "../components/FloatingHead";
 import CopyEmail from "../components/CopyEmail";
 /* the write-up count in the mission stays honest by reading the same array
    the Projects page renders - add a project, the sentence updates itself */
-import { projects } from "./Projects";
+import { projects } from "./projectsData";
+import { preloadPage } from "../pageLoaders";
 import { useMissionDots } from "./useMissionDots";
 import "./Landing.css";
 import "./LandingFocus.css";
@@ -893,8 +894,10 @@ export default function LandingFocus() {
                 to={to}
                 className={`card card-${id} portal${hoveredCard === id ? " card-hover-active" : ""}`}
                 aria-label={label + " - " + copy}
-                onMouseEnter={() => setHoveredCard(id)}
+                onMouseEnter={() => { setHoveredCard(id); preloadPage(to); }}
                 onMouseLeave={() => setHoveredCard(null)}
+                onFocus={() => preloadPage(to)}
+                onTouchStart={() => preloadPage(to)}
               >
                 <span className={`portal-glow portal-${id}`} aria-hidden="true" />
                 <CardBody title={title} Icon={Icon} img={img} isHovered={false} lazy />
