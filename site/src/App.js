@@ -19,7 +19,7 @@ import "./pages/About.css";
 import "./pages/Resume.css";
 import FloatingHead from "./components/FloatingHead";
 import CopyEmail from "./components/CopyEmail";
-import { lazyPage, preloadPage, PREFETCH_ORDER } from "./pageLoaders";
+import { lazyPage, preloadPage, resetFailedPages, PREFETCH_ORDER } from "./pageLoaders";
 
 /* Every page but the landing loads its own code (src/pageLoaders.js) */
 const SkillsMap = lazyPage("/skills");
@@ -137,22 +137,37 @@ function ScrollToTop() {
 }
 
 /* A page that failed to load or crashed shows a way out instead of a blank
-   window; moving to another page clears it. */
+   window. Moving to another page clears it, and so does Try again: both give
+   any page that failed to load a fresh attempt (resetFailedPages), so a
+   visitor who was offline for a moment is not stuck with the failure. Try
+   again reloads the whole page instead when the browser is online, which also
+   picks up a new deploy if this tab's files were replaced under it. */
 class PageBoundary extends Component {
   state = { failed: false };
   static getDerivedStateFromError() {
     return { failed: true };
   }
   componentDidUpdate(prev) {
-    if (prev.page !== this.props.page && this.state.failed) this.setState({ failed: false });
+    if (prev.page !== this.props.page && this.state.failed) {
+      resetFailedPages();
+      this.setState({ failed: false });
+    }
   }
+  retry = () => {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      resetFailedPages();
+      this.setState({ failed: false });
+    } else {
+      window.location.reload();
+    }
+  };
   render() {
     if (!this.state.failed) return this.props.children;
     const offline = typeof navigator !== "undefined" && navigator.onLine === false;
     return (
       <div className="page-load-error" role="alert">
         <p>{offline ? "This page could not load - you look to be offline." : "This page could not load."}</p>
-        <button type="button" onClick={() => window.location.reload()}>
+        <button type="button" onClick={this.retry}>
           Try again
         </button>
       </div>
@@ -225,8 +240,27 @@ function AppContent() {
     const reveal = () => requestAnimationFrame(() => setIsReady(true));
 
     if (!loader) {
-      reveal();
-      return;
+      /* No splash (back from the art gallery): still wait for the opening
+         page's own chunk, briefly, so the header and footer never fade in
+         around an empty page */
+      const opening = preloadPage(window.location.pathname);
+      if (!opening) {
+        reveal();
+        return;
+      }
+      let shown = false;
+      let stopped = false;
+      const show = () => {
+        if (shown || stopped) return;
+        shown = true;
+        reveal();
+      };
+      opening.catch(() => {}).then(show);
+      const wait = setTimeout(show, 1500);
+      return () => {
+        stopped = true;
+        clearTimeout(wait);
+      };
     }
     window.__appUp = true;
 
@@ -251,16 +285,28 @@ function AppContent() {
       if (window.__loaderDone) afterFirstFrames();
       else window.addEventListener("loader-done", afterFirstFrames);
     };
+    /* The cap gives the loader 4 s of visible time once the opening page's
+       chunk has settled; while that chunk is still on its way (a slow link)
+       it allows 15 s, so the loader never fades onto an empty page unless
+       the chunk is truly stuck. */
     const opening = preloadPage(window.location.pathname);
-    if (opening) opening.catch(() => {}).then(() => { if (!cancelled) whenFormed(); });
-    else whenFormed();
-
+    let settled = !opening;
     let cap = 0;
     const armCap = () => {
       clearTimeout(cap);
       cap = 0;
-      if (!gone && document.visibilityState !== "hidden" && !document.prerendering) cap = setTimeout(exit, 4000);
+      if (!gone && document.visibilityState !== "hidden" && !document.prerendering) {
+        cap = setTimeout(exit, settled ? 4000 : 15000);
+      }
     };
+    if (opening) {
+      opening.catch(() => {}).then(() => {
+        if (cancelled) return;
+        settled = true;
+        armCap();
+        whenFormed();
+      });
+    } else whenFormed();
     armCap();
     document.addEventListener("visibilitychange", armCap);
     document.addEventListener("prerenderingchange", armCap);

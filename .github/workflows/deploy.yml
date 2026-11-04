@@ -55,6 +55,12 @@ jobs:
         env:
           CI: "false"
 
+      # carry forward the script/style/font files that were live in the last
+      # day: pages load their own chunks, and a visitor still on a cached copy
+      # of the previous build must find them (see the script's header)
+      - name: keep recently live assets
+        run: node keep-recent-assets.mjs
+
       - name: publish site to gh-pages
         run: >
           npx gh-pages -d build --nojekyll

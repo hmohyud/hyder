@@ -5,11 +5,12 @@ import App from './App';
 import reportWebVitals from './reportWebVitals';
 import { preloadPage } from './pageLoaders';
 
-/* A visit that opens on a page other than the landing starts fetching that
-   page's own chunk now, alongside React's first render, rather than when the
-   router first asks for it. */
+/* A visit that opens on a page other than the landing fetches that page's
+   own chunk first and renders once it is in, so the page is part of React's
+   first render (src/pageLoaders.js): nothing suspends, and the splash never
+   leaves over an empty page. The splash covers the wait. A chunk that fails
+   renders anyway, into the error handling; one that hangs gets 8 s. */
 const openingPage = preloadPage(window.location.pathname);
-if (openingPage) openingPage.catch(() => {}); // a miss is handled where the page renders
 
 // Background dot generation
 document.addEventListener('DOMContentLoaded', () => {
@@ -28,10 +29,21 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+let rendered = false;
+const render = () => {
+  if (rendered) return;
+  rendered = true;
+  root.render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+};
+if (openingPage) {
+  openingPage.then(render, render);
+  setTimeout(render, 8000);
+} else {
+  render();
+}
 
 reportWebVitals();

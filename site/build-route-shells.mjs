@@ -98,9 +98,11 @@ function retag(html, route) {
    - The app bundle is preloaded, not run. The preload reports when the file
      has arrived (window.__jsReady, event "js-ready").
    - The page stylesheet moves from <head> to the end of <body>, below the
-     loader, and reports when it has applied (window.__cssReady, event
-     "css-ready"). Below the loader it cannot hold back the loader's paint,
-     and with no script after it, it holds back nothing else either.
+     loader and after #root, and reports when it has applied
+     (window.__cssReady, event "css-ready"). Below the loader it cannot hold
+     back the loader's paint. Chromium stops parsing at an in-body stylesheet
+     until it loads, so #root comes before it: the bundle always finds its
+     container, even if the release fallback runs it before the CSS is in.
    - A small release script, placed before the stylesheet, runs the bundle
      once the stylesheet has applied (the app never renders unstyled) and:
        * in a visible tab, the loader reports the logo has formed
@@ -133,7 +135,8 @@ function holdAppForLoader(html) {
   const release =
     "<script data-app-release>(function(){" +
     "var w=window,d=document,src=" + JSON.stringify(js[1]) + ",injected=0,forced=0;" +
-    "function inject(){if(injected)return;injected=1;var e=d.createElement('script');e.src=src;d.head.appendChild(e)}" +
+    "function inject(){if(injected)return;if(!d.getElementById('root')){d.addEventListener('DOMContentLoaded',inject);return}" +
+    "injected=1;var e=d.createElement('script');e.src=src;d.head.appendChild(e)}" +
     "function check(){if(injected||!w.__cssReady)return;if(forced)return inject();if(!w.__appGo)return;" +
     "var hidden=d.visibilityState==='hidden'||d.prerendering;" +
     "if(hidden?w.__jsReady:(w.__loaderDone||!d.getElementById('loader')))inject()}" +
@@ -144,7 +147,7 @@ function holdAppForLoader(html) {
   return html
     .replace(js[0], preload)
     .replace(css[0], "")
-    .replace(ROOT_DIV, release + stylesheet + ROOT_DIV);
+    .replace(ROOT_DIV, ROOT_DIV + release + stylesheet);
 }
 
 const indexHtml = holdAppForLoader(fs.readFileSync(path.join(BUILD, "index.html"), "utf8"));
