@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import * as d3 from 'd3';
 import Matter from 'matter-js';
 import { applyLinkForces, applyRepulsion } from '../utils/linkForces';
+import { markPageReady } from '../pageLoaders';
 import './SkillsMap.css';
 import '../App.css';
 
@@ -821,6 +822,15 @@ export default function SkillsMap() {
       dragRef.current = null;
     };
   }, [data, linkMode, viewport.width, viewport.height, isIPad]);
+
+  /* The data is in and, on wide screens, the graph is built (the effect
+     above ran first in this commit): a visit that opened on this page can
+     let the splash go */
+  useEffect(() => {
+    if (!data.skillNodes.length) return;
+    const id = requestAnimationFrame(() => markPageReady('/skills'));
+    return () => cancelAnimationFrame(id);
+  }, [data.skillNodes.length]);
 
   // ---------- COACHMARK (two Lotties side-by-side with smooth fade-out) ----------
   const [coachVisible, setCoachVisible] = useState(true);

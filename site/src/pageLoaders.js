@@ -31,15 +31,44 @@
    chunk landing mid-visit never swaps the component type and remounts it. */
 import { lazy, useState } from "react";
 
+/* Page chunks are fetched at high priority: a dynamically added script is
+   otherwise fetched at low priority and queues behind the current page's
+   images, which made a click on a slow link wait seconds for a few KB.
+   (webpack sets one priority per chunk, so the background prefetch shares
+   it; that prefetch waits until the landing's own downloads are under way
+   and fetches one page at a time.) */
 const LOADERS = {
-  "/skills": () => import(/* webpackChunkName: "page-skills" */ "./pages/SkillsMap"),
-  "/projects": () => import(/* webpackChunkName: "page-projects" */ "./pages/Projects"),
-  "/about": () => import(/* webpackChunkName: "page-about" */ "./pages/About"),
-  "/resume": () => import(/* webpackChunkName: "page-resume" */ "./pages/Resume"),
+  "/skills": () => import(/* webpackChunkName: "page-skills" */ /* webpackFetchPriority: "high" */ "./pages/SkillsMap"),
+  "/projects": () => import(/* webpackChunkName: "page-projects" */ /* webpackFetchPriority: "high" */ "./pages/Projects"),
+  "/about": () => import(/* webpackChunkName: "page-about" */ /* webpackFetchPriority: "high" */ "./pages/About"),
+  "/resume": () => import(/* webpackChunkName: "page-resume" */ /* webpackFetchPriority: "high" */ "./pages/Resume"),
 };
 
-/* smallest first, the resume's pdf.js last */
+/* The resume's phone viewer (pdf.js), apart from the page: only screens up
+   to 900 px wide use it */
+export const loadResumePdf = () =>
+  import(/* webpackChunkName: "resume-pdf" */ /* webpackFetchPriority: "high" */ "./pages/ResumePdfPages");
+
+/* smallest first */
 export const PREFETCH_ORDER = ["/projects", "/about", "/skills", "/resume"];
+
+/* Fetch the resume's phone viewer in the background too, on screens that
+   will use it */
+export function prefetchExtras() {
+  const phone = typeof window !== "undefined" && window.matchMedia && window.matchMedia("(max-width: 900px)").matches;
+  return phone ? loadResumePdf().catch(() => {}) : Promise.resolve();
+}
+
+/* The skills map fetches its data on mount; starting that download with the
+   page's chunk saves a round trip (GitHub Pages lets the browser cache it,
+   so the page's own request is answered from there). */
+const PU = process.env.PUBLIC_URL || "";
+let skillsDataWarm = null;
+function warmPageData(key) {
+  if (key === "/skills" && !skillsDataWarm && typeof fetch === "function") {
+    skillsDataWarm = fetch(`${PU}/skillsData.json`).catch(() => {});
+  }
+}
 
 const pending = {};
 
@@ -51,10 +80,12 @@ export function pageFor(pathname) {
 }
 
 /* Start (or join) the fetch of a page's chunk. Resolves to the module; null
-   for paths that are not a split page (the landing, unknown routes). */
-export function preloadPage(pathname) {
+   for paths that are not a split page (the landing, unknown routes).
+   background: true is the background prefetch (no data warm-up). */
+export function preloadPage(pathname, { background = false } = {}) {
   const key = pageFor(pathname);
   if (!key) return null;
+  if (!background) warmPageData(key);
   if (!pending[key]) {
     pending[key] = LOADERS[key]().then(
       (mod) => {
@@ -98,6 +129,72 @@ function makeLazy(key) {
   );
 }
 
+/* A lazily loaded chunk inside a page (the resume's phone viewer), with the
+   same once-only reload when a deploy removed it, and the same recovery as
+   the pages: a failed load gets a fresh lazy on resetFailedPages(), which the
+   page's boundaries call, so it is fetched again on the next try. */
+const chunkHolders = [];
+export function lazyChunk(load) {
+  const holder = { failed: false, current: null };
+  const make = () =>
+    lazy(() =>
+      load().catch((err) => {
+        if (isChunkError(err) && reloadOnce()) return new Promise(() => {});
+        holder.failed = true;
+        throw err;
+      })
+    );
+  holder.current = make();
+  holder.make = make;
+  chunkHolders.push(holder);
+  /* A fresh mount (the page opened again, a rotation back to phone width, a
+     Try again) retries a failed load; React's own re-renders keep the same
+     component, so a failure can never turn into a fetch loop */
+  function Chunk(props) {
+    const [Current] = useState(() => {
+      if (holder.failed) {
+        holder.current = holder.make();
+        holder.failed = false;
+      }
+      return holder.current;
+    });
+    return <Current {...props} />;
+  }
+  return Chunk;
+}
+
+/* Pages that need a moment after mounting before they look finished (the
+   skills map builds its graph from data it fetches) say so, and the splash
+   waits for that - briefly - so it never fades onto an empty graph. */
+const NEEDS_READY = new Set(["/skills"]);
+const readyPages = new Set();
+export function markPageReady(path) {
+  const key = pageFor(path);
+  if (!key || readyPages.has(key)) return;
+  readyPages.add(key);
+  try {
+    window.dispatchEvent(new CustomEvent("page-ready", { detail: key }));
+  } catch (e) {
+    // very old browsers: the splash's own cap moves on
+  }
+}
+export function whenPageReady(pathname, maxMs) {
+  const key = pageFor(pathname);
+  if (!key || !NEEDS_READY.has(key) || readyPages.has(key)) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      window.removeEventListener("page-ready", onReady);
+      clearTimeout(timer);
+      resolve();
+    };
+    const onReady = (e) => {
+      if (e.detail === key) done();
+    };
+    const timer = setTimeout(done, maxMs);
+    window.addEventListener("page-ready", onReady);
+  });
+}
+
 /* Give every page that failed to load a fresh lazy component, so its next
    render fetches again instead of replaying the old failure. */
 export function resetFailedPages() {
@@ -105,6 +202,12 @@ export function resetFailedPages() {
     const h = holders[key];
     if (h.failed) {
       h.current = makeLazy(key);
+      h.failed = false;
+    }
+  }
+  for (const h of chunkHolders) {
+    if (h.failed) {
+      h.current = h.make();
       h.failed = false;
     }
   }

@@ -1,12 +1,35 @@
 // src/pages/Resume.js
-import React, { useMemo, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useMemo, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import './Resume.css';
-import { Document, Page, pdfjs } from 'react-pdf';
+import { lazyChunk, loadResumePdf, resetFailedPages } from '../pageLoaders';
 
-// Match worker to the exact pdf.js version react-pdf uses (prevents API/worker mismatches)
-pdfjs.GlobalWorkerOptions.workerSrc =
-  `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+/* react-pdf (pdf.js) draws the phone viewer only; it is a chunk of its own
+   (ResumePdfPages.js), loaded once the page is in phone mode */
+const PdfPages = lazyChunk(loadResumePdf);
+
+/* If the viewer's code cannot load (offline), say so inside the viewer and
+   offer a retry, so the document toggle and the Open / Download buttons
+   stay usable instead of the whole page turning into an error */
+class ViewerBoundary extends React.Component {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  retry = () => {
+    resetFailedPages();
+    this.setState({ failed: false });
+  };
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <div className="page-load-error" role="alert">
+        <p>The viewer could not load. Open and Download above still work.</p>
+        <button type="button" onClick={this.retry}>Try again</button>
+      </div>
+    );
+  }
+}
 
 export default function Resume() {
   const params = new URLSearchParams(window.location.search);
@@ -139,27 +162,11 @@ export default function Resume() {
           {docActions(false)}
 
           <div id="pdf-viewer" className="pdf-scroll" ref={wrapRef}>
-            <Document
-              key={active.url} // reload when switching docs
-              file={active.url}
-              onLoadSuccess={({ numPages }) => setNumPages(numPages)}
-              onLoadError={(e) => console.error('PDF load error:', e)}
-              loading={<div className="pdf-loading">Loading…</div>}
-              error={<div className="pdf-loading">Failed to load PDF.</div>}
-              noData={<div className="pdf-loading">No PDF file specified.</div>}
-            >
-              {numPages > 0 &&
-                Array.from({ length: numPages }, (_, i) => (
-                  <Page
-                    key={`p_${i+1}`}
-                    pageNumber={i + 1}
-                    width={pageWidth}
-                    renderTextLayer={false}
-                    renderAnnotationLayer={false}
-                  />
-                ))
-              }
-            </Document>
+            <ViewerBoundary>
+              <Suspense fallback={<div className="pdf-loading">Loading…</div>}>
+                <PdfPages url={active.url} numPages={numPages} onPages={setNumPages} pageWidth={pageWidth} />
+              </Suspense>
+            </ViewerBoundary>
           </div>
         </div>
       ) : (

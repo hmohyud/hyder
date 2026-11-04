@@ -19,7 +19,7 @@ import "./pages/About.css";
 import "./pages/Resume.css";
 import FloatingHead from "./components/FloatingHead";
 import CopyEmail from "./components/CopyEmail";
-import { lazyPage, preloadPage, resetFailedPages, PREFETCH_ORDER } from "./pageLoaders";
+import { lazyPage, preloadPage, prefetchExtras, resetFailedPages, whenPageReady, PREFETCH_ORDER } from "./pageLoaders";
 
 /* Every page but the landing loads its own code (src/pageLoaders.js) */
 const SkillsMap = lazyPage("/skills");
@@ -68,11 +68,58 @@ const pages = {
   },
 };
 
-function NavBar() {
-  const location = useLocation();
-  // A subpage (e.g. /projects/spim) keeps its section's nav link active
+/* The path in the address bar, updated the moment a navigation starts.
+   React Router renders a route change as a transition, so while the next
+   page's code is still loading, the rendered location stays on the old page;
+   comparing the two tells the UI a navigation is under way. Watching
+   history covers every way of navigating: links, the chat's actions,
+   back/forward. */
+function useLivePath() {
+  const [path, setPath] = useState(() => window.location.pathname);
+  useEffect(() => {
+    const update = () => setPath(window.location.pathname);
+    const h = window.history;
+    const push = h.pushState;
+    const replace = h.replaceState;
+    h.pushState = function (...args) {
+      const r = push.apply(this, args);
+      update();
+      return r;
+    };
+    h.replaceState = function (...args) {
+      const r = replace.apply(this, args);
+      update();
+      return r;
+    };
+    window.addEventListener("popstate", update);
+    return () => {
+      h.pushState = push;
+      h.replaceState = replace;
+      window.removeEventListener("popstate", update);
+    };
+  }, []);
+  return path;
+}
+const samePath = (a, b) =>
+  ((a || "/").toLowerCase().replace(/\/+$/, "") || "/") === ((b || "/").toLowerCase().replace(/\/+$/, "") || "/");
+
+/* A thin bar across the top while a navigation waits for its page's code
+   (a slow link, before the background prefetch got to it). It fades in
+   after a moment, so a quick load never shows it. */
+function RoutePending() {
+  return (
+    <div className="route-pending" role="progressbar" aria-label="Loading the page">
+      <span />
+    </div>
+  );
+}
+
+function NavBar({ path: current }) {
+  // A subpage (e.g. /projects/spim) keeps its section's nav link active;
+  // `current` is the address bar's path, so a click highlights its link at
+  // once even while the page is still loading
   const isActive = (path) =>
-    location.pathname === path || location.pathname.startsWith(path + "/");
+    current === path || current.startsWith(path + "/");
   return (
     <nav className="nav-bar" role="navigation" aria-label="Main Navigation">
       {Object.entries(pages).map(([key, { path, label, accentA, accentB }]) => (
@@ -175,11 +222,24 @@ class PageBoundary extends Component {
   }
 }
 
+/* A thin bar where the page will be, shown after a short delay so a quick
+   load never flashes it: only for a first render that has to wait for its
+   page's code (see the Suspense around the routes). Clicks inside the site
+   keep the current page up and show RoutePending instead. */
+function PageLoading() {
+  return (
+    <div className="page-loading" role="status" aria-label="Loading the page">
+      <span />
+    </div>
+  );
+}
+
 /* Once the site is up and the browser has a quiet moment, fetch the other
    pages' code one at a time, so a later click is instant and a deploy can no
-   longer leave this tab without them. It waits a few seconds first so the
-   landing's own downloads (the head's point cloud and shell) go first, and it
-   stays off when the visitor has asked to save data or is on a 2G link. */
+   longer leave this tab without them. It starts two seconds after the reveal,
+   once the landing's own downloads (the head's point cloud and shell) are
+   under way, and stays off when the visitor has asked to save data or is on
+   a 2G link. */
 function usePrefetchPages(isReady) {
   useEffect(() => {
     if (!isReady) return;
@@ -194,14 +254,18 @@ function usePrefetchPages(isReady) {
       else timer = setTimeout(fn, 300);
     };
     const next = () => {
-      if (cancelled || !queue.length) return;
-      Promise.resolve(preloadPage(queue.shift()))
+      if (cancelled) return;
+      if (!queue.length) {
+        prefetchExtras();
+        return;
+      }
+      Promise.resolve(preloadPage(queue.shift(), { background: true }))
         .catch(() => {}) // a background miss is simply retried on the visit itself
         .then(() => {
           if (!cancelled) whenIdle(next);
         });
     };
-    timer = setTimeout(() => whenIdle(next), 3000);
+    timer = setTimeout(() => whenIdle(next), 2000);
     return () => {
       cancelled = true;
       clearTimeout(timer);
@@ -300,12 +364,15 @@ function AppContent() {
       }
     };
     if (opening) {
-      opening.catch(() => {}).then(() => {
-        if (cancelled) return;
-        settled = true;
-        armCap();
-        whenFormed();
-      });
+      opening
+        .catch(() => {})
+        .then(() => whenPageReady(window.location.pathname, 1500))
+        .then(() => {
+          if (cancelled) return;
+          settled = true;
+          armCap();
+          whenFormed();
+        });
     } else whenFormed();
     armCap();
     document.addEventListener("visibilitychange", armCap);
@@ -323,37 +390,46 @@ function AppContent() {
 
   usePrefetchPages(isReady);
 
+  const livePath = useLivePath();
+  const pending = !samePath(livePath, location.pathname);
+
   const isLanding = location.pathname === "/" || location.pathname === "/cut";
 
   /* Keep the tab title in sync on client-side navigation (mirrors the
-     per-route titles the build-route-shells script bakes into the shells). */
+     per-route titles the build-route-shells script bakes into the shells).
+     It follows the address bar, so it changes the moment a link is used. */
   useEffect(() => {
-    const seg = location.pathname.match(/^\/[^/]*/)?.[0] || "/";
+    const seg = livePath.toLowerCase().match(/^\/[^/]*/)?.[0] || "/";
     const page = Object.values(pages).find((p) => p.path === seg);
     document.title = page
       ? `${page.label} | Hyder Mohyuddin`
       : "Hyder Mohyuddin | Portfolio";
-  }, [location.pathname]);
+  }, [livePath]);
 
   return (
     <>
       <div id="bg-animation" className={isReady ? "visible" : ""} />
+      {pending && <RoutePending />}
       <div className={`App ${isReady ? "visible" : ""}`}>
         {!isLanding && (
           <header className="App-header">
             <Link to="/" className="site-title site-title-link" aria-label="Go to landing">
               Hyder Mohyuddin
             </Link>
-            <NavBar />
+            <NavBar path={livePath} />
           </header>
         )}
         <main className={`App-main${isLanding ? " App-main--landing" : ""}`}>
           <ScrollToTop />
-          {/* null fallback: a first visit's page is loaded before the splash
-              leaves, and a click inside the site is a transition, which keeps
-              the current page up until the next one is ready */}
+          {/* One Suspense boundary for every route. Once it shows content, a
+              click inside the site is a transition that keeps the current page
+              up (with RoutePending's bar) until the next one is ready. A
+              boundary per route would be new on every landing-to-page click,
+              and React shows a new boundary's fallback at once and then holds
+              the page back at least 300 ms. PageLoading only appears if the
+              very first render waits for a page (index.js gives up after 8 s). */}
           <PageBoundary page={location.pathname}>
-            <Suspense fallback={null}>
+            <Suspense fallback={<PageLoading />}>
               <Routes>
                 <Route path="/" element={<LandingFocus />} />
                 {CutEditor && <Route path="/cut" element={<CutEditor />} />}
