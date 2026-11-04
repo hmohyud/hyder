@@ -1,6 +1,10 @@
 {
  "note": "files from recent builds, kept for pages still running them; see keep-recent-assets.mjs",
  "files": {
-  "static/js/main.ecbcf29c.js": "2026-11-04T13:44:10.639Z"
+  "static/js/main.ecbcf29c.js": "2026-11-04T13:44:10.639Z",
+  "static/css/main.69ff938a.css": "2026-11-04T15:37:43.481Z",
+  "static/js/main.84e40c51.js": "2026-11-04T15:37:43.481Z",
+  "static/js/page-skills.57054162.chunk.js": "2026-11-04T15:37:43.481Z",
+  "static/js/page-resume.9208dc27.chunk.js": "2026-11-04T15:37:43.481Z"
  }
 }
