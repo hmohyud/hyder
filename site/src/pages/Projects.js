@@ -468,7 +468,11 @@ export default function Projects() {
        art-gallery restore below. An explicit deep link outranks a stale saved
        position, so drop it rather than letting the two fight - the gallery
        round-trip itself carries no hash and is untouched. */
-    sessionStorage.removeItem("projects-scroll");
+    try {
+      sessionStorage.removeItem("projects-scroll");
+    } catch (err) {
+      // storage blocked (site data off, some private modes): nothing was saved
+    }
 
     let target = null;
     const timers = [0, 140, 420, 900].map((t) =>
@@ -497,11 +501,14 @@ export default function Projects() {
 
   // Restore scroll position when returning from art gallery
   useEffect(() => {
-    const saved = sessionStorage.getItem("projects-scroll");
-    if (saved) {
-      sessionStorage.removeItem("projects-scroll");
-      requestAnimationFrame(() => window.scrollTo(0, parseInt(saved, 10)));
+    let saved = null;
+    try {
+      saved = sessionStorage.getItem("projects-scroll");
+      if (saved) sessionStorage.removeItem("projects-scroll");
+    } catch (err) {
+      return; // storage blocked: the page simply opens at the top
     }
+    if (saved) requestAnimationFrame(() => window.scrollTo(0, parseInt(saved, 10)));
   }, []);
 
   // Lock background scroll when any overlay is open
@@ -802,7 +809,11 @@ export default function Projects() {
                         })}
                         {...(/\/art\/?$/.test(l.href) && {
                           onClick: () => {
-                            sessionStorage.setItem("projects-scroll", window.scrollY);
+                            try {
+                              sessionStorage.setItem("projects-scroll", window.scrollY);
+                            } catch (err) {
+                              // storage blocked: the way back opens at the top
+                            }
                           },
                         })}
                         style={pillStyle}

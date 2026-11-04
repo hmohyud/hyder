@@ -398,11 +398,13 @@ export default function About() {
   const [regenerating, setRegenerating] = useState(false);
 
   // "physics on desktop" note (static mobile layout) — dismissable per session
-  const [noteDismissed, setNoteDismissed] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      window.sessionStorage?.getItem("aboutPhysicsNoteDismissed") === "1"
-  );
+  const [noteDismissed, setNoteDismissed] = useState(() => {
+    try {
+      return window.sessionStorage.getItem("aboutPhysicsNoteDismissed") === "1";
+    } catch (err) {
+      return false; // storage blocked: the note shows, and dismisses for this visit
+    }
+  });
   const dismissNote = () => {
     try {
       window.sessionStorage.setItem("aboutPhysicsNoteDismissed", "1");
