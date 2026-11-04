@@ -136,6 +136,16 @@ export default function SkillsMap() {
     return () => mq.removeEventListener?.('change', update);
   }, []);
 
+  // A finger is the main pointer (a tablet): the hints say tap, not click
+  const [isTouch, setIsTouch] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(pointer: coarse)');
+    const update = () => setIsTouch(mq.matches);
+    update();
+    mq.addEventListener?.('change', update);
+    return () => mq.removeEventListener?.('change', update);
+  }, []);
+
   function stringToColor(str) {
     let hash = 0;
     for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
@@ -214,9 +224,6 @@ export default function SkillsMap() {
   // --- Main Matter.js + Canvas setup ---
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    let dragStartScreenPos = null;
-    let isActuallyDragging = false;
-
     const { width: w, height: h } = viewport;
     if (!data.skillNodes.length || !w || !h) return;
 
@@ -415,34 +422,61 @@ export default function SkillsMap() {
       .style('user-select', 'none');
 
     // --- Pointer-based drag with Matter.js Constraint ---
+    /* One drag per pointer, so a tablet's fingers each hold their own node
+       and lifting any of them always removes its own constraint. (With a
+       single slot, a second finger overwrote the first finger's drag and
+       that constraint stayed in the world, pinning its node for good.) */
+    const drags = new Map(); // pointerId -> { constraint, nodeData, sx, sy, moved, slop, coarse }
+    dragRef.current = drags;
+    /* How far a press may wander and still count as a tap. A fingertip
+       rolls several px during an ordinary tap; 4 px read most taps as
+       drags, so they never selected anything. */
+    const MOUSE_SLOP = 4;
+    const TOUCH_SLOP = 10;
+
     const getPos = (e) => {
       const rect = svgEl.getBoundingClientRect();
       return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
 
-    const handlePointerDown = (e) => {
-      if (e.button !== 0) return; // left click only
-      dragStartScreenPos = [e.clientX, e.clientY];
-      isActuallyDragging = false;
-
-      const pos = getPos(e);
-      // Use distance-based search with generous hit radius (min 18px)
-      // Query.point is too strict for small nodes, especially at walls
-      let hitBody = null;
-      let bestDist = Infinity;
+    /* The node under a press. Query.point is too strict for small nodes,
+       especially at walls, so each node gets a reach: at least 18 px for a
+       mouse, and for a finger its rim plus 12 px, never under 24 px (a
+       48 px target, the touch minimum). Where reaches overlap, the node
+       whose rim is nearest wins, so a press inside a big node is never
+       stolen by a small neighbour whose centre happens to be closer. */
+    const hitTest = (x, y, coarse) => {
+      let hit = null;
+      let best = Infinity;
       bodyMap.forEach(body => {
-        const dx = pos.x - body.position.x;
-        const dy = pos.y - body.position.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        const hitRadius = Math.max(body.circleRadius || 8, 18);
-        if (dist < hitRadius && dist < bestDist) {
-          bestDist = dist;
-          hitBody = body;
-        }
+        const r = body.circleRadius || 8;
+        const dist = Math.hypot(x - body.position.x, y - body.position.y);
+        const reach = coarse ? Math.max(r + 12, 24) : Math.max(r, 18);
+        if (dist > reach) return;
+        const toRim = dist - r;
+        if (toRim < best) { best = toRim; hit = body; }
       });
+      return hit && hit._nodeData ? hit : null;
+    };
+
+    /* A finger hides the node it presses, so a held node lights up the way
+       a hovered one does for a mouse, and goes back when the last finger
+       holding it lifts. */
+    const pressLight = (nodeData, on) => {
+      const circle = nodeData.gElement && nodeData.gElement.select('circle');
+      if (!circle) return;
+      if (on) circle.interrupt().attr('fill', '#88f');
+      else circle.transition().duration(200).attr('fill', d => d.id === expandedIdRef.current ? '#f0f0f0' : '#666');
+    };
+
+    const handlePointerDown = (e) => {
+      if (e.button !== 0) return; // left click / a finger / a pen tip
+      if (drags.has(e.pointerId)) return;
+      const coarse = e.pointerType === 'touch' || e.pointerType === 'pen';
+      const pos = getPos(e);
+      const hitBody = hitTest(pos.x, pos.y, coarse);
       if (!hitBody) return;
       const nodeData = hitBody._nodeData;
-      if (!nodeData) return;
 
       const constraint = Constraint.create({
         pointA: { x: pos.x, y: pos.y },
@@ -457,83 +491,122 @@ export default function SkillsMap() {
       });
       Composite.add(engine.world, constraint);
 
-      dragRef.current = { constraint, body: hitBody, nodeData };
+      drags.set(e.pointerId, {
+        constraint, nodeData, coarse,
+        sx: e.clientX, sy: e.clientY, moved: false,
+        slop: coarse ? TOUCH_SLOP : MOUSE_SLOP,
+      });
+      if (coarse) pressLight(nodeData, true);
       try { svgEl.setPointerCapture(e.pointerId); } catch (_) {}
       e.preventDefault(); // prevent text selection while dragging
     };
 
     const handlePointerMove = (e) => {
-      if (!dragRef.current) return;
+      const drag = drags.get(e.pointerId);
+      if (!drag) return;
 
-      // Track drag distance for click/drag threshold
-      if (dragStartScreenPos) {
-        const [sx, sy] = dragStartScreenPos;
-        const ddx = e.clientX - sx;
-        const ddy = e.clientY - sy;
-        if (Math.sqrt(ddx * ddx + ddy * ddy) > 4) isActuallyDragging = true;
+      // Track drag distance for the tap/drag threshold
+      if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > drag.slop) {
+        drag.moved = true;
       }
 
       const pos = getPos(e);
       const pad = 40;
-      dragRef.current.constraint.pointA = {
+      drag.constraint.pointA = {
         x: Math.max(pad, Math.min(w - pad, pos.x)),
         y: Math.max(pad, Math.min(h - pad, pos.y)),
       };
     };
 
-    const handlePointerUp = (e) => {
-      if (!dragRef.current) return;
-      const { constraint, nodeData } = dragRef.current;
-      Composite.remove(engine.world, constraint);
-      dragRef.current = null;
+    /* pointerup ends a press; pointercancel (the browser took the gesture,
+       a system swipe, a palm) and a lost capture only let go of the node:
+       neither is a tap, so neither selects. */
+    const endDrag = (e, isTap) => {
+      const drag = drags.get(e.pointerId);
+      if (!drag) return;
+      Composite.remove(engine.world, drag.constraint);
+      drags.delete(e.pointerId);
       // Body retains velocity — momentum transfer happens naturally
+      if (drag.coarse && ![...drags.values()].some(o => o.nodeData === drag.nodeData)) {
+        pressLight(drag.nodeData, false);
+      }
+      try { svgEl.releasePointerCapture(e.pointerId); } catch (_) {}
+      if (isTap && !drag.moved) toggleNode(drag.nodeData);
+    };
+    const handlePointerUp = (e) => endDrag(e, true);
+    const handlePointerCancel = (e) => endDrag(e, false);
+    // only the svg's own capture: a node's implicit touch capture handing over to the svg is not a loss
+    const handleLostCapture = (e) => { if (e.target === svgEl) endDrag(e, false); };
 
-      // If we didn't actually drag (click), trigger node selection
-      if (!isActuallyDragging && nodeData) {
-        const set = expandedNodesRef.current;
-        if (set.has(nodeData.id)) {
-          set.delete(nodeData.id);
-        } else {
-          set.add(nodeData.id);
-          // Auto-open the "learnedFrom" section for newly selected nodes
-          setOpenLearnedFromIds(prev => {
-            const next = new Set(prev);
-            next.add(nodeData.id);
-            return next;
-          });
+    /* A finger that lands on a node is a drag or a tap on that node, never
+       a page scroll, a pull-to-refresh, a double-tap zoom or a long-press
+       menu. Cancelling its touchstart is the one signal every touch browser
+       honours (iOS ignores preventDefault on pointerdown), and touch-action
+       cannot do it here: the nodes move, so no CSS box marks where they
+       are. A finger that lands on empty graph still scrolls the page. */
+    const handleTouchStart = (e) => {
+      const rect = svgEl.getBoundingClientRect();
+      for (const t of e.changedTouches) {
+        if (hitTest(t.clientX - rect.left, t.clientY - rect.top, true)) {
+          if (e.cancelable) e.preventDefault();
+          return;
         }
-        forceRerender(x => x + 1);
+      }
+    };
+    const holdingWithFinger = () => [...drags.values()].some(d => d.coarse);
+    const handleTouchMove = (e) => {
+      if (e.cancelable && holdingWithFinger()) e.preventDefault();
+    };
+    const handleContextMenu = (e) => {
+      if (holdingWithFinger()) e.preventDefault();
+    };
 
-        mapCircles(svgRef.current).attr('stroke', c => (c && set.has(c.id) ? c.ringColor : '#000'));
-        mapLabels(svgRef.current).style('display', 'block');
-
-        if (tooltipInfoRef.current) {
-          if (set.has(nodeData.id)) {
-            tooltipInfoRef.current.innerHTML =
-              `<strong style='font-size: 14px;'>${nodeData.id}</strong><br/>${(nodeData.description || 'No details available.')}`;
-            tooltipInfoRef.current.style.display = 'block';
-          } else {
-            tooltipInfoRef.current.style.display = 'none';
-          }
-        }
-        Object.entries(nodeListRefs.current).forEach(([id, el]) => {
-          const n = data.skillNodes.find(n => n.id === id);
-          if (!n || !el) return;
-          el.style.setProperty('--ring', n.ringColor);
-          el.style.setProperty('--ring-tint', `${n.ringColor}33`);
-          el.dataset.selected = set.has(id) ? 'true' : 'false';
-          el.style.removeProperty('background');
-          el.style.removeProperty('border-left');
+    function toggleNode(nodeData) {
+      const set = expandedNodesRef.current;
+      if (set.has(nodeData.id)) {
+        set.delete(nodeData.id);
+      } else {
+        set.add(nodeData.id);
+        // Auto-open the "learnedFrom" section for newly selected nodes
+        setOpenLearnedFromIds(prev => {
+          const next = new Set(prev);
+          next.add(nodeData.id);
+          return next;
         });
       }
+      forceRerender(x => x + 1);
 
-      try { svgEl.releasePointerCapture(e.pointerId); } catch (_) {}
-    };
+      mapCircles(svgRef.current).attr('stroke', c => (c && set.has(c.id) ? c.ringColor : '#000'));
+      mapLabels(svgRef.current).style('display', 'block');
+
+      if (tooltipInfoRef.current) {
+        if (set.has(nodeData.id)) {
+          tooltipInfoRef.current.innerHTML =
+            `<strong style='font-size: 14px;'>${nodeData.id}</strong><br/>${(nodeData.description || 'No details available.')}`;
+          tooltipInfoRef.current.style.display = 'block';
+        } else {
+          tooltipInfoRef.current.style.display = 'none';
+        }
+      }
+      Object.entries(nodeListRefs.current).forEach(([id, el]) => {
+        const n = data.skillNodes.find(n => n.id === id);
+        if (!n || !el) return;
+        el.style.setProperty('--ring', n.ringColor);
+        el.style.setProperty('--ring-tint', `${n.ringColor}33`);
+        el.dataset.selected = set.has(id) ? 'true' : 'false';
+        el.style.removeProperty('background');
+        el.style.removeProperty('border-left');
+      });
+    }
 
     svgEl.addEventListener('pointerdown', handlePointerDown);
     svgEl.addEventListener('pointermove', handlePointerMove);
     svgEl.addEventListener('pointerup', handlePointerUp);
-    svgEl.addEventListener('pointercancel', handlePointerUp);
+    svgEl.addEventListener('pointercancel', handlePointerCancel);
+    svgEl.addEventListener('lostpointercapture', handleLostCapture);
+    svgEl.addEventListener('touchstart', handleTouchStart, { passive: false });
+    svgEl.addEventListener('touchmove', handleTouchMove, { passive: false });
+    svgEl.addEventListener('contextmenu', handleContextMenu);
 
     // --------- rAF render loop (CSS-pixel space only) ---------
     let rafId = null;
@@ -735,7 +808,11 @@ export default function SkillsMap() {
       svgEl.removeEventListener('pointerdown', handlePointerDown);
       svgEl.removeEventListener('pointermove', handlePointerMove);
       svgEl.removeEventListener('pointerup', handlePointerUp);
-      svgEl.removeEventListener('pointercancel', handlePointerUp);
+      svgEl.removeEventListener('pointercancel', handlePointerCancel);
+      svgEl.removeEventListener('lostpointercapture', handleLostCapture);
+      svgEl.removeEventListener('touchstart', handleTouchStart);
+      svgEl.removeEventListener('touchmove', handleTouchMove);
+      svgEl.removeEventListener('contextmenu', handleContextMenu);
       if (engineRef.current) {
         Engine.clear(engineRef.current);
         engineRef.current = null;
@@ -896,7 +973,8 @@ export default function SkillsMap() {
                 boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
                 backdropFilter: 'blur(2px)',
                 textAlign: 'center',
-                maxWidth: 420
+                maxWidth: 420,
+                pointerEvents: 'none'
               }}
             >
               For full functionality (animated grid), please view this page on a computer.
@@ -961,7 +1039,7 @@ export default function SkillsMap() {
                         src={`${process.env.PUBLIC_URL}/click.lottie`}
                       ></dotlottie-player>
                     </div>
-                    <div className="coach-label">Click a node</div>
+                    <div className="coach-label">{isTouch ? 'Tap a node' : 'Click a node'}</div>
                   </div>
 
                   <div className="coach-panel">
@@ -1024,7 +1102,7 @@ export default function SkillsMap() {
                 {isPhone ? (
                   <>Tap a <strong>skill in the list</strong> to add a card.</>
                 ) : (
-                  <>Click a <span className="hint-node-circle" aria-label="graph node example"><span>node</span></span> to add a card.</>
+                  <>{isTouch ? 'Tap' : 'Click'} a <span className="hint-node-circle" aria-label="graph node example"><span>node</span></span> to add a card.</>
                 )}
               </div>
               <button
@@ -1063,6 +1141,7 @@ export default function SkillsMap() {
 
                 <button
                   type="button"
+                  className="node-card-close"
                   aria-label={`Close ${node.id}`}
                   title="Close"
                   style={{

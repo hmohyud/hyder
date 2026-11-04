@@ -650,3 +650,46 @@
 .hint-node-circle {
   animation: nodeCirclePulse 2s ease-in-out infinite;
 }
+
+/* === Touch (a finger is the main pointer: tablets) ===
+   The graph keeps pinch-zoom and page scrolling for fingers that land on
+   empty space; a finger on a node is claimed in SkillsMap.js. manipulation
+   drops the double-tap zoom so two quick taps on the graph never zoom the
+   page, and the callout/selection/tap-flash settings stop a long press from
+   selecting labels or popping a menu. */
+.node-graph svg {
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.node-card-close {
+  position: relative;
+}
+
+@media (pointer: coarse) {
+  /* 44 px targets for the graph's own controls (the compact layout shrank
+     the deselect button to 28 px, too small for a fingertip) */
+  .deselect-button {
+    width: 44px;
+    height: 44px;
+    font-size: 18px;
+  }
+
+  /* 16 px text: iOS zooms the whole page into any form control whose text
+     is smaller when it is tapped, and this page does not block zoom */
+  .link-mode-selector {
+    min-height: 44px;
+    padding: 4px 8px;
+    font-size: 16px;
+  }
+
+  /* the card's close button keeps its look; its hit area grows to 44 px */
+  .node-card-close::after {
+    content: "";
+    position: absolute;
+    inset: -10px;
+  }
+}
