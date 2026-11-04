@@ -1,11 +1,11 @@
 {
   "files": {
     "main.css": "/static/css/main.69ff938a.css",
-    "main.js": "/static/js/main.b4c2349a.js",
+    "main.js": "/static/js/main.ecbcf29c.js",
     "static/js/911.45478813.chunk.js": "/static/js/911.45478813.chunk.js",
     "page-skills.js": "/static/js/page-skills.57054162.chunk.js",
-    "page-projects.js": "/static/js/page-projects.09b8a22f.chunk.js",
-    "page-about.js": "/static/js/page-about.b12fa6ca.chunk.js",
+    "page-projects.js": "/static/js/page-projects.ef064faf.chunk.js",
+    "page-about.js": "/static/js/page-about.6e41c287.chunk.js",
     "page-resume.js": "/static/js/page-resume.9208dc27.chunk.js",
     "static/js/453.adc34edb.chunk.js": "/static/js/453.adc34edb.chunk.js",
     "static/js/783.a7dcad68.chunk.js": "/static/js/783.a7dcad68.chunk.js",
@@ -15,11 +15,11 @@
     "index.html": "/index.html",
     "static/media/jetbrains-mono-latin-ext.woff2": "/static/media/jetbrains-mono-latin-ext.b8c38c3c8fb199cde7e7.woff2",
     "main.69ff938a.css.map": "/static/css/main.69ff938a.css.map",
-    "main.b4c2349a.js.map": "/static/js/main.b4c2349a.js.map",
+    "main.ecbcf29c.js.map": "/static/js/main.ecbcf29c.js.map",
     "911.45478813.chunk.js.map": "/static/js/911.45478813.chunk.js.map",
     "page-skills.57054162.chunk.js.map": "/static/js/page-skills.57054162.chunk.js.map",
-    "page-projects.09b8a22f.chunk.js.map": "/static/js/page-projects.09b8a22f.chunk.js.map",
-    "page-about.b12fa6ca.chunk.js.map": "/static/js/page-about.b12fa6ca.chunk.js.map",
+    "page-projects.ef064faf.chunk.js.map": "/static/js/page-projects.ef064faf.chunk.js.map",
+    "page-about.6e41c287.chunk.js.map": "/static/js/page-about.6e41c287.chunk.js.map",
     "page-resume.9208dc27.chunk.js.map": "/static/js/page-resume.9208dc27.chunk.js.map",
     "453.adc34edb.chunk.js.map": "/static/js/453.adc34edb.chunk.js.map",
     "783.a7dcad68.chunk.js.map": "/static/js/783.a7dcad68.chunk.js.map",
@@ -28,6 +28,6 @@
   },
   "entrypoints": [
     "static/css/main.69ff938a.css",
-    "static/js/main.b4c2349a.js"
+    "static/js/main.ecbcf29c.js"
   ]
 }
